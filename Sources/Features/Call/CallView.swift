@@ -4,6 +4,7 @@ struct CallView: View {
     let call: CallKitManager.ActiveCall
 
     @StateObject private var service = CallService.shared
+    @StateObject private var callKit = CallKitManager.shared
 
     var body: some View {
         ZStack {
@@ -44,7 +45,7 @@ struct CallView: View {
     private var header: some View {
         VStack(spacing: 4) {
             Text(call.peerName).font(KlicFont.title()).foregroundStyle(KlicColor.textPrimary)
-            Text(service.isConnected ? "Connected" : "Calling…")
+            Text(callKit.statusText)
                 .font(KlicFont.body()).foregroundStyle(KlicColor.textMuted)
         }
     }

@@ -20,7 +20,7 @@ final class CallService: NSObject, ObservableObject {
         room.add(delegate: self)
     }
 
-    func join(url: String, token: String, video: Bool) async {
+    func join(url: String, token: String, video: Bool) async throws {
         do {
             try await room.connect(url: url, token: token)
             try await room.localParticipant.setMicrophone(enabled: true)
@@ -31,6 +31,7 @@ final class CallService: NSObject, ObservableObject {
             refreshTracks()
         } catch {
             print("CallService.join failed: \(error)")
+            throw error
         }
     }
 

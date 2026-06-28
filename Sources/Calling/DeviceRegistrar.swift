@@ -9,7 +9,13 @@ enum DeviceRegistrar {
 
     static func sync() {
         guard TokenStore.accessToken != nil, apnsToken != nil || voipToken != nil else { return }
-        Task { _ = try? await APIClient.shared.registerDevice(pushToken: apnsToken, voipToken: voipToken) }
+        Task {
+            do {
+                _ = try await APIClient.shared.registerDevice(pushToken: apnsToken, voipToken: voipToken)
+            } catch {
+                print("DeviceRegistrar.sync failed: \(error)")
+            }
+        }
     }
 }
 

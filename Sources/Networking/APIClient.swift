@@ -35,6 +35,10 @@ actor APIClient {
         try await post("/auth/login", body: ["username": username, "password": password], authed: false)
     }
 
+    func refresh(refreshToken: String) async throws -> AuthResponse {
+        try await post("/auth/refresh", body: ["refreshToken": refreshToken], authed: false)
+    }
+
     // MARK: Friends
 
     func findUser(username: String) async throws -> [User] {

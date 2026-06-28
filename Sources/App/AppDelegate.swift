@@ -5,6 +5,8 @@ import UserNotifications
 /// Handles push registration: APNs (message alerts) and PushKit VoIP (incoming calls →
 /// reported to CallKit immediately so the phone rings even when the app is killed).
 final class AppDelegate: NSObject, UIApplicationDelegate {
+    private var voipRegistry: PKPushRegistry?
+
     func application(
         _ application: UIApplication,
         didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
@@ -16,6 +18,7 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
         let registry = PKPushRegistry(queue: .main)
         registry.delegate = self
         registry.desiredPushTypes = [.voIP]
+        voipRegistry = registry
         return true
     }
 

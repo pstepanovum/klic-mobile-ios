@@ -45,6 +45,26 @@ final class SocketService: ObservableObject {
             // Ring via the system call UI (Dynamic Island / Lock Screen).
             CallKitManager.shared.reportIncoming(invite)
         }
+        socket.on("call:accept") { data, _ in
+            guard let dict = data.first as? [String: Any],
+                  let callId = dict["callId"] as? String else { return }
+            CallKitManager.shared.handlePeerAccepted(callId: callId)
+        }
+        socket.on("call:decline") { data, _ in
+            guard let dict = data.first as? [String: Any],
+                  let callId = dict["callId"] as? String else { return }
+            CallKitManager.shared.handlePeerDeclined(callId: callId)
+        }
+        socket.on("call:cancel") { data, _ in
+            guard let dict = data.first as? [String: Any],
+                  let callId = dict["callId"] as? String else { return }
+            CallKitManager.shared.handleRemoteCallEnded(callId: callId)
+        }
+        socket.on("call:end") { data, _ in
+            guard let dict = data.first as? [String: Any],
+                  let callId = dict["callId"] as? String else { return }
+            CallKitManager.shared.handleRemoteCallEnded(callId: callId)
+        }
         socket.connect()
     }
 

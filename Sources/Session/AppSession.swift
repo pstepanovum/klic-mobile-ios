@@ -9,10 +9,19 @@ final class AppSession: ObservableObject {
     var isAuthenticated: Bool { currentUser != nil }
 
     func bootstrap() {
-        // A stored token means we can stay signed in; profile fetch happens in M1.
-        if TokenStore.accessToken != nil {
-            SocketService.shared.connect()
-            DeviceRegistrar.sync()
+        guard let refreshToken = TokenStore.refreshToken else { return }
+        Task {
+            do {
+                let res = try await APIClient.shared.refresh(refreshToken: refreshToken)
+                TokenStore.save(access: res.accessToken, refresh: res.refreshToken)
+                currentUser = res.user
+                SocketService.shared.connect()
+                DeviceRegistrar.sync()
+            } catch {
+                TokenStore.clear()
+                SocketService.shared.disconnect()
+                currentUser = nil
+            }
         }
     }
 
