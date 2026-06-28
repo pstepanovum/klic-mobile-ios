@@ -7,8 +7,8 @@ enum APIError: Error { case badStatus(Int), decoding, noData }
 actor APIClient {
     static let shared = APIClient()
 
-    /// Simulator/dev default. Android uses 10.0.2.2; iOS simulator can reach the host directly.
-    static let baseURL = URL(string: "http://localhost:3000/api/v1")!
+    /// Live server (TLS via sslip.io). For local dev point this at http://localhost:3000/api/v1.
+    static let baseURL = URL(string: "https://api.89.34.230.2.sslip.io/api/v1")!
 
     private let session = URLSession.shared
 
@@ -21,6 +21,35 @@ actor APIClient {
     func login(username: String, password: String) async throws -> AuthResponse {
         try await post("/auth/login", body: ["username": username, "password": password], authed: false)
     }
+
+    // MARK: Friends
+
+    func findUser(username: String) async throws -> [User] {
+        let q = username.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? username
+        return try await get("/users?username=\(q)")
+    }
+
+    func friends() async throws -> [User] { try await get("/friends") }
+
+    func friendRequests() async throws -> [FriendRequest] { try await get("/friends/requests") }
+
+    func sendFriendRequest(userId: String) async throws -> EmptyResponse {
+        try await post("/friends/requests", body: ["userId": userId])
+    }
+
+    func acceptFriendRequest(id: String) async throws -> EmptyResponse {
+        try await post("/friends/requests/\(id)/accept", body: [:])
+    }
+
+    func declineFriendRequest(id: String) async throws -> EmptyResponse {
+        try await post("/friends/requests/\(id)/decline", body: [:])
+    }
+
+    func openConversation(userId: String) async throws -> Conversation {
+        try await post("/conversations", body: ["userId": userId])
+    }
+
+    // MARK: Conversations / messaging
 
     func conversations() async throws -> [Conversation] { try await get("/conversations") }
 

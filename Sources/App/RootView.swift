@@ -7,7 +7,12 @@ struct RootView: View {
     var body: some View {
         Group {
             if session.isAuthenticated {
-                ConversationsView()
+                TabView {
+                    ConversationsView()
+                        .tabItem { Label("Chats", systemImage: KlicIcon.message.symbol) }
+                    FriendsView()
+                        .tabItem { Label("Friends", systemImage: KlicIcon.user.symbol) }
+                }
             } else {
                 AuthView()
             }

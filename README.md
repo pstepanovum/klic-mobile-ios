@@ -15,8 +15,9 @@ xcodegen generate          # creates Klic.xcodeproj from project.yml (resolves S
 open Klic.xcodeproj
 ```
 
-By default the app points at `http://localhost:3000` (see `Sources/Networking/APIClient.swift` and
-`SocketService.swift`). Run `klick-server` locally first, then build to the simulator.
+By default the app points at the **live server** `https://api.89.34.230.2.sslip.io` (TLS), with
+LiveKit at `wss://lk.89.34.230.2.sslip.io`. To run against a local backend instead, change the
+base URL in `Sources/Networking/APIClient.swift` and `SocketService.swift` to `http://localhost:3000`.
 
 ## Dependencies (SPM, declared in `project.yml`)
 - **LiveKit** `client-sdk-swift` — audio/video rooms

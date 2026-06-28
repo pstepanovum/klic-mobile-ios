@@ -23,7 +23,7 @@ final class SocketService: ObservableObject {
 
     func connect() {
         guard let token = TokenStore.accessToken else { return }
-        let url = URL(string: "http://localhost:3000")!
+        let url = URL(string: "https://api.89.34.230.2.sslip.io")!
         let manager = SocketManager(socketURL: url, config: [
             .log(false),
             .compress,

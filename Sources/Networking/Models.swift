@@ -31,6 +31,14 @@ struct Message: Codable, Identifiable, Hashable {
     let createdAt: String
 }
 
+struct FriendRequest: Codable, Identifiable {
+    let requestId: String
+    let from: From
+    var id: String { requestId }
+
+    struct From: Codable { let id: String; let username: String; let displayName: String }
+}
+
 struct CallSession: Codable {
     let callId: String
     let roomName: String
