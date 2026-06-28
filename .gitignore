@@ -1,7 +1,7 @@
 # Xcode / generated project
 Klic.xcodeproj/
 *.xcworkspace/
-DerivedData/
+DerivedData*/
 .build/
 build/
 *.ipa
