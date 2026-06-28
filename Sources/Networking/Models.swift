@@ -13,7 +13,7 @@ struct AuthResponse: Codable {
     let user: User
 }
 
-struct Conversation: Codable, Identifiable {
+struct Conversation: Codable, Identifiable, Hashable {
     let id: String
     let type: String
     let members: [Member]
@@ -39,10 +39,11 @@ struct FriendRequest: Codable, Identifiable {
     struct From: Codable { let id: String; let username: String; let displayName: String }
 }
 
-struct CallSession: Codable {
+struct CallSession: Codable, Identifiable {
     let callId: String
     let roomName: String
     let livekitUrl: String
     let token: String
     var kind: String?
+    var id: String { callId }
 }
