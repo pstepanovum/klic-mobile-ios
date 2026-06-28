@@ -10,6 +10,7 @@ xcuserdata/
 
 # SwiftPM
 .swiftpm/
+SPM/
 
 # macOS
 .DS_Store
