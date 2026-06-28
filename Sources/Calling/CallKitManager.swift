@@ -237,7 +237,12 @@ extension CallKitManager: CXProviderDelegate {
                     token: session.token, kind: kind, peerName: peerName, isOutgoing: false
                 )
                 APIClient.mobileDiagnostic(event: "callkit.answer.livekit.start", callId: callId)
-                try await CallService.shared.join(url: session.livekitUrl, token: session.token, video: isVideo)
+                try await CallService.shared.join(
+                    callId: callId,
+                    url: session.livekitUrl,
+                    token: session.token,
+                    video: isVideo
+                )
                 APIClient.mobileDiagnostic(event: "callkit.answer.livekit.ok", callId: callId)
                 SocketService.shared.emit("call:accept", ["callId": callId])
                 CallActivityController.start(peerName: peerName, isVideo: isVideo)
@@ -258,16 +263,21 @@ extension CallKitManager: CXProviderDelegate {
     nonisolated func provider(_ provider: CXProvider, perform action: CXStartCallAction) {
         Task { @MainActor in
             guard let call = activeCall else { action.fail(); return }
+            action.fulfill()
             do {
-                try await CallService.shared.join(url: call.livekitUrl, token: call.token, video: call.isVideo)
+                APIClient.mobileDiagnostic(event: "callkit.start.fulfill", callId: call.id)
+                try await CallService.shared.join(
+                    callId: call.id,
+                    url: call.livekitUrl,
+                    token: call.token,
+                    video: call.isVideo
+                )
             } catch {
                 SocketService.shared.emit("call:cancel", ["callId": call.id])
-                action.fail()
                 return
             }
             CallActivityController.start(peerName: call.peerName, isVideo: call.isVideo)
             CallActivityController.update(status: statusText, muted: false, isVideo: call.isVideo)
-            action.fulfill()
         }
     }
 

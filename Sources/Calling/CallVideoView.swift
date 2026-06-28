@@ -16,4 +16,8 @@ struct CallVideoView: UIViewRepresentable {
     func updateUIView(_ uiView: VideoView, context: Context) {
         if uiView.track !== track { uiView.track = track }
     }
+
+    static func dismantleUIView(_ uiView: VideoView, coordinator: ()) {
+        uiView.track = nil
+    }
 }
