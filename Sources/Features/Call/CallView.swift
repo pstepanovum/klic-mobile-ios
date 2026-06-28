@@ -10,8 +10,8 @@ struct CallView: View {
         ZStack {
             KlicColor.background.ignoresSafeArea()
 
-            // Remote video fills the screen for video calls; otherwise an avatar.
-            if call.isVideo, let remote = service.remoteVideoTrack {
+            // Remote video fills the screen whenever a participant publishes video.
+            if shouldShowVideo, let remote = service.remoteVideoTrack {
                 CallVideoView(track: remote).ignoresSafeArea()
             } else {
                 avatar
@@ -25,7 +25,7 @@ struct CallView: View {
             .padding(.vertical, 56)
 
             // Local camera preview (picture-in-picture)
-            if call.isVideo, service.cameraEnabled, let local = service.localVideoTrack {
+            if shouldShowVideo, service.cameraEnabled, let local = service.localVideoTrack {
                 CallVideoView(track: local)
                     .frame(width: 110, height: 160)
                     .clipShape(RoundedRectangle(cornerRadius: 18))
@@ -53,7 +53,14 @@ struct CallView: View {
     private var controls: some View {
         HStack(spacing: 24) {
             CircleControl(icon: service.micEnabled ? .mic : .micOff) {
-                CallKitManager.shared.requestSetMuted(service.micEnabled)
+                Task {
+                    await service.toggleMic()
+                    CallActivityController.update(
+                        status: callKit.statusText,
+                        muted: !service.micEnabled,
+                        isVideo: shouldShowVideo
+                    )
+                }
             }
             CircleControl(
                 icon: .callEnd, fill: KlicColor.danger, iconColor: KlicColor.onPrimary, diameter: 72
@@ -61,8 +68,19 @@ struct CallView: View {
                 CallKitManager.shared.requestEnd()
             }
             CircleControl(icon: service.cameraEnabled ? .camera : .cameraOff) {
-                Task { await service.toggleCamera() }
+                Task {
+                    await service.toggleCamera()
+                    CallActivityController.update(
+                        status: callKit.statusText,
+                        muted: !service.micEnabled,
+                        isVideo: shouldShowVideo
+                    )
+                }
             }
         }
+    }
+
+    private var shouldShowVideo: Bool {
+        service.cameraEnabled || service.localVideoTrack != nil || service.remoteVideoTrack != nil
     }
 }

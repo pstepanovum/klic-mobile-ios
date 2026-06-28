@@ -36,6 +36,7 @@ final class CallKitManager: NSObject, ObservableObject {
         config.supportsVideo = true
         config.maximumCallsPerCallGroup = 1
         config.supportedHandleTypes = [.generic]
+        config.includesCallsInRecents = false
         provider = CXProvider(configuration: config)
         super.init()
         provider.setDelegate(self, queue: nil)

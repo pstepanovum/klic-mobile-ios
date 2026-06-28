@@ -165,7 +165,13 @@ actor APIClient {
         return try await request(path, method: "POST", body: data, authed: authed)
     }
 
-    private func request<T: Decodable>(_ path: String, method: String, body: Data?, authed: Bool) async throws -> T {
+    private func request<T: Decodable>(
+        _ path: String,
+        method: String,
+        body: Data?,
+        authed: Bool,
+        hasRetriedAuth: Bool = false
+    ) async throws -> T {
         // Concatenate so query strings (`?username=…`) are preserved — appendingPathComponent
         // would percent-encode the `?` into the path and 404 the route.
         guard let url = URL(string: Self.baseURL.absoluteString + path) else { throw APIError.noData }
@@ -173,12 +179,25 @@ actor APIClient {
         req.httpMethod = method
         req.httpBody = body
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        if authed, let token = TokenStore.accessToken {
-            req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        if authed {
+            try await restoreAccessTokenIfNeeded()
+            if let token = TokenStore.accessToken {
+                req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+            }
         }
 
         let (respData, resp) = try await session.data(for: req)
         guard let http = resp as? HTTPURLResponse else { throw APIError.noData }
+        if authed, http.statusCode == 401, !hasRetriedAuth {
+            try await refreshAccessToken()
+            return try await request(
+                path,
+                method: method,
+                body: body,
+                authed: authed,
+                hasRetriedAuth: true
+            )
+        }
         guard (200..<300).contains(http.statusCode) else {
             throw APIError.server(message: Self.message(from: respData, status: http.statusCode), status: http.statusCode)
         }
@@ -198,6 +217,17 @@ actor APIClient {
             if let message = body.message { return message }
         }
         return "Request failed (\(status))."
+    }
+
+    private func restoreAccessTokenIfNeeded() async throws {
+        if TokenStore.accessToken != nil { return }
+        try await refreshAccessToken()
+    }
+
+    private func refreshAccessToken() async throws {
+        guard let refreshToken = TokenStore.refreshToken else { return }
+        let res = try await refresh(refreshToken: refreshToken)
+        TokenStore.save(access: res.accessToken, refresh: res.refreshToken)
     }
 }
 

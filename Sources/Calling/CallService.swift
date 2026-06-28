@@ -52,14 +52,40 @@ final class CallService: NSObject, ObservableObject {
     }
 
     func setMic(enabled: Bool) async {
-        micEnabled = enabled
-        try? await room.localParticipant.setMicrophone(enabled: enabled)
+        do {
+            try await room.localParticipant.setMicrophone(enabled: enabled)
+            micEnabled = enabled
+            APIClient.mobileDiagnostic(
+                event: "livekit.mic.toggle.ok",
+                callId: currentCallId,
+                detail: "enabled=\(enabled)"
+            )
+        } catch {
+            APIClient.mobileDiagnostic(
+                event: "livekit.mic.toggle.failed",
+                callId: currentCallId,
+                detail: String(describing: error)
+            )
+        }
     }
 
     func setCamera(enabled: Bool) async {
-        cameraEnabled = enabled
-        try? await room.localParticipant.setCamera(enabled: enabled)
-        refreshTracks()
+        do {
+            try await room.localParticipant.setCamera(enabled: enabled)
+            cameraEnabled = enabled
+            refreshTracks()
+            APIClient.mobileDiagnostic(
+                event: "livekit.camera.toggle.ok",
+                callId: currentCallId,
+                detail: "enabled=\(enabled)"
+            )
+        } catch {
+            APIClient.mobileDiagnostic(
+                event: "livekit.camera.toggle.failed",
+                callId: currentCallId,
+                detail: String(describing: error)
+            )
+        }
     }
 
     func toggleMic() async { await setMic(enabled: !micEnabled) }
@@ -93,7 +119,15 @@ final class CallService: NSObject, ObservableObject {
             mode: .voiceChat,
             options: [.allowBluetooth, .defaultToSpeaker]
         )
-        try session.setActive(true)
+        do {
+            try session.setActive(true)
+        } catch {
+            APIClient.mobileDiagnostic(
+                event: "livekit.audio.activate.deferred",
+                callId: currentCallId,
+                detail: String(describing: error)
+            )
+        }
     }
 
     /// Recompute the tracks we render. Track accessors target LiveKit Swift SDK v2.
