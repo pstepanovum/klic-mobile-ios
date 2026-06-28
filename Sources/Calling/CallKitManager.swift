@@ -31,6 +31,7 @@ final class CallKitManager: NSObject, ObservableObject {
     private var pendingInvites: [String: SocketService.CallInvite] = [:]
     private var ringTimeoutTask: Task<Void, Never>?
     private var finishingCallIds = Set<String>()
+    private var recentlyEndedCallIds = Set<String>()
 
     override init() {
         let config = CXProviderConfiguration()
@@ -47,6 +48,10 @@ final class CallKitManager: NSObject, ObservableObject {
 
     func reportIncoming(_ invite: SocketService.CallInvite) {
         APIClient.mobileDiagnostic(event: "callkit.reportIncoming", callId: invite.id, detail: invite.fromDisplayName)
+        if recentlyEndedCallIds.contains(invite.id) {
+            APIClient.mobileDiagnostic(event: "callkit.reportIncoming.ignoredEnded", callId: invite.id)
+            return
+        }
         let uuid = uuid(for: invite.id)
         if pendingInvites[invite.id] != nil {
             APIClient.mobileDiagnostic(
@@ -146,7 +151,6 @@ final class CallKitManager: NSObject, ObservableObject {
         pendingInvites[callId] = nil
         ringTimeoutTask?.cancel()
         ringTimeoutTask = nil
-        finishingCallIds.remove(callId)
     }
 
     private func callId(for uuid: UUID) -> String? {
@@ -208,8 +212,12 @@ final class CallKitManager: NSObject, ObservableObject {
     private func finishCall(callId: String, status: String, notifyServer: Bool, dismissAfter seconds: UInt64 = 1_500_000_000) {
         guard !finishingCallIds.contains(callId) else { return }
         finishingCallIds.insert(callId)
+        recentlyEndedCallIds.insert(callId)
         ringTimeoutTask?.cancel()
         statusText = status
+        if activeCall?.id == callId {
+            activeCall = nil
+        }
         if notifyServer { Task { try? await APIClient.shared.endCall(callId: callId) } }
         endSystemCall(callId: callId)
         Task {
@@ -217,8 +225,12 @@ final class CallKitManager: NSObject, ObservableObject {
             CallActivityController.end()
             try? await Task.sleep(nanoseconds: seconds)
             await MainActor.run {
-                if self.activeCall?.id == callId { self.activeCall = nil }
                 self.clear(callId)
+                self.finishingCallIds.remove(callId)
+                Task {
+                    try? await Task.sleep(nanoseconds: 120_000_000_000)
+                    await MainActor.run { self.recentlyEndedCallIds.remove(callId) }
+                }
             }
         }
     }
@@ -267,6 +279,7 @@ extension CallKitManager: CXProviderDelegate {
             ringTimeoutTask?.cancel()
             ringTimeoutTask = nil
             if let callId = activeCall?.id {
+                recentlyEndedCallIds.insert(callId)
                 clear(callId)
             }
             activeCall = nil
@@ -352,6 +365,7 @@ extension CallKitManager: CXProviderDelegate {
             let id = activeCall?.id ?? callId(for: action.uuid)
             APIClient.mobileDiagnostic(event: "callkit.end.enter", callId: id, detail: action.uuid.uuidString)
             if let id {
+                recentlyEndedCallIds.insert(id)
                 if activeCall == nil, pendingInvites[id] != nil {
                     SocketService.shared.emit("call:decline", ["callId": id])
                 } else if statusText != "Connected" {
