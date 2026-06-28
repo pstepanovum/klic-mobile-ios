@@ -12,6 +12,9 @@ packages:
   SocketIO:
     url: https://github.com/socketio/socket.io-client-swift.git
     from: "16.1.0"
+  Lottie:
+    url: https://github.com/airbnb/lottie-ios.git
+    from: "4.5.0"
 
 settings:
   base:
@@ -37,6 +40,7 @@ targets:
     dependencies:
       - package: LiveKit
       - package: SocketIO
+      - package: Lottie
       - target: KlicWidgets
 
   KlicWidgets:
