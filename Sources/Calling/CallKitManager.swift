@@ -25,6 +25,7 @@ final class CallKitManager: NSObject, ObservableObject {
 
     private let provider: CXProvider
     private let controller = CXCallController()
+    private let uuidMapDefaultsKey = "klic.callkit.uuidToCallId"
     private var uuidToCallId: [UUID: String] = [:]
     private var callIdToUUID: [String: UUID] = [:]
     private var pendingInvites: [String: SocketService.CallInvite] = [:]
@@ -45,6 +46,14 @@ final class CallKitManager: NSObject, ObservableObject {
     func reportIncoming(_ invite: SocketService.CallInvite) {
         APIClient.mobileDiagnostic(event: "callkit.reportIncoming", callId: invite.id, detail: invite.fromDisplayName)
         let uuid = uuid(for: invite.id)
+        if pendingInvites[invite.id] != nil {
+            APIClient.mobileDiagnostic(
+                event: "callkit.reportIncoming.duplicate",
+                callId: invite.id,
+                detail: uuid.uuidString
+            )
+            return
+        }
         pendingInvites[invite.id] = invite
         let update = CXCallUpdate()
         update.remoteHandle = CXHandle(type: .generic, value: invite.fromDisplayName)
@@ -97,15 +106,44 @@ final class CallKitManager: NSObject, ObservableObject {
         let uuid = UUID()
         callIdToUUID[callId] = uuid
         uuidToCallId[uuid] = callId
+        persist(callId: callId, for: uuid)
         return uuid
     }
 
     private func clear(_ callId: String) {
-        if let uuid = callIdToUUID[callId] { uuidToCallId[uuid] = nil }
+        if let uuid = callIdToUUID[callId] {
+            uuidToCallId[uuid] = nil
+            removePersistedCallId(for: uuid)
+        }
         callIdToUUID[callId] = nil
         pendingInvites[callId] = nil
         ringTimeoutTask?.cancel()
         ringTimeoutTask = nil
+    }
+
+    private func callId(for uuid: UUID) -> String? {
+        if let callId = uuidToCallId[uuid] { return callId }
+        guard let callId = persistedCallId(for: uuid) else { return nil }
+        uuidToCallId[uuid] = callId
+        callIdToUUID[callId] = uuid
+        return callId
+    }
+
+    private func persist(callId: String, for uuid: UUID) {
+        var map = UserDefaults.standard.dictionary(forKey: uuidMapDefaultsKey) as? [String: String] ?? [:]
+        map[uuid.uuidString] = callId
+        UserDefaults.standard.set(map, forKey: uuidMapDefaultsKey)
+    }
+
+    private func persistedCallId(for uuid: UUID) -> String? {
+        let map = UserDefaults.standard.dictionary(forKey: uuidMapDefaultsKey) as? [String: String]
+        return map?[uuid.uuidString]
+    }
+
+    private func removePersistedCallId(for uuid: UUID) {
+        var map = UserDefaults.standard.dictionary(forKey: uuidMapDefaultsKey) as? [String: String] ?? [:]
+        map[uuid.uuidString] = nil
+        UserDefaults.standard.set(map, forKey: uuidMapDefaultsKey)
     }
 
     private func startRingTimeout(callId: String) {
@@ -165,7 +203,7 @@ extension CallKitManager: CXProviderDelegate {
     nonisolated func provider(_ provider: CXProvider, perform action: CXAnswerCallAction) {
         Task { @MainActor in
             APIClient.mobileDiagnostic(event: "callkit.answer.enter", detail: action.uuid.uuidString)
-            guard let callId = uuidToCallId[action.uuid] else {
+            guard let callId = callId(for: action.uuid) else {
                 APIClient.mobileDiagnostic(event: "callkit.answer.missingCallId", detail: action.uuid.uuidString)
                 action.fail()
                 return
@@ -226,7 +264,7 @@ extension CallKitManager: CXProviderDelegate {
 
     nonisolated func provider(_ provider: CXProvider, perform action: CXEndCallAction) {
         Task { @MainActor in
-            let id = activeCall?.id ?? uuidToCallId[action.uuid]
+            let id = activeCall?.id ?? callId(for: action.uuid)
             APIClient.mobileDiagnostic(event: "callkit.end.enter", callId: id, detail: action.uuid.uuidString)
             if let id {
                 if activeCall == nil, pendingInvites[id] != nil {
