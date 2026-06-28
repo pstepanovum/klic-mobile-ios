@@ -57,6 +57,15 @@ extension AppDelegate: PKPushRegistryDelegate {
     ) {
         guard type == .voIP else { completion(); return }
         let d = payload.dictionaryPayload
+        if d["type"] as? String == "call.end" {
+            let callId = d["callId"] as? String ?? ""
+            APIClient.mobileDiagnostic(event: "pushkit.callEnd.received", callId: callId)
+            MainActor.assumeIsolated {
+                CallKitManager.shared.handleRemoteCallEnded(callId: callId)
+            }
+            completion()
+            return
+        }
         let invite = SocketService.CallInvite(
             id: d["callId"] as? String ?? "",
             conversationId: d["conversationId"] as? String ?? "",

@@ -183,6 +183,12 @@ final class CallKitManager: NSObject, ObservableObject {
         UserDefaults.standard.set(map, forKey: uuidMapDefaultsKey)
     }
 
+    private func endSystemCall(callId: String, reason: CXCallEndedReason = .remoteEnded) {
+        guard let uuid = callIdToUUID[callId] else { return }
+        APIClient.mobileDiagnostic(event: "callkit.reportEnded", callId: callId, detail: uuid.uuidString)
+        provider.reportCall(with: uuid, endedAt: Date(), reason: reason)
+    }
+
     private func startRingTimeout(callId: String) {
         ringTimeoutTask?.cancel()
         ringTimeoutTask = Task { [weak self] in
@@ -191,6 +197,7 @@ final class CallKitManager: NSObject, ObservableObject {
                 guard let self, self.activeCall?.id == callId, self.statusText != "Connected" else { return }
                 self.statusText = "No answer"
                 SocketService.shared.emit("call:cancel", ["callId": callId])
+                Task { try? await APIClient.shared.endCall(callId: callId) }
                 if let uuid = self.callIdToUUID[callId] {
                     self.controller.request(CXTransaction(action: CXEndCallAction(call: uuid))) { _ in }
                 }
@@ -204,9 +211,7 @@ final class CallKitManager: NSObject, ObservableObject {
         ringTimeoutTask?.cancel()
         statusText = status
         if notifyServer { Task { try? await APIClient.shared.endCall(callId: callId) } }
-        if let uuid = callIdToUUID[callId] {
-            provider.reportCall(with: uuid, endedAt: Date(), reason: .remoteEnded)
-        }
+        endSystemCall(callId: callId)
         Task {
             await CallService.shared.leave()
             CallActivityController.end()
@@ -231,7 +236,7 @@ final class CallKitManager: NSObject, ObservableObject {
     }
 
     func handleRemoteCallEnded(callId: String) {
-        guard activeCall?.id == callId || pendingInvites[callId] != nil else { return }
+        guard activeCall?.id == callId || pendingInvites[callId] != nil || callIdToUUID[callId] != nil else { return }
         finishCall(callId: callId, status: "Ended", notifyServer: false, dismissAfter: 500_000_000)
     }
 
@@ -349,9 +354,14 @@ extension CallKitManager: CXProviderDelegate {
             if let id {
                 if activeCall == nil, pendingInvites[id] != nil {
                     SocketService.shared.emit("call:decline", ["callId": id])
+                } else if statusText != "Connected" {
+                    SocketService.shared.emit("call:cancel", ["callId": id])
+                    try? await APIClient.shared.endCall(callId: id)
                 } else {
+                    SocketService.shared.emit("call:end", ["callId": id])
                     try? await APIClient.shared.endCall(callId: id)
                 }
+                endSystemCall(callId: id)
                 clear(id)
             }
             await CallService.shared.leave()

@@ -73,6 +73,9 @@ final class CallService: NSObject, ObservableObject {
         do {
             try await room.localParticipant.setCamera(enabled: enabled)
             cameraEnabled = enabled
+            if !enabled {
+                localVideoTrack = nil
+            }
             refreshTracks()
             APIClient.mobileDiagnostic(
                 event: "livekit.camera.toggle.ok",
@@ -148,14 +151,22 @@ extension CallService: RoomDelegate {
     nonisolated func room(_ room: Room, participant: RemoteParticipant, didSubscribeTrack publication: RemoteTrackPublication) {
         Task { @MainActor in
             APIClient.mobileDiagnostic(event: "livekit.remote.subscribe", callId: currentCallId)
-            refreshTracks()
+            if let track = publication.track as? VideoTrack {
+                remoteVideoTrack = track
+            } else {
+                refreshTracks()
+            }
         }
     }
 
     nonisolated func room(_ room: Room, participant: RemoteParticipant, didUnsubscribeTrack publication: RemoteTrackPublication) {
         Task { @MainActor in
             APIClient.mobileDiagnostic(event: "livekit.remote.unsubscribe", callId: currentCallId)
-            refreshTracks()
+            if publication.track is VideoTrack {
+                remoteVideoTrack = nil
+            } else {
+                refreshTracks()
+            }
         }
     }
 
