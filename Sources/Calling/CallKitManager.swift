@@ -15,6 +15,7 @@ final class CallKitManager: NSObject, ObservableObject {
         var token: String
         let kind: String
         let peerName: String
+        var peerId: String?
         let isOutgoing: Bool
         var isVideo: Bool { kind == "VIDEO" }
     }
@@ -80,7 +81,7 @@ final class CallKitManager: NSObject, ObservableObject {
 
     // MARK: Outgoing (user taps call)
 
-    func startOutgoing(_ session: CallSession, peerName: String) {
+    func startOutgoing(_ session: CallSession, peerName: String, peerId: String? = nil) {
         if activeCall != nil {
             APIClient.mobileDiagnostic(
                 event: "callkit.start.ignored.activeCall",
@@ -94,7 +95,8 @@ final class CallKitManager: NSObject, ObservableObject {
         statusText = "Calling..."
         activeCall = ActiveCall(
             id: session.callId, roomName: session.roomName, livekitUrl: session.livekitUrl,
-            token: session.token, kind: session.kind ?? "AUDIO", peerName: peerName, isOutgoing: true
+            token: session.token, kind: session.kind ?? "AUDIO", peerName: peerName,
+            peerId: peerId, isOutgoing: true
         )
         let handle = CXHandle(type: .generic, value: peerName)
         let action = CXStartCallAction(call: uuid, handle: handle)
@@ -313,7 +315,8 @@ extension CallKitManager: CXProviderDelegate {
                 let peerName = invite?.fromDisplayName ?? "Call"
                 activeCall = ActiveCall(
                     id: callId, roomName: session.roomName, livekitUrl: session.livekitUrl,
-                    token: session.token, kind: kind, peerName: peerName, isOutgoing: false
+                    token: session.token, kind: kind, peerName: peerName,
+                    peerId: invite?.fromUserId, isOutgoing: false
                 )
                 APIClient.mobileDiagnostic(event: "callkit.answer.livekit.start", callId: callId)
                 try await CallService.shared.join(

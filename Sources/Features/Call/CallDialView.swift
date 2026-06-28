@@ -2,6 +2,15 @@ import SwiftUI
 
 struct CallDialView: View {
     @State private var friends: [User] = []
+    @State private var searchText = ""
+
+    private var filtered: [User] {
+        guard !searchText.isEmpty else { return friends }
+        let q = searchText.lowercased()
+        return friends.filter {
+            $0.displayName.lowercased().contains(q) || $0.username.lowercased().contains(q)
+        }
+    }
 
     var body: some View {
         NavigationStack {
@@ -13,8 +22,14 @@ struct CallDialView: View {
                             .foregroundStyle(KlicColor.textMuted)
                             .padding(.top, 32)
                             .frame(maxWidth: .infinity, alignment: .center)
+                    } else if filtered.isEmpty {
+                        Text("No contacts match your search.")
+                            .font(KlicFont.body(14))
+                            .foregroundStyle(KlicColor.textMuted)
+                            .padding(.top, 32)
+                            .frame(maxWidth: .infinity, alignment: .center)
                     }
-                    ForEach(friends) { friend in
+                    ForEach(filtered) { friend in
                         FriendCallRow(friend: friend)
                     }
                 }
@@ -23,6 +38,11 @@ struct CallDialView: View {
             }
             .background(KlicColor.background.ignoresSafeArea())
             .navigationTitle("Call")
+            .searchable(
+                text: $searchText,
+                placement: .navigationBarDrawer(displayMode: .always),
+                prompt: "Search contacts"
+            )
             .task { friends = (try? await APIClient.shared.friends()) ?? [] }
         }
         .tint(KlicColor.primary)

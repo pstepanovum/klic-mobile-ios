@@ -81,6 +81,15 @@ struct KlicCheckbox: View {
     }
 }
 
+/// Constrains width to `max` and centers within parent — keeps content readable on large screens.
+extension View {
+    func adaptiveWidth(_ max: CGFloat = 680) -> some View {
+        self
+            .frame(maxWidth: max)
+            .frame(maxWidth: .infinity)
+    }
+}
+
 /// Flat text field on a rounded surface — no border, no outline.
 struct KlicTextField: View {
     let placeholder: String

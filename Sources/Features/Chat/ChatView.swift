@@ -13,12 +13,16 @@ struct ChatView: View {
     @State private var scrollProxy: ScrollViewProxy?
 
     @StateObject private var recorder = AudioRecorder()
+    @FocusState private var isComposerFocused: Bool
     @State private var pickedItem: PhotosPickerItem?
     @State private var showAttachMenu = false
     @State private var showPhotos = false
     @State private var showCamera = false
     @State private var showFileImporter = false
     @State private var uploading = false
+
+    private enum AttachAction { case photos, camera, file }
+    @State private var pendingAttach: AttachAction?
 
     var title: String { conversation.members.first?.displayName ?? "Chat" }
     var myId: String? { session.currentUser?.id }
@@ -28,10 +32,12 @@ struct ChatView: View {
             messageList
             composer
         }
+        .frame(maxWidth: 760)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(KlicColor.background.ignoresSafeArea())
-        .navigationTitle(title)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
+            ToolbarItem(placement: .principal) { chatHeader }
             ToolbarItem(placement: .topBarTrailing) {
                 HStack(spacing: 20) {
                     Button { Task { await startCall(kind: "AUDIO") } } label: {
@@ -44,11 +50,69 @@ struct ChatView: View {
             }
         }
         .task { await load(); scrollToBottom() }
+        .onAppear { isComposerFocused = true }
         .onReceive(socket.$lastMessage.compactMap { $0 }) { msg in
             guard msg.conversationId == conversation.id else { return }
             messages.append(msg)
             markRead()
             scrollToBottom()
+        }
+        .onReceive(socket.$lastRead.compactMap { $0 }) { applyReceipt($0, status: "read") }
+        .onReceive(socket.$lastDelivered.compactMap { $0 }) { applyReceipt($0, status: "delivered") }
+    }
+
+    // Tappable header → the peer's profile, with live presence underneath the name.
+    @ViewBuilder private var chatHeader: some View {
+        if let peer = conversation.members.first {
+            NavigationLink {
+                ProfileView(
+                    userId: peer.id, username: peer.username,
+                    displayName: peer.displayName, avatarUrl: peer.avatarUrl
+                ) { kind in Task { await startCall(kind: kind) } }
+            } label: {
+                HStack(spacing: 8) {
+                    AvatarView(url: peer.avatarUrl, name: peer.displayName, size: 32)
+                    VStack(alignment: .leading, spacing: 0) {
+                        Text(peer.displayName)
+                            .font(KlicFont.headline(16))
+                            .foregroundStyle(KlicColor.textPrimary)
+                        if let sub = headerSubtitle {
+                            Text(sub)
+                                .font(KlicFont.caption(11))
+                                .foregroundStyle(isPeerOnline ? KlicColor.primary : KlicColor.textMuted)
+                        }
+                    }
+                }
+            }
+            .buttonStyle(.plain)
+        } else {
+            Text(title).font(KlicFont.headline(16)).foregroundStyle(KlicColor.textPrimary)
+        }
+    }
+
+    private var isPeerOnline: Bool {
+        guard let id = conversation.members.first?.id else { return false }
+        return socket.presence[id]?.online == true
+    }
+
+    private var headerSubtitle: String? {
+        guard let id = conversation.members.first?.id else { return nil }
+        if socket.presence[id]?.online == true { return "Online" }
+        guard let date = socket.presence[id]?.lastSeen else { return nil }
+        let cal = Calendar.current
+        let f = DateFormatter()
+        if cal.isDateInToday(date) { f.dateFormat = "HH:mm"; return "last seen \(f.string(from: date))" }
+        if cal.isDateInYesterday(date) { return "last seen yesterday" }
+        f.dateFormat = "MMM d"; return "last seen \(f.string(from: date))"
+    }
+
+    // Advance the ticks on the user's own messages when a receipt arrives.
+    private func applyReceipt(_ receipt: SocketService.Receipt, status: String) {
+        guard receipt.conversationId == conversation.id, receipt.userId != myId else { return }
+        for i in messages.indices where messages[i].senderId == myId {
+            guard let created = SocketService.parseDate(messages[i].createdAt), created <= receipt.at else { continue }
+            if status == "read" { messages[i].status = "read" }
+            else if messages[i].status != "read" { messages[i].status = "delivered" }
         }
     }
 
@@ -80,6 +144,7 @@ struct ChatView: View {
                 .padding(.top, 12)
                 .padding(.bottom, 8)
             }
+            .scrollDismissesKeyboard(.immediately)
             .onAppear { scrollProxy = proxy }
         }
     }
@@ -96,12 +161,27 @@ struct ChatView: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
-        .background(KlicColor.surface)
-        .confirmationDialog("Attach", isPresented: $showAttachMenu, titleVisibility: .visible) {
-            Button("Photo or Video") { showPhotos = true }
-            Button("Camera") { showCamera = true }
-            Button("File") { showFileImporter = true }
-            Button("Cancel", role: .cancel) {}
+        .sheet(isPresented: $showAttachMenu) {
+            AttachSheet(
+                onPhotos: { pendingAttach = .photos; showAttachMenu = false },
+                onCamera: { pendingAttach = .camera; showAttachMenu = false },
+                onFile:   { pendingAttach = .file;   showAttachMenu = false }
+            )
+            .presentationDetents([.height(210)])
+            .presentationDragIndicator(.visible)
+            .presentationBackground(KlicColor.surface)
+        }
+        .onChange(of: showAttachMenu) { _, showing in
+            if !showing, let action = pendingAttach {
+                pendingAttach = nil
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                    switch action {
+                    case .photos: showPhotos = true
+                    case .camera: showCamera = true
+                    case .file:   showFileImporter = true
+                    }
+                }
+            }
         }
         .photosPicker(isPresented: $showPhotos, selection: $pickedItem, matching: .any(of: [.images, .videos]))
         .onChange(of: pickedItem) { _, item in
@@ -120,9 +200,10 @@ struct ChatView: View {
         HStack(alignment: .bottom, spacing: 8) {
             Button { showAttachMenu = true } label: {
                 Image(systemName: "plus")
-                    .font(.system(size: 20, weight: .semibold))
+                    .font(.system(size: 18, weight: .semibold))
                     .foregroundStyle(KlicColor.textMuted)
-                    .frame(width: 40, height: 44)
+                    .frame(width: 44, height: 44)
+                    .background(KlicColor.surfaceRaised, in: Circle())
             }
             .disabled(uploading)
 
@@ -134,6 +215,7 @@ struct ChatView: View {
                 .padding(.horizontal, 16)
                 .padding(.vertical, 12)
                 .background(KlicColor.surfaceRaised, in: RoundedRectangle(cornerRadius: 22))
+                .focused($isComposerFocused)
 
             let canSend = !draft.trimmingCharacters(in: .whitespaces).isEmpty
             if canSend {
@@ -280,7 +362,54 @@ struct ChatView: View {
     private func startCall(kind: String) async {
         guard let s = try? await APIClient.shared.startCall(conversationId: conversation.id, kind: kind)
         else { return }
-        CallKitManager.shared.startOutgoing(s, peerName: title)
+        CallKitManager.shared.startOutgoing(s, peerName: title, peerId: conversation.members.first?.id)
+    }
+}
+
+// MARK: - Attach sheet
+
+private struct AttachSheet: View {
+    let onPhotos: () -> Void
+    let onCamera: () -> Void
+    let onFile:   () -> Void
+
+    var body: some View {
+        HStack(spacing: 20) {
+            AttachTile(icon: "photo.on.rectangle.fill", label: "Photos",
+                       color: Color(red: 0.23, green: 0.51, blue: 0.96), action: onPhotos)
+            AttachTile(icon: "camera.fill", label: "Camera",
+                       color: Color(red: 0.13, green: 0.77, blue: 0.34), action: onCamera)
+            AttachTile(icon: "doc.fill", label: "File",
+                       color: Color(red: 0.97, green: 0.57, blue: 0.20), action: onFile)
+        }
+        .padding(.horizontal, 28)
+        .padding(.top, 24)
+        .padding(.bottom, 16)
+        .frame(maxWidth: .infinity)
+    }
+}
+
+private struct AttachTile: View {
+    let icon: String
+    let label: String
+    let color: Color
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            VStack(spacing: 10) {
+                Image(systemName: icon)
+                    .font(.system(size: 28, weight: .medium))
+                    .foregroundStyle(.white)
+                    .frame(width: 68, height: 68)
+                    .background(color, in: RoundedRectangle(cornerRadius: 20))
+                Text(label)
+                    .font(KlicFont.caption(13))
+                    .foregroundStyle(KlicColor.textPrimary)
+            }
+            .frame(maxWidth: .infinity)
+        }
+        .buttonStyle(.plain)
     }
 }
 
@@ -320,13 +449,23 @@ private struct MessageBubble: View {
                                 topTrailingRadius:    isMine ? topRadius : 18
                             )
                         )
+                        .contextMenu {
+                            Button {
+                                UIPasteboard.general.string = message.body
+                            } label: { Label("Copy", systemImage: "doc.on.doc") }
+                        }
                 }
 
                 if isLast {
-                    Text(shortTime(message.createdAt))
-                        .font(KlicFont.caption(11))
-                        .foregroundStyle(KlicColor.textMuted)
-                        .padding(.horizontal, 4)
+                    HStack(spacing: 3) {
+                        Text(shortTime(message.createdAt))
+                            .font(KlicFont.caption(11))
+                            .foregroundStyle(KlicColor.textMuted)
+                        if isMine, let status = message.status {
+                            MessageTicks(status: status)
+                        }
+                    }
+                    .padding(.horizontal, 4)
                 }
             }
 
@@ -344,6 +483,27 @@ private struct MessageBubble: View {
         let f = DateFormatter()
         f.dateFormat = "HH:mm"
         return f.string(from: date)
+    }
+}
+
+// MARK: - Delivery ticks
+
+private struct MessageTicks: View {
+    let status: String   // "sent" | "delivered" | "read"
+
+    var body: some View {
+        let isRead = status == "read"
+        let single = status == "sent"
+        ZStack(alignment: .trailing) {
+            if !single {
+                Image(systemName: "checkmark")
+                    .font(.system(size: 8, weight: .bold))
+                    .offset(x: -3)
+            }
+            Image(systemName: "checkmark")
+                .font(.system(size: 8, weight: .bold))
+        }
+        .foregroundStyle(isRead ? KlicColor.primary : KlicColor.textMuted)
     }
 }
 

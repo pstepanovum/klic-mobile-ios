@@ -72,7 +72,8 @@ extension AppDelegate: PKPushRegistryDelegate {
             roomName: d["roomName"] as? String ?? "",
             livekitUrl: d["livekitUrl"] as? String ?? "",
             kind: d["kind"] as? String ?? "AUDIO",
-            fromDisplayName: d["fromName"] as? String ?? "Incoming call"
+            fromDisplayName: d["fromName"] as? String ?? "Incoming call",
+            fromUserId: d["fromUserId"] as? String
         )
         APIClient.mobileDiagnostic(event: "pushkit.received", callId: invite.id, detail: invite.kind)
         // iOS requires reporting the call synchronously here (the registry runs on .main),

@@ -5,6 +5,17 @@ struct User: Codable, Identifiable, Hashable {
     let username: String
     let displayName: String
     var avatarUrl: String?
+    var showLastSeen: Bool?      // present on /me + auth responses
+}
+
+/// A friend's profile (GET /users/:id). `lastSeenAt`/`online` are nil when hidden by privacy.
+struct UserProfile: Codable, Identifiable, Hashable {
+    let id: String
+    let username: String
+    let displayName: String
+    var avatarUrl: String?
+    var lastSeenAt: String?
+    var online: Bool?
 }
 
 struct AuthResponse: Codable {
@@ -19,7 +30,10 @@ struct Conversation: Codable, Identifiable, Hashable {
     let members: [Member]
     let lastMessage: Message?
 
-    struct Member: Codable, Hashable { let id: String; let username: String; let displayName: String }
+    struct Member: Codable, Hashable {
+        let id: String; let username: String; let displayName: String
+        var avatarUrl: String?
+    }
 }
 
 struct Attachment: Codable, Identifiable, Hashable {
@@ -47,9 +61,10 @@ struct Message: Codable, Identifiable, Hashable {
     let kind: String
     let createdAt: String
     var attachments: [Attachment] = []
+    var status: String?          // "sent" | "delivered" | "read" — own messages only
 
     enum CodingKeys: String, CodingKey {
-        case id, conversationId, senderId, body, kind, createdAt, attachments
+        case id, conversationId, senderId, body, kind, createdAt, attachments, status
     }
 
     // Tolerant decode (body/kind may be empty; attachments absent on older payloads).
@@ -62,14 +77,15 @@ struct Message: Codable, Identifiable, Hashable {
         kind = (try? c.decode(String.self, forKey: .kind)) ?? "TEXT"
         createdAt = (try? c.decode(String.self, forKey: .createdAt)) ?? ""
         attachments = (try? c.decode([Attachment].self, forKey: .attachments)) ?? []
+        status = try? c.decode(String.self, forKey: .status)
     }
 
     // Convenience init so building a Message locally stays ergonomic.
     init(id: String, conversationId: String, senderId: String, body: String,
-         kind: String, createdAt: String, attachments: [Attachment] = []) {
+         kind: String, createdAt: String, attachments: [Attachment] = [], status: String? = nil) {
         self.id = id; self.conversationId = conversationId; self.senderId = senderId
         self.body = body; self.kind = kind; self.createdAt = createdAt
-        self.attachments = attachments
+        self.attachments = attachments; self.status = status
     }
 }
 

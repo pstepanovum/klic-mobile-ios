@@ -2,12 +2,14 @@ import SwiftUI
 
 struct FriendsView: View {
     @EnvironmentObject var session: AppSession
+    @StateObject private var socket = SocketService.shared
 
     @State private var friends: [User] = []
     @State private var requests: [FriendRequest] = []
     @State private var searchUsername = ""
     @State private var statusText: String?
     @State private var openedConversation: Conversation?
+    @State private var selectedFriend: User?
 
     var body: some View {
         NavigationStack {
@@ -27,10 +29,19 @@ struct FriendsView: View {
                     .padding(.bottom, 8)
                 }
                 .padding(20)
+                .adaptiveWidth()
             }
             .background(KlicColor.background.ignoresSafeArea())
             .navigationTitle("Friends")
             .navigationDestination(item: $openedConversation) { ChatView(conversation: $0) }
+            .navigationDestination(item: $selectedFriend) { friend in
+                ProfileView(
+                    userId: friend.id, username: friend.username,
+                    displayName: friend.displayName, avatarUrl: friend.avatarUrl,
+                    onCall: { kind in Task { await callFriend(friend, kind: kind) } },
+                    onMessage: { Task { await openChat(with: friend) } }
+                )
+            }
             .task { await reload() }
             .refreshable { await reload() }
         }
@@ -62,7 +73,7 @@ struct FriendsView: View {
             Text("Requests").font(KlicFont.headline()).foregroundStyle(KlicColor.textPrimary)
             ForEach(requests) { req in
                 HStack(spacing: 12) {
-                    Avatar()
+                    AvatarView(url: APIClient.avatarURL(forUserId: req.from.id), name: req.from.displayName, size: 44)
                     VStack(alignment: .leading, spacing: 2) {
                         Text(req.from.displayName).font(KlicFont.medium()).foregroundStyle(KlicColor.textPrimary)
                         Text("@\(req.from.username)").font(KlicFont.caption()).foregroundStyle(KlicColor.textMuted)
@@ -92,15 +103,23 @@ struct FriendsView: View {
                     .font(KlicFont.body(14)).foregroundStyle(KlicColor.textMuted)
             }
             ForEach(friends) { friend in
-                Button { Task { await openChat(with: friend) } } label: {
+                Button { selectedFriend = friend } label: {
                     HStack(spacing: 12) {
-                        Avatar()
+                        AvatarView(url: friend.avatarUrl, name: friend.displayName, size: 44)
+                            .overlay(alignment: .bottomTrailing) {
+                                if socket.presence[friend.id]?.online == true {
+                                    Circle().fill(.green).frame(width: 12, height: 12)
+                                        .overlay(Circle().stroke(KlicColor.surface, lineWidth: 2))
+                                }
+                            }
                         VStack(alignment: .leading, spacing: 2) {
                             Text(friend.displayName).font(KlicFont.medium()).foregroundStyle(KlicColor.textPrimary)
                             Text("@\(friend.username)").font(KlicFont.caption()).foregroundStyle(KlicColor.textMuted)
                         }
                         Spacer()
-                        Icon(.message, size: 20, color: KlicColor.textMuted)
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundStyle(KlicColor.textMuted)
                     }
                     .padding(12).background(KlicColor.surface, in: RoundedRectangle(cornerRadius: 18))
                 }
@@ -142,11 +161,11 @@ struct FriendsView: View {
     private func openChat(with friend: User) async {
         openedConversation = try? await APIClient.shared.openConversation(userId: friend.id)
     }
-}
 
-private struct Avatar: View {
-    var body: some View {
-        Circle().fill(KlicColor.surfaceRaised).frame(width: 44, height: 44)
-            .overlay(Icon(.user, size: 20, color: KlicColor.textMuted))
+    private func callFriend(_ friend: User, kind: String) async {
+        guard let convo = try? await APIClient.shared.openConversation(userId: friend.id),
+              let session = try? await APIClient.shared.startCall(conversationId: convo.id, kind: kind)
+        else { return }
+        CallKitManager.shared.startOutgoing(session, peerName: friend.displayName, peerId: friend.id)
     }
 }

@@ -10,14 +10,27 @@ struct RootView: View {
             if session.isAuthenticated {
                 TabView {
                     ConversationsView()
-                        .tabItem { Label("Chats",    image: KlicIcon.message.line) }
+                        .tabItem {
+                            Image("ic_line_message_3").renderingMode(.template)
+                            Text("Chats")
+                        }
                     FriendsView()
-                        .tabItem { Label("Friends",  image: KlicIcon.user.line) }
+                        .tabItem {
+                            Image(KlicIcon.user.line).renderingMode(.template)
+                            Text("Friends")
+                        }
                     CallDialView()
-                        .tabItem { Label("Call",     image: KlicIcon.phone.line) }
+                        .tabItem {
+                            Image(KlicIcon.phone.line).renderingMode(.template)
+                            Text("Call")
+                        }
                     SettingsView()
-                        .tabItem { Label("Settings", image: KlicIcon.settings.line) }
+                        .tabItem {
+                            Image(KlicIcon.settings.line).renderingMode(.template)
+                            Text("Settings")
+                        }
                 }
+                .tint(KlicColor.primary)
             } else if didGetStarted {
                 AuthView()
             } else {

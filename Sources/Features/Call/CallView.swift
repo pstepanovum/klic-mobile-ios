@@ -37,8 +37,11 @@ struct CallView: View {
 
     private var avatar: some View {
         VStack(spacing: 14) {
-            Circle().fill(KlicColor.surfaceRaised).frame(width: 120, height: 120)
-                .overlay(Icon(.user, size: 48, color: KlicColor.textMuted))
+            AvatarView(
+                url: call.peerId.map { APIClient.avatarURL(forUserId: $0) },
+                name: call.peerName,
+                size: 120
+            )
         }
     }
 

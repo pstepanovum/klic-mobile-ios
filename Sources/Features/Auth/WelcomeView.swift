@@ -55,6 +55,7 @@ struct WelcomeView: View {
                 .foregroundStyle(KlicColor.textMuted)
                 .padding(.bottom, 48)
         }
+        .frame(maxWidth: 500)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(KlicColor.background.ignoresSafeArea())
         .enableInjection()

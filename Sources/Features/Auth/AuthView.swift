@@ -81,6 +81,7 @@ struct AuthView: View {
             Spacer()
         }
         .padding(.horizontal, 28)
+        .frame(maxWidth: 480)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(KlicColor.background.ignoresSafeArea())
         .onTapGesture {

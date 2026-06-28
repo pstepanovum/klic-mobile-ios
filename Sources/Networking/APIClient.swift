@@ -25,6 +25,10 @@ actor APIClient {
 
     private let session = URLSession.shared
 
+    /// Coalesces concurrent refreshes so a burst of 401s triggers exactly one
+    /// rotation + retry instead of N competing rotations.
+    private var refreshTask: Task<Bool, Never>?
+
     func register(username: String, password: String, displayName: String) async throws -> AuthResponse {
         try await post("/auth/register", body: [
             "username": username, "password": password, "displayName": displayName,
@@ -110,6 +114,33 @@ actor APIClient {
         return try await post("/me/devices", body: body)
     }
 
+    // MARK: Profile
+
+    /// Update the current user's profile. `username` is immutable server-side.
+    func updateProfile(displayName: String? = nil, showLastSeen: Bool? = nil, avatarKey: String?? = nil) async throws -> User {
+        var body: [String: Any] = [:]
+        if let displayName { body["displayName"] = displayName }
+        if let showLastSeen { body["showLastSeen"] = showLastSeen }
+        if let avatarKey { body["avatarKey"] = avatarKey ?? NSNull() }  // nil-wrapped clears it
+        return try await patch("/me", body: body)
+    }
+
+    /// Presign a PUT for a new avatar; upload the bytes via `uploadData`, then PATCH /me with the key.
+    func requestAvatarUpload(contentType: String, byteSize: Int) async throws -> UploadTicket {
+        try await post("/me/avatar-upload", body: ["contentType": contentType, "byteSize": byteSize])
+    }
+
+    /// A friend's profile (avatar, name, presence/last-seen if shared).
+    func userProfile(id: String) async throws -> UserProfile {
+        try await get("/users/\(id)")
+    }
+
+    /// Public, stable avatar URL for any user id (the endpoint 302-redirects to the
+    /// presigned image, or 404s — in which case the UI falls back to initials).
+    nonisolated static func avatarURL(forUserId id: String) -> String {
+        baseURL.absoluteString + "/users/\(id)/avatar"
+    }
+
     // MARK: Attachments / media
 
     /// Step 1: ask the server for a presigned PUT URL for an attachment.
@@ -165,6 +196,11 @@ actor APIClient {
         return try await request(path, method: "POST", body: data, authed: authed)
     }
 
+    private func patch<T: Decodable>(_ path: String, body: [String: Any]) async throws -> T {
+        let data = try JSONSerialization.data(withJSONObject: body)
+        return try await request(path, method: "PATCH", body: data, authed: true)
+    }
+
     private func request<T: Decodable>(
         _ path: String,
         method: String,
@@ -179,17 +215,13 @@ actor APIClient {
         req.httpMethod = method
         req.httpBody = body
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        if authed {
-            try await restoreAccessTokenIfNeeded()
-            if let token = TokenStore.accessToken {
-                req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-            }
+        if authed, let token = await validAccessToken() {
+            req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         }
 
         let (respData, resp) = try await session.data(for: req)
         guard let http = resp as? HTTPURLResponse else { throw APIError.noData }
-        if authed, http.statusCode == 401, !hasRetriedAuth {
-            try await refreshAccessToken()
+        if authed, http.statusCode == 401, !hasRetriedAuth, await refreshAccessToken() {
             return try await request(
                 path,
                 method: method,
@@ -219,15 +251,44 @@ actor APIClient {
         return "Request failed (\(status))."
     }
 
-    private func restoreAccessTokenIfNeeded() async throws {
-        if TokenStore.accessToken != nil { return }
-        try await refreshAccessToken()
+    /// A non-expired access token, refreshing first if the current one is missing or
+    /// stale. Returns whatever token we hold afterwards (nil only if refresh failed).
+    private func validAccessToken() async -> String? {
+        if !AccessToken.isExpired(TokenStore.accessToken) { return TokenStore.accessToken }
+        if TokenStore.refreshToken != nil { _ = await refreshAccessToken() }
+        return TokenStore.accessToken
     }
 
-    private func refreshAccessToken() async throws {
-        guard let refreshToken = TokenStore.refreshToken else { return }
-        let res = try await refresh(refreshToken: refreshToken)
-        TokenStore.save(access: res.accessToken, refresh: res.refreshToken)
+    /// Exchange the refresh token for a fresh access token, at most one in flight, so a
+    /// burst of expired requests triggers a single rotation. Returns `true` if we hold
+    /// a valid access token afterwards.
+    ///
+    /// A `401` means the refresh token is genuinely dead → clear it and broadcast a
+    /// sign-out. Any other failure (network/5xx/timeout) is transient: keep the tokens
+    /// so the user stays signed in and we retry later.
+    @discardableResult
+    func refreshAccessToken() async -> Bool {
+        if let inFlight = refreshTask { return await inFlight.value }
+        let task = Task<Bool, Never> { await self.performRefresh() }
+        refreshTask = task
+        let ok = await task.value
+        refreshTask = nil
+        return ok
+    }
+
+    private func performRefresh() async -> Bool {
+        guard let refreshToken = TokenStore.refreshToken else { return false }
+        do {
+            let res = try await refresh(refreshToken: refreshToken)
+            TokenStore.save(access: res.accessToken, refresh: res.refreshToken)
+            return true
+        } catch let APIError.server(_, status) where status == 401 {
+            TokenStore.clear()
+            await MainActor.run { NotificationCenter.default.post(name: .klicSessionExpired, object: nil) }
+            return false
+        } catch {
+            return false
+        }
     }
 }
 

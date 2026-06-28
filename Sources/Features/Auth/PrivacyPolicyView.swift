@@ -49,6 +49,7 @@ struct PrivacyPolicyView: View {
                         .padding(.top, 4)
                 }
                 .padding(24)
+                .adaptiveWidth()
             }
             .background(KlicColor.background.ignoresSafeArea())
             .navigationTitle("Privacy Policy")
