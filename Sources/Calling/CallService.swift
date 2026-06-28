@@ -1,4 +1,5 @@
 import Foundation
+import AVFoundation
 import LiveKit
 
 /// Wraps a LiveKit room for a 1:1 call: join/leave, in-call controls (mute mic, camera on/off),
@@ -17,11 +18,14 @@ final class CallService: NSObject, ObservableObject {
 
     override init() {
         super.init()
+        AudioManager.shared.audioSession.isAutomaticConfigurationEnabled = false
+        AudioManager.shared.audioSession.isAutomaticDeactivationEnabled = false
         room.add(delegate: self)
     }
 
     func join(url: String, token: String, video: Bool) async throws {
         do {
+            try configureAudioSession()
             try await room.connect(url: url, token: token)
             try await room.localParticipant.setMicrophone(enabled: true)
             if video { try await room.localParticipant.setCamera(enabled: true) }
@@ -54,6 +58,17 @@ final class CallService: NSObject, ObservableObject {
         isConnected = false
         localVideoTrack = nil
         remoteVideoTrack = nil
+        try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+    }
+
+    private func configureAudioSession() throws {
+        let session = AVAudioSession.sharedInstance()
+        try session.setCategory(
+            .playAndRecord,
+            mode: .voiceChat,
+            options: [.allowBluetooth, .defaultToSpeaker]
+        )
+        try session.setActive(true)
     }
 
     /// Recompute the tracks we render. Track accessors target LiveKit Swift SDK v2.
