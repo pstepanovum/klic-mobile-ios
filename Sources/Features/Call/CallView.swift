@@ -6,32 +6,79 @@ struct CallView: View {
     @StateObject private var service = CallService.shared
     @StateObject private var callKit = CallKitManager.shared
 
+    /// When true the local camera is the full-screen feed and the remote becomes the small card
+    /// (tap the card or its expand button to swap, WhatsApp-style).
+    @State private var localFullscreen = false
+    /// Committed center of the draggable card (nil = its default top-right corner).
+    @State private var cardCenter: CGPoint? = nil
+    @GestureState private var dragTranslation = CGSize.zero
+
+    private let cardSize = CGSize(width: 110, height: 160)
+
     var body: some View {
-        ZStack {
-            KlicColor.background.ignoresSafeArea()
+        GeometryReader { geo in
+            // Pick which feed is full-screen and which rides in the draggable card.
+            let local = service.cameraEnabled ? service.localVideoTrack : nil
+            let remote = service.remoteVideoTrack
+            let primaryIsLocal = localFullscreen && local != nil
+            let primaryTrack = primaryIsLocal ? local : remote
+            let secondaryTrack = primaryIsLocal ? remote : local
 
-            // Remote video fills the screen whenever a participant publishes video.
-            if shouldShowVideo, let remote = service.remoteVideoTrack {
-                CallVideoView(track: remote).ignoresSafeArea()
-            } else {
-                avatar
-            }
+            ZStack {
+                KlicColor.background.ignoresSafeArea()
 
-            VStack {
-                header
-                Spacer()
-                controls
-            }
-            .padding(.vertical, 56)
+                if shouldShowVideo, let primaryTrack {
+                    CallVideoView(track: primaryTrack).ignoresSafeArea()
+                } else {
+                    avatar
+                }
 
-            // Local camera preview (picture-in-picture)
-            if shouldShowVideo, service.cameraEnabled, let local = service.localVideoTrack {
-                CallVideoView(track: local)
-                    .frame(width: 110, height: 160)
-                    .clipShape(RoundedRectangle(cornerRadius: 18))
-                    .padding(20)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+                VStack {
+                    header
+                    Spacer()
+                    controls
+                }
+                .padding(.vertical, 56)
+
+                // Draggable, tap-to-swap picture-in-picture card for the secondary feed.
+                if shouldShowVideo, let secondaryTrack {
+                    let defaultCenter = CGPoint(x: geo.size.width - cardSize.width / 2 - 16,
+                                                y: cardSize.height / 2 + 80)
+                    let center = cardCenter ?? defaultCenter
+                    let live = CGPoint(x: center.x + dragTranslation.width,
+                                       y: center.y + dragTranslation.height)
+                    CallVideoView(track: secondaryTrack)
+                        .frame(width: cardSize.width, height: cardSize.height)
+                        .clipShape(RoundedRectangle(cornerRadius: 18))
+                        .overlay(RoundedRectangle(cornerRadius: 18).stroke(.white.opacity(0.25), lineWidth: 1))
+                        .overlay(alignment: .topLeading) {
+                            Image(systemName: "arrow.up.backward.and.arrow.down.forward")
+                                .font(.system(size: 10, weight: .bold))
+                                .foregroundStyle(.white)
+                                .padding(5)
+                                .background(.black.opacity(0.45), in: Circle())
+                                .padding(6)
+                        }
+                        .shadow(radius: 8)
+                        .position(live)
+                        .gesture(
+                            DragGesture()
+                                .updating($dragTranslation) { value, state, _ in state = value.translation }
+                                .onEnded { value in
+                                    var c = CGPoint(x: center.x + value.translation.width,
+                                                    y: center.y + value.translation.height)
+                                    // Snap to the nearest side, clamp vertically to stay on screen.
+                                    let halfW = cardSize.width / 2 + 16
+                                    c.x = c.x < geo.size.width / 2 ? halfW : geo.size.width - halfW
+                                    c.y = min(max(c.y, cardSize.height / 2 + 70),
+                                              geo.size.height - cardSize.height / 2 - 70)
+                                    withAnimation(.spring(response: 0.3)) { cardCenter = c }
+                                }
+                        )
+                        .onTapGesture { withAnimation { localFullscreen.toggle() } }
+                }
             }
+            .frame(width: geo.size.width, height: geo.size.height)
         }
         // Don't let the screen dim/lock while the call UI is up (matches Android's keepScreenOn).
         .onAppear { UIApplication.shared.isIdleTimerDisabled = true }
