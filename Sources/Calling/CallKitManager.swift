@@ -42,9 +42,6 @@ final class CallKitManager: NSObject, ObservableObject {
         config.maximumCallsPerCallGroup = 1
         config.supportedHandleTypes = [.generic]
         config.includesCallsInRecents = false
-        // Custom incoming-call ringtone (bundled CallKit-compatible sound). CallKit plays this
-        // for incoming calls; falls back to the system ringtone if the resource is missing.
-        config.ringtoneSound = "ring.caf"
         provider = CXProvider(configuration: config)
         super.init()
         provider.setDelegate(self, queue: nil)
@@ -265,6 +262,7 @@ final class CallKitManager: NSObject, ObservableObject {
 
     private func finishCall(callId: String, status: String, notifyServer: Bool, dismissAfter seconds: UInt64 = 1_500_000_000) {
         guard !finishingCallIds.contains(callId) else { return }
+        Ringback.shared.stop()
         let wasOutgoing = activeCall?.id == callId ? activeCall?.isOutgoing == true : false
         let wasConnected = activeCall?.id == callId && statusText == "Connected"
         finishingCallIds.insert(callId)
@@ -299,6 +297,7 @@ final class CallKitManager: NSObject, ObservableObject {
     private func endAbandonedCall(_ callId: String) {
         let wasOutgoing = activeCall?.id == callId ? activeCall?.isOutgoing == true : true
         let wasConnected = activeCall?.id == callId && statusText == "Connected"
+        Ringback.shared.stop()
         recentlyEndedCallIds.insert(callId)
         cancelRingTimeout(callId)
         Task { await self.finishCallOnServer(callId: callId, wasOutgoing: wasOutgoing, wasConnected: wasConnected) }
@@ -309,6 +308,7 @@ final class CallKitManager: NSObject, ObservableObject {
 
     func handlePeerAccepted(callId: String) {
         guard activeCall?.id == callId else { return }
+        Ringback.shared.stop()
         cancelRingTimeout(callId)
         statusText = "Connected"
         CallActivityController.update(status: "Connected", muted: false, isVideo: activeCall?.isVideo ?? false)
@@ -398,6 +398,7 @@ extension CallKitManager: CXProviderDelegate {
     nonisolated func providerDidReset(_ provider: CXProvider) {
         Task { @MainActor in
             APIClient.mobileDiagnostic(event: "callkit.provider.reset", callId: activeCall?.id)
+            Ringback.shared.stop()
             cancelAllRingTimeouts()
             if let call = activeCall {
                 let wasConnected = statusText == "Connected"
@@ -497,6 +498,9 @@ extension CallKitManager: CXProviderDelegate {
                 finishCall(callId: call.id, status: "Call failed", notifyServer: false, dismissAfter: 500_000_000)
                 return
             }
+            // We're connected to the room but still waiting for the callee to answer — play the
+            // outgoing ringback until they do (handlePeerAccepted stops it).
+            if statusText == "Calling..." { Ringback.shared.start() }
             CallActivityController.start(peerName: call.peerName, isVideo: call.isVideo)
             CallActivityController.update(status: statusText, muted: false, isVideo: call.isVideo)
         }
@@ -504,6 +508,7 @@ extension CallKitManager: CXProviderDelegate {
 
     nonisolated func provider(_ provider: CXProvider, perform action: CXEndCallAction) {
         Task { @MainActor in
+            Ringback.shared.stop()
             let id = activeCall?.id ?? callId(for: action.uuid)
             APIClient.mobileDiagnostic(event: "callkit.end.enter", callId: id, detail: action.uuid.uuidString)
             if let id {
