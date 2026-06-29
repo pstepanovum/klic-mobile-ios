@@ -54,6 +54,16 @@ final class CallService: NSObject, ObservableObject {
                 mode: video ? .videoChat : .voiceChat
             )
             AudioManager.shared.isSpeakerOutputPreferred = video
+            // Configure the call's audio session category up front WITHOUT activating it, so CallKit
+            // has a ready session to activate and reliably sends provider(didActivate:). With the
+            // engine gated off (below) LiveKit won't configure the session itself, and a VoIP
+            // cold-start answer then misses didActivate entirely → the call connects but the mic/
+            // audio never turn on. Setting the category here makes the activation deterministic.
+            try? AVAudioSession.sharedInstance().setCategory(
+                .playAndRecord,
+                mode: video ? .videoChat : .voiceChat,
+                options: [.allowBluetooth, .allowBluetoothA2DP, .allowAirPlay]
+            )
             // Gate LiveKit's audio engine OFF until CallKit activates the session
             // (provider didActivate → activateAudioSession()). This lets us connect and publish
             // mic/camera below WITHOUT LiveKit calling AVAudioSession.setActive() itself — that
@@ -76,6 +86,7 @@ final class CallService: NSObject, ObservableObject {
             micEnabled = true
             cameraEnabled = video
             refreshTracks()
+            scheduleAudioEngineFallback(callId: callId)
         } catch {
             print("CallService.join failed: \(error)")
             APIClient.mobileDiagnostic(event: "livekit.join.failed", callId: callId, detail: String(describing: error))
@@ -155,6 +166,19 @@ final class CallService: NSObject, ObservableObject {
     func deactivateAudioSession() {
         audioSessionActive = false
         try? AudioManager.shared.setEngineAvailability(.none)
+    }
+
+    /// Safety net for VoIP cold-start answers where CallKit never sends `didActivate`: if the
+    /// session still isn't reported active a beat after we've connected, enable the audio engine
+    /// ourselves so audio isn't silently dead. The delay lets a real (locked-screen) `didActivate`
+    /// win first; if it already fired, this is a no-op. `activateAudioSession()` is idempotent.
+    private func scheduleAudioEngineFallback(callId: String) {
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 1_200_000_000)
+            guard currentCallId == callId, isConnected, !audioSessionActive else { return }
+            APIClient.mobileDiagnostic(event: "livekit.audio.engineFallback", callId: callId)
+            try? AudioManager.shared.setEngineAvailability(.default)
+        }
     }
 
     func leave() async {
