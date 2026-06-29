@@ -68,6 +68,16 @@ struct CallView: View {
                     )
                 }
             }
+            // Speaker / earpiece toggle — most useful on a voice call (video defaults to speaker).
+            if !shouldShowVideo {
+                circleButton(
+                    service.speakerOn ? "speaker.wave.2.fill" : "speaker.slash.fill",
+                    fill: service.speakerOn ? KlicColor.primary : KlicColor.surfaceRaised,
+                    iconColor: service.speakerOn ? KlicColor.onPrimary : KlicColor.textPrimary
+                ) {
+                    service.toggleSpeaker()
+                }
+            }
             circleButton("phone.down.fill", fill: KlicColor.danger, iconColor: KlicColor.onPrimary, size: 72) {
                 CallKitManager.shared.requestEnd()
             }

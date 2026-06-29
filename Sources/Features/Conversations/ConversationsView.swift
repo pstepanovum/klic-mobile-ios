@@ -77,10 +77,15 @@ private struct ConversationRow: View {
                         .lineLimit(2)
                 }
                 Spacer()
-                // Time pinned top-right; unread count badge just beneath it.
+                // Date pinned top-right (with my read-status tick to its left); unread badge beneath.
                 VStack(alignment: .trailing, spacing: 6) {
-                    if let time = lastMessageTime(conversation.lastMessage) {
-                        Text(time).font(KlicFont.caption(12)).foregroundStyle(KlicColor.textMuted)
+                    if let stamp = lastMessageStamp(conversation.lastMessage) {
+                        HStack(spacing: 3) {
+                            if let status = conversation.lastMessage?.status {
+                                ConversationTick(status: status)
+                            }
+                            Text(stamp).font(KlicFont.caption(12)).foregroundStyle(KlicColor.textMuted)
+                        }
                     }
                     if unread > 0 {
                         Text(unread > 99 ? "99+" : "\(unread)")
@@ -103,14 +108,39 @@ private struct ConversationRow: View {
     }
 }
 
-/// Short clock time for the last message (e.g. "3:26 PM"), or nil if unknown.
-private func lastMessageTime(_ m: Message?) -> String? {
+/// Last-message stamp for the chat list: clock time today (e.g. "3:26 PM"), "MM/dd" earlier
+/// this year, "MM/dd/yy" before that — or nil if unknown.
+private func lastMessageStamp(_ m: Message?) -> String? {
     guard let iso = m?.createdAt, !iso.isEmpty else { return nil }
     let df = ISO8601DateFormatter(); df.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
     let df2 = ISO8601DateFormatter(); df2.formatOptions = [.withInternetDateTime]
     guard let date = df.date(from: iso) ?? df2.date(from: iso) else { return nil }
-    let f = DateFormatter(); f.dateFormat = "h:mm a"
+    let cal = Calendar.current
+    let f = DateFormatter()
+    if cal.isDateInToday(date) {
+        f.dateFormat = "h:mm a"
+    } else if cal.isDate(date, equalTo: Date(), toGranularity: .year) {
+        f.dateFormat = "MM/dd"
+    } else {
+        f.dateFormat = "MM/dd/yy"
+    }
     return f.string(from: date)
+}
+
+/// Compact read-status tick for the chat list (own last message only). Gray until read, green after.
+private struct ConversationTick: View {
+    let status: String   // "sent" | "delivered" | "read"
+    var body: some View {
+        let isRead = status == "read"
+        let single = status == "sent"
+        ZStack(alignment: .trailing) {
+            if !single {
+                Image(systemName: "checkmark").font(.system(size: 8, weight: .bold)).offset(x: -4)
+            }
+            Image(systemName: "checkmark").font(.system(size: 8, weight: .bold))
+        }
+        .foregroundStyle(isRead ? KlicColor.read : KlicColor.textMuted)
+    }
 }
 
 /// One-line summary of the last message for the chat list (no emoji, per the design system).

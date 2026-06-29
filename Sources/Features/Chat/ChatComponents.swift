@@ -125,7 +125,9 @@ struct MessageBubble: View {
                 }
 
                 if isLast {
-                    HStack(spacing: 3) {
+                    // Time + delivery ticks live in a small pill below the bubble so they never
+                    // overlap the message text.
+                    HStack(spacing: 4) {
                         Text(shortTime(message.createdAt))
                             .font(KlicFont.caption(11))
                             .foregroundStyle(KlicColor.textMuted)
@@ -133,7 +135,9 @@ struct MessageBubble: View {
                             MessageTicks(status: status)
                         }
                     }
-                    .padding(.horizontal, 4)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 3)
+                    .background(KlicColor.textPrimary.opacity(0.06), in: Capsule())
                 }
             }
             .onLongPressGesture(minimumDuration: 0.3, perform: onLongPress)
@@ -150,7 +154,7 @@ struct MessageBubble: View {
         df2.formatOptions = [.withInternetDateTime]
         guard let date = df.date(from: iso) ?? df2.date(from: iso) else { return "" }
         let f = DateFormatter()
-        f.dateFormat = "HH:mm"
+        f.dateFormat = "h:mm a"
         return f.string(from: date)
     }
 }
@@ -163,16 +167,18 @@ private struct MessageTicks: View {
     var body: some View {
         let isRead = status == "read"
         let single = status == "sent"
+        // One main checkmark; "delivered"/"read" add a second offset behind it so it reads as a
+        // double-tick with just a diagonal accent. Gray until read, then green.
         ZStack(alignment: .trailing) {
             if !single {
                 Image(systemName: "checkmark")
                     .font(.system(size: 8, weight: .bold))
-                    .offset(x: -3)
+                    .offset(x: -4)
             }
             Image(systemName: "checkmark")
                 .font(.system(size: 8, weight: .bold))
         }
-        .foregroundStyle(isRead ? KlicColor.primary : KlicColor.textMuted)
+        .foregroundStyle(isRead ? KlicColor.read : KlicColor.textMuted)
     }
 }
 

@@ -10,6 +10,8 @@ enum KlicColor {
     // Brand accent — same in both schemes
     static let primary  = Color(hex: 0xED122B)
     static let danger   = Color(hex: 0xFA052E)
+    // Read-receipt green (message "read" ticks)
+    static let read     = Color(hex: 0x25D366)
 
     // Text
     static let textPrimary = Color.adaptive(dark: 0xF2F2F2, light: 0x111111)

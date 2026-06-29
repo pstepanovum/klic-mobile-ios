@@ -15,6 +15,8 @@ final class CallService: NSObject, ObservableObject {
     @Published private(set) var isReconnecting = false
     @Published private(set) var micEnabled = true
     @Published private(set) var cameraEnabled = false
+    /// Whether call audio is routed to the loudspeaker (vs. the earpiece / a connected headset).
+    @Published private(set) var speakerOn = false
     @Published private(set) var localVideoTrack: VideoTrack?
     @Published private(set) var remoteVideoTrack: VideoTrack?
 
@@ -59,6 +61,7 @@ final class CallService: NSObject, ObservableObject {
                 mode: video ? .videoChat : .voiceChat
             )
             AudioManager.shared.isSpeakerOutputPreferred = video
+            speakerOn = video
             micPublished = false
             // Gate LiveKit's audio engine OFF until CallKit activates the session (provider
             // didActivate → activateAudioSession()). Auto-subscribing to a remote audio track on
@@ -133,6 +136,18 @@ final class CallService: NSObject, ObservableObject {
 
     func toggleMic() async { await setMic(enabled: !micEnabled) }
     func toggleCamera() async { await setCamera(enabled: !cameraEnabled) }
+
+    /// Toggle the call audio between the loudspeaker and the earpiece/headset. Overriding the
+    /// output port routes immediately; `.none` lets the system pick the preferred route (a
+    /// connected Bluetooth/wired headset wins), `.speaker` forces the loudspeaker.
+    func toggleSpeaker() { setSpeaker(!speakerOn) }
+
+    func setSpeaker(_ on: Bool) {
+        AudioManager.shared.isSpeakerOutputPreferred = on
+        try? AVAudioSession.sharedInstance().overrideOutputAudioPort(on ? .speaker : .none)
+        speakerOn = on
+        APIClient.mobileDiagnostic(event: "livekit.audio.speaker", callId: currentCallId, detail: on ? "on" : "off")
+    }
 
     /// Flip between the front and back camera mid-call.
     func switchCamera() async {
