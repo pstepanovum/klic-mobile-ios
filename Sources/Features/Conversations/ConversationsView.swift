@@ -3,6 +3,9 @@ import SwiftUI
 struct ConversationsView: View {
     @State private var conversations: [Conversation] = []
     @State private var searchText = ""
+    @State private var showNewMessage = false
+    @State private var navPath: [Conversation] = []
+    @State private var pendingConversation: Conversation?
 
     private var filtered: [Conversation] {
         guard !searchText.isEmpty else { return conversations }
@@ -18,7 +21,7 @@ struct ConversationsView: View {
     }
 
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $navPath) {
             ScrollView {
                 LazyVStack(spacing: 4) {
                     ForEach(filtered) { convo in
@@ -41,6 +44,25 @@ struct ConversationsView: View {
                 placement: .navigationBarDrawer(displayMode: .always),
                 prompt: "Search chats"
             )
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button { showNewMessage = true } label: {
+                        Image(systemName: "plus")
+                            .font(.system(size: 17, weight: .semibold))
+                    }
+                }
+            }
+            .sheet(isPresented: $showNewMessage, onDismiss: {
+                if let convo = pendingConversation {
+                    navPath.append(convo)
+                    pendingConversation = nil
+                }
+            }) {
+                NewMessageSheet { convo in
+                    pendingConversation = convo
+                    showNewMessage = false
+                }
+            }
             .task { await load() }
         }
         .tint(KlicColor.primary)

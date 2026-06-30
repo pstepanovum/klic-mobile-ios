@@ -6,20 +6,14 @@ struct FriendsView: View {
 
     @State private var friends: [User] = []
     @State private var requests: [FriendRequest] = []
-    @State private var searchUsername = ""
-    @State private var statusText: String?
+    @State private var showAddFriend = false
     @State private var openedConversation: Conversation?
     @State private var selectedFriend: User?
-    @State private var isCreatingGroup = false
-    @State private var groupTitle = ""
-    @State private var selectedFriendIds: Set<String> = []
 
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
-                    addFriendSection
-                    createGroupSection
                     if !requests.isEmpty { requestsSection }
                     friendsSection
                     VStack(spacing: 6) {
@@ -37,6 +31,15 @@ struct FriendsView: View {
             }
             .background(KlicColor.background.ignoresSafeArea())
             .navigationTitle("Friends")
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button { showAddFriend = true } label: {
+                        Image(systemName: "plus")
+                            .font(.system(size: 17, weight: .semibold))
+                    }
+                }
+            }
+            .sheet(isPresented: $showAddFriend) { AddFriendSheet() }
             .navigationDestination(item: $openedConversation) { ChatView(conversation: $0) }
             .navigationDestination(item: $selectedFriend) { friend in
                 ProfileView(
@@ -50,50 +53,6 @@ struct FriendsView: View {
             .refreshable { await reload() }
         }
         .tint(KlicColor.primary)
-    }
-
-    // MARK: Add friend
-
-    private var addFriendSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("Add by username").font(KlicFont.headline()).foregroundStyle(KlicColor.textPrimary)
-            HStack(spacing: 10) {
-                KlicTextField(placeholder: "username", text: $searchUsername)
-                Button { Task { await addFriend() } } label: {
-                    Icon(.addUser, size: 22, color: KlicColor.onPrimary)
-                        .frame(width: 50, height: 50)
-                        .background(KlicColor.primary, in: Circle())
-                }
-                .disabled(searchUsername.trimmingCharacters(in: .whitespaces).isEmpty)
-            }
-            if let statusText { Text(statusText).font(KlicFont.caption()).foregroundStyle(KlicColor.textMuted) }
-        }
-    }
-
-    private var createGroupSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("Create group").font(KlicFont.headline()).foregroundStyle(KlicColor.textPrimary)
-            HStack(spacing: 10) {
-                KlicTextField(placeholder: "Group name", text: $groupTitle)
-                Button {
-                    if isCreatingGroup, selectedFriendIds.count >= 2, !groupTitle.trimmingCharacters(in: .whitespaces).isEmpty {
-                        Task { await createGroup() }
-                    } else {
-                        withAnimation(.easeInOut(duration: 0.15)) {
-                            isCreatingGroup.toggle()
-                            if !isCreatingGroup { selectedFriendIds.removeAll() }
-                        }
-                    }
-                } label: {
-                    Icon(isCreatingGroup ? .message : .addUser, size: 22, color: KlicColor.onPrimary)
-                        .frame(width: 50, height: 50)
-                        .background(KlicColor.primary, in: Circle())
-                }
-            }
-            Text(groupStatusText)
-                .font(KlicFont.caption())
-                .foregroundStyle(KlicColor.textMuted)
-        }
     }
 
     // MARK: Requests
@@ -133,13 +92,7 @@ struct FriendsView: View {
                     .font(KlicFont.body(14)).foregroundStyle(KlicColor.textMuted)
             }
             ForEach(friends) { friend in
-                Button {
-                    if isCreatingGroup {
-                        toggleFriendSelection(friend.id)
-                    } else {
-                        selectedFriend = friend
-                    }
-                } label: {
+                Button { selectedFriend = friend } label: {
                     HStack(spacing: 12) {
                         AvatarView(url: friend.avatarUrl, name: friend.displayName, size: 44)
                             .overlay(alignment: .bottomTrailing) {
@@ -153,15 +106,9 @@ struct FriendsView: View {
                             Text("@\(friend.username)").font(KlicFont.caption()).foregroundStyle(KlicColor.textMuted)
                         }
                         Spacer()
-                        if isCreatingGroup {
-                            Image(systemName: selectedFriendIds.contains(friend.id) ? "checkmark.circle.fill" : "circle")
-                                .font(.system(size: 20, weight: .semibold))
-                                .foregroundStyle(selectedFriendIds.contains(friend.id) ? KlicColor.primary : KlicColor.textMuted)
-                        } else {
-                            Image(systemName: "chevron.right")
-                                .font(.system(size: 14, weight: .semibold))
-                                .foregroundStyle(KlicColor.textMuted)
-                        }
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundStyle(KlicColor.textMuted)
                     }
                     .padding(12).background(KlicColor.surface, in: RoundedRectangle(cornerRadius: 18))
                 }
@@ -179,17 +126,6 @@ struct FriendsView: View {
         requests = (try? await r) ?? []
     }
 
-    private func addFriend() async {
-        let name = searchUsername.trimmingCharacters(in: .whitespaces).lowercased()
-        guard !name.isEmpty else { return }
-        guard let user = try? await APIClient.shared.findUser(username: name), let target = user.first else {
-            statusText = "No user named “\(name)”."; return
-        }
-        _ = try? await APIClient.shared.sendFriendRequest(userId: target.id)
-        statusText = "Request sent to \(target.displayName)."
-        searchUsername = ""
-    }
-
     private func accept(_ req: FriendRequest) async {
         _ = try? await APIClient.shared.acceptFriendRequest(id: req.requestId)
         await reload()
@@ -204,38 +140,87 @@ struct FriendsView: View {
         openedConversation = try? await APIClient.shared.openConversation(userId: friend.id)
     }
 
-    private func createGroup() async {
-        let title = groupTitle.trimmingCharacters(in: .whitespaces)
-        let ids = Array(selectedFriendIds)
-        guard ids.count >= 2, !title.isEmpty else { return }
-        openedConversation = try? await APIClient.shared.createGroupConversation(title: title, userIds: ids)
-        if openedConversation != nil {
-            withAnimation(.easeInOut(duration: 0.15)) {
-                isCreatingGroup = false
-                groupTitle = ""
-                selectedFriendIds.removeAll()
-            }
-        }
-    }
-
-    private func toggleFriendSelection(_ id: String) {
-        if selectedFriendIds.contains(id) { selectedFriendIds.remove(id) }
-        else { selectedFriendIds.insert(id) }
-    }
-
-    private var groupStatusText: String {
-        if !isCreatingGroup { return "Pick friends and create a shared chat." }
-        switch selectedFriendIds.count {
-        case 0: return "Select at least two friends below."
-        case 1: return "Select one more friend."
-        default: return "\(selectedFriendIds.count) selected"
-        }
-    }
-
     private func callFriend(_ friend: User, kind: String) async {
         guard let convo = try? await APIClient.shared.openConversation(userId: friend.id),
               let session = try? await APIClient.shared.startCall(conversationId: convo.id, kind: kind)
         else { return }
         CallKitManager.shared.startOutgoing(session, peerName: friend.displayName, peerId: friend.id)
+    }
+}
+
+// MARK: - Add Friend Sheet
+
+private struct AddFriendSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    @State private var username = ""
+    @State private var statusText: String?
+    @State private var isSending = false
+
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 0) {
+                HStack(spacing: 10) {
+                    Image(systemName: "magnifyingglass")
+                        .font(.system(size: 15, weight: .medium))
+                        .foregroundStyle(KlicColor.textMuted)
+                    TextField("Username", text: $username)
+                        .font(KlicFont.body())
+                        .foregroundStyle(KlicColor.textPrimary)
+                        .tint(KlicColor.primary)
+                        .autocorrectionDisabled()
+                        .textInputAutocapitalization(.never)
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 11)
+                .background(KlicColor.surface, in: Capsule())
+                .padding(.horizontal, 20)
+                .padding(.bottom, 14)
+
+                Divider().opacity(0.4)
+
+                if let statusText {
+                    Text(statusText)
+                        .font(KlicFont.caption())
+                        .foregroundStyle(KlicColor.textMuted)
+                        .padding(.top, 20)
+                }
+
+                Spacer()
+
+                PillButton(title: isSending ? "Sending…" : "Send Request") {
+                    Task { await sendRequest() }
+                }
+                .opacity(username.trimmingCharacters(in: .whitespaces).isEmpty || isSending ? 0.4 : 1)
+                .disabled(username.trimmingCharacters(in: .whitespaces).isEmpty || isSending)
+                .padding(20)
+            }
+            .background(KlicColor.background.ignoresSafeArea())
+            .navigationTitle("Add Friend")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button { dismiss() } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 17, weight: .semibold))
+                            .foregroundStyle(KlicColor.textPrimary)
+                    }
+                }
+            }
+        }
+        .tint(KlicColor.primary)
+    }
+
+    private func sendRequest() async {
+        let name = username.trimmingCharacters(in: .whitespaces).lowercased()
+        guard !name.isEmpty else { return }
+        isSending = true
+        defer { isSending = false }
+        guard let users = try? await APIClient.shared.findUser(username: name), let target = users.first else {
+            statusText = "No user named \"\(name)\"."
+            return
+        }
+        _ = try? await APIClient.shared.sendFriendRequest(userId: target.id)
+        statusText = "Request sent to \(target.displayName)."
+        username = ""
     }
 }
