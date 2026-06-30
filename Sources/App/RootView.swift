@@ -1,9 +1,19 @@
 import SwiftUI
+import AVFoundation
 
 struct RootView: View {
     @EnvironmentObject var session: AppSession
     @StateObject private var callKit = CallKitManager.shared
     @State private var didGetStarted = false
+
+    /// Ask for mic + camera the moment the user is signed in — never mid-call. Asking when LiveKit
+    /// first touches the devices is jarring and, for a callee, too late: an un-granted mic means the
+    /// peer hears silence for the whole call. requestAccess only prompts when status is
+    /// .notDetermined, so this is a no-op once the user has answered the prompts.
+    private func requestCallPermissions() {
+        AVCaptureDevice.requestAccess(for: .audio) { _ in }
+        AVCaptureDevice.requestAccess(for: .video) { _ in }
+    }
 
     var body: some View {
         Group {
@@ -31,6 +41,7 @@ struct RootView: View {
                         }
                 }
                 .tint(KlicColor.primary)
+                .onAppear { requestCallPermissions() }
             } else if didGetStarted {
                 AuthView()
             } else {

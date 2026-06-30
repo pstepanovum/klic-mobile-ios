@@ -41,7 +41,11 @@ final class CallKitManager: NSObject, ObservableObject {
         config.supportsVideo = true
         config.maximumCallsPerCallGroup = 1
         config.supportedHandleTypes = [.generic]
-        config.includesCallsInRecents = false
+        // Show finished calls in the native Phone app's Recents (All / Missed), labeled
+        // "Klic Audio" / "Klic Video" — the WhatsApp/Telegram behavior. Missed/declined calls show
+        // in red. (Tapping an entry's call-back triggers a CXStartCallAction with the stored generic
+        // handle; see provider(perform: CXStartCallAction) for how a Recents call-back is handled.)
+        config.includesCallsInRecents = true
         // Custom ringtone CallKit plays for an incoming voice/video call (bundled CallKit-
         // compatible sound). Falls back to the system ringtone if the resource is missing.
         config.ringtoneSound = "ringtone.caf"
@@ -220,6 +224,14 @@ final class CallKitManager: NSObject, ObservableObject {
         return map.first(where: { $0.value == callId }).flatMap { UUID(uuidString: $0.key) }
     }
 
+    /// EVERY persisted UUID mapped to this callId. The app's in-memory UUID for a call can drift
+    /// from the UUID CallKit actually holds the call under (device traces show the end-action UUID
+    /// never matching the reported-ended UUID). Used so we end-report all of them, not just one.
+    private func persistedUUIDs(for callId: String) -> [UUID] {
+        let map = UserDefaults.standard.dictionary(forKey: uuidMapDefaultsKey) as? [String: String] ?? [:]
+        return map.compactMap { $0.value == callId ? UUID(uuidString: $0.key) : nil }
+    }
+
     private func restorePersistedMapping(for callId: String) {
         guard callIdToUUID[callId] == nil, let uuid = persistedUUID(for: callId) else { return }
         callIdToUUID[callId] = uuid
@@ -233,9 +245,22 @@ final class CallKitManager: NSObject, ObservableObject {
     }
 
     private func endSystemCall(callId: String, reason: CXCallEndedReason = .remoteEnded) {
-        guard let uuid = callIdToUUID[callId] else { return }
-        APIClient.mobileDiagnostic(event: "callkit.reportEnded", callId: callId, detail: uuid.uuidString)
-        provider.reportCall(with: uuid, endedAt: Date(), reason: reason)
+        // End EVERY CallKit UUID we've ever associated with this call (in-memory + persisted).
+        // The app's stored UUID and the UUID CallKit holds the live call under can drift apart
+        // (confirmed in device traces: end.enter UUID != reportEnded UUID). Reporting ended on the
+        // wrong UUID silently no-ops and leaves the system call stuck on the Lock Screen / as a
+        // green pill after the peer hangs up. reportCall(endedAt:) on an unknown/already-ended UUID
+        // is harmless, so ending all known UUIDs guarantees the live one is actually dismissed.
+        var uuids = Set<UUID>(persistedUUIDs(for: callId))
+        if let current = callIdToUUID[callId] { uuids.insert(current) }
+        guard !uuids.isEmpty else {
+            APIClient.mobileDiagnostic(event: "callkit.reportEnded.noUUID", callId: callId)
+            return
+        }
+        for uuid in uuids {
+            APIClient.mobileDiagnostic(event: "callkit.reportEnded", callId: callId, detail: uuid.uuidString)
+            provider.reportCall(with: uuid, endedAt: Date(), reason: reason)
+        }
     }
 
     private func startRingTimeout(callId: String) {
