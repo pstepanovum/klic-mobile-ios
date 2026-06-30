@@ -18,7 +18,7 @@ struct KlicApp: App {
             RootView()
                 .environmentObject(session)
                 .environmentObject(themeManager)
-                .preferredColorScheme(themeManager.scheme.colorScheme)
+                .preferredColorScheme(themeManager.colorScheme)
                 .tint(KlicColor.primary)
                 .onAppear { session.bootstrap() }
                 .onChange(of: scenePhase) { phase in
