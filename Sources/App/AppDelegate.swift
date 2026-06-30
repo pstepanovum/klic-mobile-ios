@@ -69,7 +69,7 @@ extension AppDelegate: PKPushRegistryDelegate {
         _ registry: PKPushRegistry,
         didReceiveIncomingVoIPPushWith payload: PKPushPayload,
         metadata: PKVoIPPushMetadata,
-        completion: @escaping () -> Void
+        withCompletionHandler completion: @escaping () -> Void
     ) {
         handleVoIPPush(payload.dictionaryPayload, mustReport: metadata.mustReport, completion: completion)
     }

@@ -87,35 +87,40 @@ private struct RecentCallRow: View {
     }
 
     var body: some View {
-        HStack(spacing: 14) {
-            AvatarView(url: call.peer?.avatarUrl, name: call.peer?.displayName ?? "?", size: 50)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(call.peer?.displayName ?? "Unknown")
-                    .font(KlicFont.headline())
-                    .foregroundStyle(missed ? .red : KlicColor.textPrimary)
-                HStack(spacing: 5) {
-                    Image(systemName: call.outgoing ? "arrow.up.right" : "arrow.down.left")
-                        .font(.system(size: 10, weight: .bold))
-                        .foregroundStyle(missed ? .red : KlicColor.textMuted)
-                    Text(subtitle)
-                        .font(KlicFont.caption())
-                        .foregroundStyle(KlicColor.textMuted)
+        VStack(spacing: 0) {
+            HStack(spacing: 14) {
+                AvatarView(url: call.peer?.avatarUrl, name: call.peer?.displayName ?? "?", size: 50)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(call.peer?.displayName ?? "Unknown")
+                        .font(KlicFont.headline())
+                        .foregroundStyle(missed ? .red : KlicColor.textPrimary)
+                    HStack(spacing: 5) {
+                        Image(systemName: call.outgoing ? "arrow.up.right" : "arrow.down.left")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundStyle(missed ? .red : KlicColor.textMuted)
+                        Text(subtitle)
+                            .font(KlicFont.caption())
+                            .foregroundStyle(KlicColor.textMuted)
+                    }
                 }
+                Spacer()
+                Button { Task { await callBack() } } label: {
+                    Image(systemName: call.isVideo ? "video.fill" : "phone.fill")
+                        .font(.system(size: 17, weight: .medium))
+                        .foregroundStyle(KlicColor.onPrimary)
+                        .frame(width: 40, height: 40)
+                        .background(KlicColor.primary, in: Circle())
+                }
+                .buttonStyle(.plain)
+                .disabled(isCalling)
             }
-            Spacer()
-            Button { Task { await callBack() } } label: {
-                Image(systemName: call.isVideo ? "video.fill" : "phone.fill")
-                    .font(.system(size: 17, weight: .medium))
-                    .foregroundStyle(KlicColor.onPrimary)
-                    .frame(width: 40, height: 40)
-                    .background(KlicColor.primary, in: Circle())
-            }
-            .buttonStyle(.plain)
-            .disabled(isCalling)
+            .padding(.vertical, 12)
+
+            Rectangle()
+                .fill(KlicColor.textPrimary.opacity(0.08))
+                .frame(height: 1)
+                .padding(.leading, 64)
         }
-        .padding(.vertical, 10)
-        .padding(.horizontal, 12)
-        .background(KlicColor.surface, in: RoundedRectangle(cornerRadius: 20))
     }
 
     private func callBack() async {
@@ -124,7 +129,7 @@ private struct RecentCallRow: View {
         defer { isCalling = false }
         guard let session = try? await APIClient.shared.startCall(conversationId: call.conversationId, kind: call.kind)
         else { return }
-        await CallKitManager.shared.startOutgoing(session, peerName: call.peer?.displayName ?? "Call", peerId: call.peer?.id)
+        CallKitManager.shared.startOutgoing(session, peerName: call.peer?.displayName ?? "Call", peerId: call.peer?.id)
     }
 
     static func relativeTime(_ iso: String) -> String {
@@ -142,31 +147,36 @@ private struct FriendCallRow: View {
     @State private var isCalling = false
 
     var body: some View {
-        HStack(spacing: 14) {
-            AvatarView(url: friend.avatarUrl, name: friend.displayName, size: 50)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(friend.displayName)
-                    .font(KlicFont.headline())
-                    .foregroundStyle(KlicColor.textPrimary)
-                Text("@\(friend.username)")
-                    .font(KlicFont.caption())
-                    .foregroundStyle(KlicColor.textMuted)
-            }
-            Spacer()
-            HStack(spacing: 10) {
-                RoundCallButton(systemName: "phone.fill", fill: KlicColor.primary) {
-                    Task { await initiateCall(kind: "AUDIO") }
+        VStack(spacing: 0) {
+            HStack(spacing: 14) {
+                AvatarView(url: friend.avatarUrl, name: friend.displayName, size: 50)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(friend.displayName)
+                        .font(KlicFont.headline())
+                        .foregroundStyle(KlicColor.textPrimary)
+                    Text("@\(friend.username)")
+                        .font(KlicFont.caption())
+                        .foregroundStyle(KlicColor.textMuted)
                 }
-                .disabled(isCalling)
-                RoundCallButton(systemName: "video.fill", fill: KlicColor.surfaceRaised) {
-                    Task { await initiateCall(kind: "VIDEO") }
+                Spacer()
+                HStack(spacing: 10) {
+                    RoundCallButton(systemName: "phone.fill", fill: KlicColor.primary) {
+                        Task { await initiateCall(kind: "AUDIO") }
+                    }
+                    .disabled(isCalling)
+                    RoundCallButton(systemName: "video.fill", fill: KlicColor.surfaceRaised) {
+                        Task { await initiateCall(kind: "VIDEO") }
+                    }
+                    .disabled(isCalling)
                 }
-                .disabled(isCalling)
             }
+            .padding(.vertical, 12)
+
+            Rectangle()
+                .fill(KlicColor.textPrimary.opacity(0.08))
+                .frame(height: 1)
+                .padding(.leading, 64)
         }
-        .padding(.vertical, 10)
-        .padding(.horizontal, 12)
-        .background(KlicColor.surface, in: RoundedRectangle(cornerRadius: 20))
     }
 
     private func initiateCall(kind: String) async {
@@ -176,7 +186,7 @@ private struct FriendCallRow: View {
         guard let convo = try? await APIClient.shared.openConversation(userId: friend.id),
               let session = try? await APIClient.shared.startCall(conversationId: convo.id, kind: kind)
         else { return }
-        await CallKitManager.shared.startOutgoing(session, peerName: friend.displayName)
+        CallKitManager.shared.startOutgoing(session, peerName: friend.displayName)
     }
 }
 

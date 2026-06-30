@@ -21,7 +21,7 @@ struct KlicApp: App {
                 .preferredColorScheme(themeManager.colorScheme)
                 .tint(KlicColor.primary)
                 .onAppear { session.bootstrap() }
-                .onChange(of: scenePhase) { phase in
+                .onChange(of: scenePhase) { _, phase in
                     if phase == .active {
                         // Clear the app-icon badge + delivered banners when the user is back in.
                         UNUserNotificationCenter.current().setBadgeCount(0)

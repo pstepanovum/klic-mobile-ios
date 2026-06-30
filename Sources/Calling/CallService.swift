@@ -67,7 +67,7 @@ final class CallService: NSObject, ObservableObject {
             // speaker, .voiceChat to the earpiece.
             AudioManager.shared.sessionConfiguration = AudioSessionConfiguration(
                 category: .playAndRecord,
-                categoryOptions: [.allowBluetooth, .allowBluetoothA2DP, .allowAirPlay],
+                categoryOptions: [.allowBluetoothHFP, .allowBluetoothA2DP, .allowAirPlay],
                 mode: video ? .videoChat : .voiceChat
             )
             AudioManager.shared.isSpeakerOutputPreferred = video

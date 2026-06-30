@@ -13,7 +13,7 @@ struct FriendsView: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(alignment: .leading, spacing: 24) {
+                LazyVStack(alignment: .leading, spacing: 0) {
                     if !requests.isEmpty { requestsSection }
                     friendsSection
                     VStack(spacing: 6) {
@@ -23,10 +23,10 @@ struct FriendsView: View {
                             .foregroundStyle(KlicColor.textMuted)
                             .frame(maxWidth: .infinity)
                     }
-                    .padding(.top, 8)
+                    .padding(.top, 20)
                     .padding(.bottom, 8)
+                    .padding(.horizontal, 16)
                 }
-                .padding(20)
                 .adaptiveWidth()
             }
             .background(KlicColor.background.ignoresSafeArea())
@@ -58,26 +58,40 @@ struct FriendsView: View {
     // MARK: Requests
 
     private var requestsSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("Requests").font(KlicFont.headline()).foregroundStyle(KlicColor.textPrimary)
+        Group {
+            Text("Requests")
+                .font(KlicFont.headline())
+                .foregroundStyle(KlicColor.textPrimary)
+                .padding(.horizontal, 16)
+                .padding(.top, 20)
+                .padding(.bottom, 8)
+
             ForEach(requests) { req in
-                HStack(spacing: 12) {
-                    AvatarView(url: APIClient.avatarURL(forUserId: req.from.id), name: req.from.displayName, size: 44)
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(req.from.displayName).font(KlicFont.medium()).foregroundStyle(KlicColor.textPrimary)
-                        Text("@\(req.from.username)").font(KlicFont.caption()).foregroundStyle(KlicColor.textMuted)
+                VStack(spacing: 0) {
+                    HStack(spacing: 14) {
+                        AvatarView(url: APIClient.avatarURL(forUserId: req.from.id), name: req.from.displayName, size: 52)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(req.from.displayName).font(KlicFont.medium()).foregroundStyle(KlicColor.textPrimary)
+                            Text("@\(req.from.username)").font(KlicFont.caption()).foregroundStyle(KlicColor.textMuted)
+                        }
+                        Spacer()
+                        Button { Task { await accept(req) } } label: {
+                            Icon(.message, size: 18, color: KlicColor.onPrimary)
+                                .frame(width: 40, height: 40).background(KlicColor.primary, in: Circle())
+                        }
+                        Button { Task { await decline(req) } } label: {
+                            Icon(.close, size: 18, color: KlicColor.textMuted)
+                                .frame(width: 40, height: 40).background(KlicColor.surfaceRaised, in: Circle())
+                        }
                     }
-                    Spacer()
-                    Button { Task { await accept(req) } } label: {
-                        Icon(.message, size: 18, color: KlicColor.onPrimary)
-                            .frame(width: 40, height: 40).background(KlicColor.primary, in: Circle())
-                    }
-                    Button { Task { await decline(req) } } label: {
-                        Icon(.close, size: 18, color: KlicColor.textMuted)
-                            .frame(width: 40, height: 40).background(KlicColor.surfaceRaised, in: Circle())
-                    }
+                    .padding(.vertical, 12)
+                    .padding(.horizontal, 16)
+
+                    Rectangle()
+                        .fill(KlicColor.textPrimary.opacity(0.08))
+                        .frame(height: 1)
+                        .padding(.leading, 82)
                 }
-                .padding(12).background(KlicColor.surface, in: RoundedRectangle(cornerRadius: 18))
             }
         }
     }
@@ -85,32 +99,50 @@ struct FriendsView: View {
     // MARK: Friends list
 
     private var friendsSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("Your friends").font(KlicFont.headline()).foregroundStyle(KlicColor.textPrimary)
+        Group {
+            Text("Your friends")
+                .font(KlicFont.headline())
+                .foregroundStyle(KlicColor.textPrimary)
+                .padding(.horizontal, 16)
+                .padding(.top, 20)
+                .padding(.bottom, 8)
+
             if friends.isEmpty {
-                Text("No friends yet — add someone by username above.")
-                    .font(KlicFont.body(14)).foregroundStyle(KlicColor.textMuted)
+                Text("No friends yet — tap + to add someone.")
+                    .font(KlicFont.body(14))
+                    .foregroundStyle(KlicColor.textMuted)
+                    .padding(.horizontal, 16)
             }
+
             ForEach(friends) { friend in
                 Button { selectedFriend = friend } label: {
-                    HStack(spacing: 12) {
-                        AvatarView(url: friend.avatarUrl, name: friend.displayName, size: 44)
-                            .overlay(alignment: .bottomTrailing) {
-                                if socket.presence[friend.id]?.online == true {
-                                    Circle().fill(.green).frame(width: 12, height: 12)
-                                        .overlay(Circle().stroke(KlicColor.surface, lineWidth: 2))
+                    VStack(spacing: 0) {
+                        HStack(spacing: 14) {
+                            AvatarView(url: friend.avatarUrl, name: friend.displayName, size: 52)
+                                .overlay(alignment: .bottomTrailing) {
+                                    if socket.presence[friend.id]?.online == true {
+                                        Circle().fill(.green).frame(width: 14, height: 14)
+                                            .overlay(Circle().stroke(KlicColor.background, lineWidth: 2))
+                                    }
                                 }
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(friend.displayName).font(KlicFont.medium()).foregroundStyle(KlicColor.textPrimary)
+                                Text("@\(friend.username)").font(KlicFont.caption()).foregroundStyle(KlicColor.textMuted)
                             }
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(friend.displayName).font(KlicFont.medium()).foregroundStyle(KlicColor.textPrimary)
-                            Text("@\(friend.username)").font(KlicFont.caption()).foregroundStyle(KlicColor.textMuted)
+                            Spacer()
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 14, weight: .semibold))
+                                .foregroundStyle(KlicColor.textMuted)
                         }
-                        Spacer()
-                        Image(systemName: "chevron.right")
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundStyle(KlicColor.textMuted)
+                        .padding(.vertical, 12)
+                        .padding(.horizontal, 16)
+
+                        Rectangle()
+                            .fill(KlicColor.textPrimary.opacity(0.08))
+                            .frame(height: 1)
+                            .padding(.leading, 82)
                     }
-                    .padding(12).background(KlicColor.surface, in: RoundedRectangle(cornerRadius: 18))
+                    .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
             }

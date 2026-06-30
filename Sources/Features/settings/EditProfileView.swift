@@ -13,6 +13,7 @@ struct EditProfileView: View {
     @State private var error: String?
 
     var body: some View {
+        let user = session.currentUser
         ScrollView {
             VStack(spacing: 22) {
                 PhotosPicker(selection: $pickedItem, matching: .images) {
@@ -21,8 +22,8 @@ struct EditProfileView: View {
                             Image(uiImage: pickedImage).resizable().scaledToFill()
                                 .frame(width: 120, height: 120).clipShape(Circle())
                         } else {
-                            AvatarView(url: session.currentUser?.avatarUrl,
-                                       name: session.currentUser?.displayName ?? "", size: 120)
+                            AvatarView(url: user?.avatarUrl,
+                                       name: user?.displayName ?? "", size: 120)
                         }
                         Image(systemName: "camera.fill")
                             .font(.system(size: 13, weight: .semibold))
