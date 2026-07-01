@@ -1,6 +1,8 @@
 import SwiftUI
+import Inject
 
 struct ConversationsView: View {
+    @ObserveInjection var inject
     @State private var conversations: [Conversation] = []
     @State private var searchText = ""
     @State private var showNewMessage = false
@@ -66,6 +68,7 @@ struct ConversationsView: View {
             .task { await load() }
         }
         .tint(KlicColor.primary)
+        .enableInjection()
     }
 
     private func load() async {

@@ -1,6 +1,8 @@
 import SwiftUI
+import Inject
 
 struct FriendsView: View {
+    @ObserveInjection var inject
     @EnvironmentObject var session: AppSession
     @StateObject private var socket = SocketService.shared
 
@@ -53,6 +55,7 @@ struct FriendsView: View {
             .refreshable { await reload() }
         }
         .tint(KlicColor.primary)
+        .enableInjection()
     }
 
     // MARK: Requests
@@ -183,6 +186,7 @@ struct FriendsView: View {
 // MARK: - Add Friend Sheet
 
 private struct AddFriendSheet: View {
+    @ObserveInjection var inject
     @Environment(\.dismiss) private var dismiss
     @State private var username = ""
     @State private var statusText: String?
@@ -240,6 +244,7 @@ private struct AddFriendSheet: View {
             }
         }
         .tint(KlicColor.primary)
+        .enableInjection()
     }
 
     private func sendRequest() async {

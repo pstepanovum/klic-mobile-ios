@@ -4,14 +4,23 @@ import SwiftUI
 /// button. The row itself has no background — the controls float on the chat; only the
 /// individual controls (pill, buttons) carry their own fill.
 struct MessageComposer: View {
+    enum CaptureMode {
+        case audio
+        case video
+    }
+
     @Binding var draft: String
     var focused: FocusState<Bool>.Binding
     @ObservedObject var recorder: AudioRecorder
     let uploading: Bool
+    let hasPendingAttachments: Bool
+    @Binding var captureMode: CaptureMode
     let onAttach: () -> Void
     let onStickers: () -> Void
     let onSend: () -> Void
-    let onStartRecording: () -> Void
+    let onToggleCaptureMode: () -> Void
+    let onHoldStart: () -> Void
+    let onHoldEnd: () -> Void
     let onCancelRecording: () -> Void
     let onSendVoice: () -> Void
 
@@ -59,19 +68,32 @@ struct MessageComposer: View {
             .padding(.vertical, 11)
             .background(KlicColor.surfaceRaised, in: RoundedRectangle(cornerRadius: 22))
 
-            let canSend = !draft.trimmingCharacters(in: .whitespaces).isEmpty
-            Button {
-                if canSend { onSend() } else { onStartRecording() }
-            } label: {
-                Image(systemName: canSend ? "paperplane.fill" : "mic.fill")
+            let canSend = hasPendingAttachments || !draft.trimmingCharacters(in: .whitespaces).isEmpty
+            composerActionButton(canSend: canSend)
+        }
+        .animation(.easeInOut(duration: 0.15), value: draft.isEmpty)
+    }
+
+    @ViewBuilder
+    private func composerActionButton(canSend: Bool) -> some View {
+        if canSend {
+            Button(action: onSend) {
+                Image(systemName: "paperplane.fill")
                     .font(.system(size: 18, weight: .semibold))
                     .foregroundStyle(KlicColor.onPrimary)
                     .frame(width: 44, height: 44)
                     .background(KlicColor.primary, in: Circle())
             }
-            .disabled(uploading && !canSend)
+            .disabled(uploading)
+        } else {
+            CaptureRecordButton(
+                iconName: captureMode == .audio ? "mic.fill" : "video.fill",
+                onTap: onToggleCaptureMode,
+                onHoldStart: onHoldStart,
+                onHoldEnd: onHoldEnd
+            )
+            .disabled(uploading)
         }
-        .animation(.easeInOut(duration: 0.15), value: draft.isEmpty)
     }
 
     private var recordingBar: some View {
@@ -99,5 +121,43 @@ struct MessageComposer: View {
     private var elapsedText: String {
         let s = Int(recorder.elapsed)
         return String(format: "%d:%02d", s / 60, s % 60)
+    }
+}
+
+private struct CaptureRecordButton: View {
+    let iconName: String
+    let onTap: () -> Void
+    let onHoldStart: () -> Void
+    let onHoldEnd: () -> Void
+
+    @State private var isHolding = false
+
+    var body: some View {
+        Image(systemName: iconName)
+            .font(.system(size: 18, weight: .semibold))
+            .foregroundStyle(KlicColor.onPrimary)
+            .frame(width: 44, height: 44)
+            .background(KlicColor.primary, in: Circle())
+            .scaleEffect(isHolding ? 1.08 : 1)
+            .contentShape(Circle())
+            .simultaneousGesture(
+                LongPressGesture(minimumDuration: 0.18)
+                    .onEnded { _ in
+                        isHolding = true
+                        onHoldStart()
+                    }
+            )
+            .simultaneousGesture(
+                DragGesture(minimumDistance: 0)
+                    .onEnded { _ in
+                        if isHolding {
+                            isHolding = false
+                            onHoldEnd()
+                        } else {
+                            onTap()
+                        }
+                    }
+            )
+            .animation(.easeInOut(duration: 0.12), value: isHolding)
     }
 }

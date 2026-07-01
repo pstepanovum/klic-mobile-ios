@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 // MARK: - Attach sheet
 
@@ -62,6 +63,7 @@ struct MessageBubble: View {
     var onAvatarTap: (() -> Void)? = nil
     var onLongPress: () -> Void = {}
     var onReactionTap: (String) -> Void = { _ in }
+    var onOpenAttachment: (Attachment) -> Void = { _ in }
 
     private var topRadius:    CGFloat { isFirst ? 18 : (isMine ? 18 : 4) }
     private var bottomRadius: CGFloat { isLast  ? 18 : (isMine ? 4  : 18) }
@@ -140,40 +142,60 @@ struct MessageBubble: View {
                     isMine: isMine,
                     showTime: isLast && message.body.isEmpty,
                     time: shortTime(message.createdAt),
-                    status: message.status
+                    status: message.status,
+                    onOpenAttachment: onOpenAttachment
                 )
             }
 
             if !message.body.isEmpty {
-                VStack(alignment: .leading, spacing: 5) {
+                VStack(alignment: isMine ? .trailing : .leading, spacing: 6) {
                     if showSenderName, let senderName {
                         Text(senderName)
                             .font(KlicFont.caption(12))
                             .foregroundStyle(KlicColor.primary.opacity(0.95))
                     }
-                    if let reply = message.replyTo, message.attachments.isEmpty {
-                        ReplyQuoteView(reply: reply, authorName: replyAuthorName, onPrimary: isMine)
-                    }
-                    HStack(alignment: .bottom, spacing: 6) {
-                        Text(message.body)
-                            .font(KlicFont.body())
-                            .foregroundStyle(isMine ? KlicColor.onPrimary : KlicColor.textPrimary)
+
+                    if isBareLink, let url = detectedURL {
+                        // A message that's only a link — show the rich card alone, no chat bubble,
+                        // matching how Messages presents standalone URLs.
+                        LinkPreviewCard(url: url)
+                            .frame(maxWidth: 260)
                         if isLast {
-                            inlineTimeStatus(onPrimary: isMine)
+                            inlineTimeStatus(onPrimary: false)
+                        }
+                    } else {
+                        if let reply = message.replyTo, message.attachments.isEmpty {
+                            ReplyQuoteView(reply: reply, authorName: replyAuthorName, onPrimary: isMine)
+                        }
+                        HStack(alignment: .bottom, spacing: 6) {
+                            RichMessageText(
+                                text: message.body,
+                                font: UIFont(name: "TikTokSans-Regular", size: 16) ?? .systemFont(ofSize: 16),
+                                textColor: UIColor(isMine ? KlicColor.onPrimary : KlicColor.textPrimary),
+                                onLongPress: onLongPress
+                            )
+                            if isLast {
+                                inlineTimeStatus(onPrimary: isMine)
+                            }
+                        }
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 10)
+                        .background(
+                            isMine ? KlicColor.primary : KlicColor.surfaceRaised,
+                            in: UnevenRoundedRectangle(
+                                topLeadingRadius:     isMine ? 18 : topRadius,
+                                bottomLeadingRadius:  isMine ? 18 : bottomRadius,
+                                bottomTrailingRadius: isMine ? tailRadius : 18,
+                                topTrailingRadius:    isMine ? topRadius : 18
+                            )
+                        )
+
+                        if let url = detectedURL {
+                            LinkPreviewCard(url: url)
+                                .frame(maxWidth: 260)
                         }
                     }
                 }
-                .padding(.horizontal, 14)
-                .padding(.vertical, 10)
-                .background(
-                    isMine ? KlicColor.primary : KlicColor.surfaceRaised,
-                    in: UnevenRoundedRectangle(
-                        topLeadingRadius:     isMine ? 18 : topRadius,
-                        bottomLeadingRadius:  isMine ? 18 : bottomRadius,
-                        bottomTrailingRadius: isMine ? tailRadius : 18,
-                        topTrailingRadius:    isMine ? topRadius : 18
-                    )
-                )
             }
         }
     }
@@ -212,6 +234,18 @@ struct MessageBubble: View {
                 MessageTicks(status: status, onPrimary: onPrimary)
             }
         }
+    }
+
+    private var detectedURL: URL? {
+        guard let detector = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.link.rawValue) else { return nil }
+        let text = message.body
+        let match = detector.firstMatch(in: text, range: NSRange(text.startIndex..., in: text))
+        return match?.url
+    }
+
+    private var isBareLink: Bool {
+        guard let url = detectedURL else { return false }
+        return message.body.trimmingCharacters(in: .whitespacesAndNewlines) == url.absoluteString
     }
 
     private func shortTime(_ iso: String) -> String {

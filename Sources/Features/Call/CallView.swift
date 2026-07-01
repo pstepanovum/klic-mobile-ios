@@ -1,6 +1,8 @@
 import SwiftUI
+import Inject
 
 struct CallView: View {
+    @ObserveInjection var inject
     let call: CallKitManager.ActiveCall
 
     @ObservedObject private var service = CallService.shared
@@ -83,6 +85,7 @@ struct CallView: View {
         // Don't let the screen dim/lock while the call UI is up (matches Android's keepScreenOn).
         .onAppear { UIApplication.shared.isIdleTimerDisabled = true }
         .onDisappear { UIApplication.shared.isIdleTimerDisabled = false }
+        .enableInjection()
     }
 
     private var avatar: some View {

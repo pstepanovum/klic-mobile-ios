@@ -1,8 +1,10 @@
 import SwiftUI
+import Inject
 
 /// A friend's profile: large avatar (or initials), name, @username, live presence,
 /// and Audio / Video call buttons. Presence/last-seen honor the privacy setting.
 struct ProfileView: View {
+    @ObserveInjection var inject
     let userId: String
     let username: String
     let displayName: String
@@ -57,6 +59,7 @@ struct ProfileView: View {
         .navigationTitle("Profile")
         .navigationBarTitleDisplayMode(.inline)
         .task { profile = try? await APIClient.shared.userProfile(id: userId) }
+        .enableInjection()
     }
 
     private var isOnline: Bool { socket.presence[userId]?.online == true }

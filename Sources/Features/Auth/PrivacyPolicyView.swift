@@ -1,6 +1,8 @@
 import SwiftUI
+import Inject
 
 struct PrivacyPolicyView: View {
+    @ObserveInjection var inject
     @Environment(\.dismiss) private var dismiss
 
     private let sections: [(title: String, body: String)] = [
@@ -61,5 +63,6 @@ struct PrivacyPolicyView: View {
                 }
             }
         }
+        .enableInjection()
     }
 }

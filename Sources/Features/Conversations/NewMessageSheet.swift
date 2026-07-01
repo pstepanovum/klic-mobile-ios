@@ -1,6 +1,7 @@
 import SwiftUI
 import PhotosUI
 import Contacts
+import Inject
 
 private enum NewMessageRoute: Hashable {
     case newGroup
@@ -9,6 +10,7 @@ private enum NewMessageRoute: Hashable {
 }
 
 struct NewMessageSheet: View {
+    @ObserveInjection var inject
     var onOpenChat: ((Conversation) -> Void)? = nil
 
     @Environment(\.dismiss) private var dismiss
@@ -95,6 +97,7 @@ struct NewMessageSheet: View {
         }
         .tint(KlicColor.primary)
         .task { await load() }
+        .enableInjection()
     }
 
     // MARK: Search bar
@@ -226,6 +229,7 @@ struct NewMessageSheet: View {
 // MARK: - New Group: Step 1 — Friend picker
 
 private struct NewGroupPickerView: View {
+    @ObserveInjection var inject
     @Binding var path: [NewMessageRoute]
     @State private var friends: [User] = []
     @State private var selectedIds: Set<String> = []
@@ -287,6 +291,7 @@ private struct NewGroupPickerView: View {
             }
         }
         .task { friends = (try? await APIClient.shared.friends()) ?? [] }
+        .enableInjection()
     }
 
     private func toggle(_ id: String) {
@@ -297,6 +302,7 @@ private struct NewGroupPickerView: View {
 // MARK: - New Group: Step 2 — Name + photo
 
 private struct NewGroupDetailsView: View {
+    @ObserveInjection var inject
     let selectedIds: [String]
     let onCreated: () -> Void
 
@@ -364,6 +370,7 @@ private struct NewGroupDetailsView: View {
                 groupImage = img
             }
         }
+        .enableInjection()
     }
 
     private func createGroup() async {
@@ -391,6 +398,7 @@ private struct NewGroupDetailsView: View {
 // MARK: - New Contact
 
 private struct NewContactView: View {
+    @ObserveInjection var inject
     @State private var username = ""
     @State private var statusText: String?
     @State private var isSending = false
@@ -424,6 +432,7 @@ private struct NewContactView: View {
         .background(KlicColor.background.ignoresSafeArea())
         .navigationTitle("New Contact")
         .navigationBarTitleDisplayMode(.inline)
+        .enableInjection()
     }
 
     private func sendRequest() async {

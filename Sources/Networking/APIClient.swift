@@ -20,8 +20,8 @@ enum APIError: Error {
 actor APIClient {
     static let shared = APIClient()
 
-    /// Live server (TLS via sslip.io). For local dev point this at http://localhost:3000/api/v1.
-    static let baseURL = URL(string: "https://api.89.34.230.2.sslip.io/api/v1")!
+    /// Uses Klic-specific runtime overrides (`KLIC_API_ORIGIN`, `KLIC_SOCKET_ORIGIN`) when present.
+    static let baseURL = AppConfig.apiBaseURL
 
     private let session = URLSession.shared
 
@@ -227,7 +227,7 @@ actor APIClient {
     /// Public, stable avatar URL for any user id (the endpoint 302-redirects to the
     /// presigned image, or 404s — in which case the UI falls back to initials).
     nonisolated static func avatarURL(forUserId id: String) -> String {
-        baseURL.absoluteString + "/users/\(id)/avatar"
+        AppConfig.avatarURL(forUserId: id)
     }
 
     // MARK: Attachments / media

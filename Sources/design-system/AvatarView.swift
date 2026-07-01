@@ -1,4 +1,107 @@
 import SwiftUI
+import CryptoKit
+
+enum RemoteImagePhase {
+    case empty
+    case success(Image)
+    case failure
+}
+
+struct RemoteImage<Content: View>: View {
+    let url: URL?
+    @ViewBuilder let content: (RemoteImagePhase) -> Content
+
+    @State private var phase: RemoteImagePhase = .empty
+
+    var body: some View {
+        content(phase)
+            .task(id: url) { await load() }
+    }
+
+    private func load() async {
+        guard let url else {
+            phase = .failure
+            return
+        }
+        phase = .empty
+        guard let uiImage = await RemoteImageStore.shared.image(for: url) else {
+            phase = .failure
+            return
+        }
+        phase = .success(Image(uiImage: uiImage))
+    }
+}
+
+actor RemoteImageStore {
+    static let shared = RemoteImageStore()
+
+    private let memory = NSCache<NSString, UIImage>()
+    private let directory: URL
+    private var inFlight: [String: Task<UIImage?, Never>] = [:]
+    private let maxDiskEntryBytes = 16 * 1024 * 1024
+
+    init() {
+        memory.totalCostLimit = 64 * 1024 * 1024
+        let caches = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first
+        directory = (caches ?? FileManager.default.temporaryDirectory)
+            .appendingPathComponent("klic-remote-images", isDirectory: true)
+        try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    }
+
+    func image(for url: URL) async -> UIImage? {
+        let key = url.absoluteString
+        if let cached = memory.object(forKey: key as NSString) {
+            return cached
+        }
+        if let cached = try? Data(contentsOf: fileURL(for: key)),
+           let image = UIImage(data: cached) {
+            remember(image, for: key)
+            return image
+        }
+        if let task = inFlight[key] {
+            return await task.value
+        }
+
+        let task = Task<UIImage?, Never> { await self.fetch(url, key: key) }
+        inFlight[key] = task
+        let image = await task.value
+        inFlight[key] = nil
+        return image
+    }
+
+    private func fetch(_ url: URL, key: String) async -> UIImage? {
+        do {
+            let (data, response) = try await URLSession.shared.data(from: url)
+            guard let http = response as? HTTPURLResponse,
+                  (200 ... 299).contains(http.statusCode),
+                  let image = UIImage(data: data) else { return nil }
+            remember(image, for: key)
+            if data.count <= maxDiskEntryBytes {
+                try? data.write(to: fileURL(for: key), options: .atomic)
+            }
+            return image
+        } catch {
+            return nil
+        }
+    }
+
+    private func remember(_ image: UIImage, for key: String) {
+        memory.setObject(image, forKey: key as NSString, cost: imageCost(image))
+    }
+
+    private func fileURL(for key: String) -> URL {
+        let digest = SHA256.hash(data: Data(key.utf8))
+        let file = digest.map { String(format: "%02x", $0) }.joined()
+        return directory.appendingPathComponent(file)
+    }
+
+    private func imageCost(_ image: UIImage) -> Int {
+        if let cg = image.cgImage { return cg.bytesPerRow * cg.height }
+        let width = Int(image.size.width * image.scale)
+        let height = Int(image.size.height * image.scale)
+        return width * height * 4
+    }
+}
 
 /// Circular avatar that loads a remote image, falling back to the user's initials.
 struct AvatarView: View {
@@ -9,7 +112,7 @@ struct AvatarView: View {
     var body: some View {
         Group {
             if let url, let parsed = URL(string: url) {
-                AsyncImage(url: parsed) { phase in
+                RemoteImage(url: parsed) { phase in
                     switch phase {
                     case .success(let image): image.resizable().scaledToFill()
                     case .empty: LoadingCircle()

@@ -16,8 +16,26 @@ open Klic.xcodeproj
 ```
 
 By default the app points at the **live server** `https://api.89.34.230.2.sslip.io` (TLS), with
-LiveKit at `wss://lk.89.34.230.2.sslip.io`. To run against a local backend instead, change the
-base URL in `Sources/Networking/APIClient.swift` and `SocketService.swift` to `http://localhost:3000`.
+LiveKit at `wss://lk.89.34.230.2.sslip.io`.
+
+To run against a local backend, do not edit source files. Set Klic-specific run env vars in your
+Xcode scheme instead:
+
+```text
+KLIC_API_ORIGIN=http://localhost:4310
+KLIC_SOCKET_ORIGIN=http://localhost:4310
+```
+
+For a physical iPhone/iPad, replace `localhost` with your Mac's LAN IP, for example:
+
+```text
+KLIC_API_ORIGIN=http://192.168.1.42:4310
+KLIC_SOCKET_ORIGIN=http://192.168.1.42:4310
+```
+
+The app already loads `InjectionIII` in `DEBUG`, and the main screen roots are wired with
+`.enableInjection()` so SwiftUI changes can patch into the running app without a full rebuild when
+the edit is injection-safe.
 
 ## Dependencies (SPM, declared in `project.yml`)
 - **LiveKit** `client-sdk-swift` — audio/video rooms

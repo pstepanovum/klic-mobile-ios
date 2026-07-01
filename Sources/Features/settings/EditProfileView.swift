@@ -1,8 +1,10 @@
 import SwiftUI
 import PhotosUI
+import Inject
 
 /// Edit the current user's profile photo and display name. Username is immutable.
 struct EditProfileView: View {
+    @ObserveInjection var inject
     @EnvironmentObject var session: AppSession
     @Environment(\.dismiss) private var dismiss
 
@@ -69,6 +71,7 @@ struct EditProfileView: View {
         .navigationBarTitleDisplayMode(.inline)
         .onAppear { displayName = session.currentUser?.displayName ?? "" }
         .onChange(of: pickedItem) { _, item in Task { await loadPicked(item) } }
+        .enableInjection()
     }
 
     private func loadPicked(_ item: PhotosPickerItem?) async {

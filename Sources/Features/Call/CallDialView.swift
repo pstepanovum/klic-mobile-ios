@@ -1,6 +1,8 @@
 import SwiftUI
+import Inject
 
 struct CallDialView: View {
+    @ObserveInjection var inject
     @State private var friends: [User] = []
     @State private var recents: [RecentCall] = []
     @State private var searchText = ""
@@ -57,6 +59,7 @@ struct CallDialView: View {
             }
         }
         .tint(KlicColor.primary)
+        .enableInjection()
     }
 }
 
@@ -77,6 +80,21 @@ private struct SectionHeader: View {
 private struct RecentCallRow: View {
     let call: RecentCall
     @State private var isCalling = false
+    private static let iso8601Fractional: ISO8601DateFormatter = {
+        let f = ISO8601DateFormatter()
+        f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return f
+    }()
+    private static let iso8601: ISO8601DateFormatter = {
+        let f = ISO8601DateFormatter()
+        f.formatOptions = [.withInternetDateTime]
+        return f
+    }()
+    private static let relative: RelativeDateTimeFormatter = {
+        let f = RelativeDateTimeFormatter()
+        f.unitsStyle = .abbreviated
+        return f
+    }()
 
     private var missed: Bool { call.outcome != "completed" }
     private var subtitle: String {
@@ -138,12 +156,8 @@ private struct RecentCallRow: View {
     }
 
     static func relativeTime(_ iso: String) -> String {
-        let f1 = ISO8601DateFormatter(); f1.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        let f2 = ISO8601DateFormatter(); f2.formatOptions = [.withInternetDateTime]
-        guard let date = f1.date(from: iso) ?? f2.date(from: iso) else { return "" }
-        let rel = RelativeDateTimeFormatter()
-        rel.unitsStyle = .abbreviated
-        return rel.localizedString(for: date, relativeTo: Date())
+        guard let date = iso8601Fractional.date(from: iso) ?? iso8601.date(from: iso) else { return "" }
+        return relative.localizedString(for: date, relativeTo: Date())
     }
 }
 

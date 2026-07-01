@@ -1,6 +1,8 @@
 import SwiftUI
+import Inject
 
 struct SettingsView: View {
+    @ObserveInjection var inject
     @EnvironmentObject var session: AppSession
     @EnvironmentObject var themeManager: ThemeManager
 
@@ -37,6 +39,7 @@ struct SettingsView: View {
             .navigationTitle("Settings")
         }
         .tint(KlicColor.primary)
+        .enableInjection()
     }
 
     private var appVersion: String {
@@ -109,6 +112,7 @@ struct SettingsView: View {
 // MARK: - Appearance page
 
 private struct AppearanceView: View {
+    @ObserveInjection var inject
     @EnvironmentObject var themeManager: ThemeManager
 
     var body: some View {
@@ -169,12 +173,14 @@ private struct AppearanceView: View {
         .background(KlicColor.background.ignoresSafeArea())
         .navigationTitle("Appearance")
         .navigationBarTitleDisplayMode(.inline)
+        .enableInjection()
     }
 }
 
 // MARK: - Auto-Night Mode picker
 
 private struct AutoNightModeView: View {
+    @ObserveInjection var inject
     @EnvironmentObject var themeManager: ThemeManager
 
     var body: some View {
@@ -219,6 +225,7 @@ private struct AutoNightModeView: View {
         .background(KlicColor.background.ignoresSafeArea())
         .navigationTitle("Auto-Night Mode")
         .navigationBarTitleDisplayMode(.inline)
+        .enableInjection()
     }
 }
 

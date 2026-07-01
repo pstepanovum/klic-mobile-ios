@@ -1,7 +1,9 @@
 import SwiftUI
 import AVFoundation
+import Inject
 
 struct RootView: View {
+    @ObserveInjection var inject
     @EnvironmentObject var session: AppSession
     @StateObject private var callKit = CallKitManager.shared
     @State private var didGetStarted = false
@@ -51,5 +53,6 @@ struct RootView: View {
         .fullScreenCover(item: $callKit.activeCall) { call in
             CallView(call: call)
         }
+        .enableInjection()
     }
 }

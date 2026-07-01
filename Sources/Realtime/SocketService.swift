@@ -45,7 +45,7 @@ final class SocketService: ObservableObject {
     func connect() {
         guard let token = TokenStore.accessToken else { return }
         myUserId = AccessToken.subject(of: token)
-        let url = URL(string: "https://api.89.34.230.2.sslip.io")!
+        let url = URL(string: AppConfig.socketOrigin)!
         let manager = SocketManager(socketURL: url, config: [
             .log(false),
             .compress,
