@@ -107,9 +107,9 @@ private struct RecentCallRow: View {
     var body: some View {
         VStack(spacing: 0) {
             HStack(spacing: 14) {
-                AvatarView(url: call.peer?.avatarUrl, name: call.peer?.displayName ?? "?", size: 50)
+                AvatarView(url: call.primaryPeer?.avatarUrl, name: call.primaryPeer?.displayName ?? "?", size: 50)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(call.peer?.displayName ?? "Unknown")
+                    Text(call.peerNames)
                         .font(KlicFont.headline())
                         .foregroundStyle(missed ? .red : KlicColor.textPrimary)
                     HStack(spacing: 5) {
@@ -145,13 +145,14 @@ private struct RecentCallRow: View {
         guard !isCalling else { return }
         isCalling = true
         defer { isCalling = false }
+        await CallKitManager.shared.awaitServerTeardown()
         guard let session = try? await APIClient.shared.startCall(conversationId: call.conversationId, kind: call.kind)
         else { return }
         CallKitManager.shared.startOutgoing(
             session,
-            peerName: call.peer?.displayName ?? "Call",
-            peerId: call.peer?.id,
-            peerAvatarUrl: call.peer?.avatarUrl
+            peerName: call.peerNames,
+            peerId: call.primaryPeer?.id,
+            peerAvatarUrl: call.primaryPeer?.avatarUrl
         )
     }
 

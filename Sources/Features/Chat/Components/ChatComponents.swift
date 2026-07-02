@@ -96,7 +96,7 @@ struct MessageBubble: View {
 
     private func stickerBubble(_ stickerId: String) -> some View {
         VStack(alignment: isMine ? .trailing : .leading, spacing: 4) {
-            StickerMessageView(stickerId: stickerId, isMine: isMine, time: isLast ? shortTime(message.createdAt) : nil)
+            StickerMessageView(stickerId: stickerId, isMine: isMine, time: shortTime(message.createdAt))
                 .onLongPressGesture(minimumDuration: 0.3, perform: onLongPress)
             if !message.reactions.isEmpty {
                 ReactionPills(reactions: message.reactions, onTap: onReactionTap)
@@ -140,7 +140,7 @@ struct MessageBubble: View {
                 MessageAttachmentsView(
                     attachments: message.attachments,
                     isMine: isMine,
-                    showTime: isLast && message.body.isEmpty,
+                    showTime: message.body.isEmpty,
                     time: shortTime(message.createdAt),
                     status: message.status,
                     onOpenAttachment: onOpenAttachment
@@ -160,9 +160,7 @@ struct MessageBubble: View {
                         // matching how Messages presents standalone URLs.
                         LinkPreviewCard(url: url)
                             .frame(maxWidth: 260)
-                        if isLast {
-                            inlineTimeStatus(onPrimary: false)
-                        }
+                        inlineTimeStatus(onPrimary: false)
                     } else {
                         if let reply = message.replyTo, message.attachments.isEmpty {
                             ReplyQuoteView(reply: reply, authorName: replyAuthorName, onPrimary: isMine)
@@ -174,9 +172,7 @@ struct MessageBubble: View {
                                 textColor: UIColor(isMine ? KlicColor.onPrimary : KlicColor.textPrimary),
                                 onLongPress: onLongPress
                             )
-                            if isLast {
-                                inlineTimeStatus(onPrimary: isMine)
-                            }
+                            inlineTimeStatus(onPrimary: isMine)
                         }
                         .padding(.horizontal, 14)
                         .padding(.vertical, 10)

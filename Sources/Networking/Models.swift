@@ -196,8 +196,19 @@ struct RecentCall: Codable, Identifiable {
     let outcome: String         // "completed" | "missed" | "declined" | "canceled" | "failed"
     let startedAt: String
     var durationMs: Int?
+    /// Everyone besides me who was on the call (a 1:1 peer is the single-element case).
+    var participants: [Peer]?
+    /// Pre-group servers sent a single `peer`; kept as a decode fallback.
     var peer: Peer?
     var isVideo: Bool { kind == "VIDEO" }
+
+    /// The counterpart shown on the row — first fellow participant, or the legacy peer.
+    var primaryPeer: Peer? { participants?.first ?? peer }
+    var peerNames: String {
+        let names = (participants ?? []).map(\.displayName)
+        if names.isEmpty { return peer?.displayName ?? "Unknown" }
+        return names.joined(separator: ", ")
+    }
 
     struct Peer: Codable, Identifiable {
         let id: String
