@@ -10,6 +10,10 @@
 #   ./release.sh 0.4.3      # explicit shared version
 #
 set -euo pipefail
+# Without this, a build failing inside $(build_android ...) does NOT abort the
+# script — bash drops errexit in command substitutions — and a stale artifact
+# gets released. This bit us once; do not remove.
+shopt -s inherit_errexit
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 SELF_DIR="$SCRIPT_DIR"
@@ -107,7 +111,8 @@ build_android() {
   echo "Building Android APK..." >&2
   (
     cd "$dir"
-    ./gradlew assembleDebug
+    # stdout of this function is the artifact path — keep build logs on stderr
+    ./gradlew assembleDebug 1>&2
   )
   local apk="$dir/klic-${version}.apk"
   cp "$dir/app/build/outputs/apk/debug/app-debug.apk" "$apk"
@@ -121,7 +126,7 @@ build_ios() {
   (
     cd "$dir"
     if command -v xcodegen >/dev/null 2>&1; then
-      xcodegen generate --quiet
+      xcodegen generate --quiet 1>&2
     else
       echo "xcodegen not found — skipping project regeneration (xcodeproj must already be up to date)" >&2
     fi
@@ -142,7 +147,7 @@ build_ios() {
       CODE_SIGNING_REQUIRED=NO \
       CODE_SIGNING_ALLOWED=NO \
       DEVELOPMENT_TEAM="" \
-      -quiet
+      -quiet 1>&2
   )
 
   rm -rf "$payload_dir"
