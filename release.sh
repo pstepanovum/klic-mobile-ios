@@ -109,20 +109,33 @@ confirm_yes() {
 build_android() {
   local dir="$1"
   local version="$2"
+  local build_dir="$dir/build-android"
+  local apk="$build_dir/klic-${version}.apk"
   echo "Building Android APK..." >&2
+  mkdir -p "$build_dir"
   (
     cd "$dir"
     # stdout of this function is the artifact path — keep build logs on stderr
     ./gradlew assembleDebug 1>&2
   ) || { echo "ERROR: gradle build failed" >&2; exit 1; }
-  local apk="$dir/klic-${version}.apk"
   cp "$dir/app/build/outputs/apk/debug/app-debug.apk" "$apk"
-  echo "$apk"
+  ARTIFACT_ANDROID_APK="$apk"
 }
 
 build_ios() {
   local dir="$1"
   local version="$2"
+  local build_root="$dir/build-ios"
+  local unsigned_dir="$build_root/unsigned"
+  local signed_dir="$build_root/signed"
+  local unsigned_archive_path="/tmp/klic-${version}-unsigned.xcarchive"
+  local signed_archive_path="/tmp/klic-${version}-signed.xcarchive"
+  local export_dir="/tmp/klic-${version}-signed-export"
+  local unsigned_ipa_path="$unsigned_dir/klic-ios-${version}-unsigned.ipa"
+  local signed_ipa_path="$signed_dir/klic-ios-${version}-signed.ipa"
+  local payload_dir="/tmp/klic-ipa-payload-${version}"
+  local export_options_plist="/tmp/klic-export-options-${version}.plist"
+  local team_id
   echo "Building iOS IPA..." >&2
   (
     cd "$dir"
@@ -137,9 +150,9 @@ build_ios() {
     fi
   ) || { echo "ERROR: project generation failed" >&2; exit 1; }
 
-  local archive_path="/tmp/klic-${version}.xcarchive"
-  local ipa_path="$dir/klic-ios-${version}.ipa"
-  local payload_dir="/tmp/klic-ipa-payload-${version}"
+  mkdir -p "$unsigned_dir" "$signed_dir"
+  rm -f "$unsigned_ipa_path" "$signed_ipa_path"
+  rm -rf "$unsigned_archive_path" "$signed_archive_path" "$payload_dir" "$export_dir"
 
   (
     cd "$dir"
@@ -155,20 +168,79 @@ build_ios() {
       -scheme Klic \
       -sdk iphoneos \
       -configuration Release \
-      -archivePath "$archive_path" \
+      -archivePath "$unsigned_archive_path" \
       CODE_SIGN_IDENTITY="" \
       CODE_SIGNING_REQUIRED=NO \
       CODE_SIGNING_ALLOWED=NO \
       DEVELOPMENT_TEAM="" \
       -quiet 1>&2
-  ) || { echo "ERROR: xcodebuild archive failed" >&2; exit 1; }
+  ) || { echo "ERROR: unsigned xcodebuild archive failed" >&2; exit 1; }
 
-  rm -rf "$payload_dir"
   mkdir -p "$payload_dir/Payload"
-  cp -r "$archive_path/Products/Applications/Klic.app" "$payload_dir/Payload/"
-  (cd "$payload_dir" && zip -qr "$ipa_path" Payload)
-  rm -rf "$payload_dir" "$archive_path"
-  echo "$ipa_path"
+  cp -r "$unsigned_archive_path/Products/Applications/Klic.app" "$payload_dir/Payload/"
+  (cd "$payload_dir" && zip -qr "$unsigned_ipa_path" Payload)
+
+  team_id="$(grep -E 'DEVELOPMENT_TEAM: ' "$dir/$IOS_PROJECT_REL" | head -1 | sed -E 's/.*"([^"]+)".*/\1/')"
+  if [ -z "$team_id" ]; then
+    echo "ERROR: DEVELOPMENT_TEAM not found in $dir/$IOS_PROJECT_REL; cannot export signed IPA" >&2
+    exit 1
+  fi
+
+  cat > "$export_options_plist" <<EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>method</key>
+  <string>development</string>
+  <key>signingStyle</key>
+  <string>automatic</string>
+  <key>teamID</key>
+  <string>${team_id}</string>
+  <key>stripSwiftSymbols</key>
+  <true/>
+  <key>compileBitcode</key>
+  <false/>
+</dict>
+</plist>
+EOF
+
+  (
+    cd "$dir"
+    workspace_flag=""
+    if [ -d "Klic.xcworkspace" ]; then
+      workspace_flag="-workspace Klic.xcworkspace"
+    fi
+    # shellcheck disable=SC2086
+    xcodebuild archive \
+      $workspace_flag \
+      -scheme Klic \
+      -sdk iphoneos \
+      -configuration Release \
+      -archivePath "$signed_archive_path" \
+      -allowProvisioningUpdates \
+      -quiet 1>&2
+  ) || { echo "ERROR: signed xcodebuild archive failed" >&2; exit 1; }
+
+  xcodebuild -exportArchive \
+    -archivePath "$signed_archive_path" \
+    -exportPath "$export_dir" \
+    -exportOptionsPlist "$export_options_plist" \
+    -allowProvisioningUpdates \
+    -quiet 1>&2 || { echo "ERROR: signed IPA export failed" >&2; exit 1; }
+
+  local exported_ipa
+  exported_ipa="$(find "$export_dir" -type f -name '*.ipa' | head -1)"
+  if [ -z "$exported_ipa" ]; then
+    echo "ERROR: signed IPA export did not produce an .ipa file" >&2
+    exit 1
+  fi
+  cp "$exported_ipa" "$signed_ipa_path"
+
+  rm -rf "$payload_dir" "$unsigned_archive_path" "$signed_archive_path" "$export_dir"
+  rm -f "$export_options_plist"
+  ARTIFACT_IOS_UNSIGNED_IPA="$unsigned_ipa_path"
+  ARTIFACT_IOS_SIGNED_IPA="$signed_ipa_path"
 }
 
 commit_tag_push_android() {
@@ -276,8 +348,9 @@ if require_dir "$IOS_DIR"; then
   update_ios_version "$IOS_DIR" "$new_version" "$new_code"
 fi
 
-android_apk=""
-ios_ipa=""
+ARTIFACT_ANDROID_APK=""
+ARTIFACT_IOS_UNSIGNED_IPA=""
+ARTIFACT_IOS_SIGNED_IPA=""
 
 # A build function's stdout must be exactly one line: the artifact path. Verify the
 # file really exists before releasing anything — on bash < 4.4 a build failure inside
@@ -292,18 +365,20 @@ require_artifact() {
 }
 
 if [ "$SELF_PLATFORM" = "android" ]; then
-  android_apk="$(build_android "$ANDROID_DIR" "$new_version")"
-  require_artifact "$android_apk" "Android"
+  build_android "$ANDROID_DIR" "$new_version"
+  require_artifact "$ARTIFACT_ANDROID_APK" "Android"
   if [ "$publish_sibling" = true ] && require_dir "$IOS_DIR"; then
-    ios_ipa="$(build_ios "$IOS_DIR" "$new_version")"
-    require_artifact "$ios_ipa" "iOS"
+    build_ios "$IOS_DIR" "$new_version"
+    require_artifact "$ARTIFACT_IOS_UNSIGNED_IPA" "iOS unsigned"
+    require_artifact "$ARTIFACT_IOS_SIGNED_IPA" "iOS signed"
   fi
 else
-  ios_ipa="$(build_ios "$IOS_DIR" "$new_version")"
-  require_artifact "$ios_ipa" "iOS"
+  build_ios "$IOS_DIR" "$new_version"
+  require_artifact "$ARTIFACT_IOS_UNSIGNED_IPA" "iOS unsigned"
+  require_artifact "$ARTIFACT_IOS_SIGNED_IPA" "iOS signed"
   if [ "$publish_sibling" = true ] && require_dir "$ANDROID_DIR"; then
-    android_apk="$(build_android "$ANDROID_DIR" "$new_version")"
-    require_artifact "$android_apk" "Android"
+    build_android "$ANDROID_DIR" "$new_version"
+    require_artifact "$ARTIFACT_ANDROID_APK" "Android"
   fi
 fi
 
@@ -317,16 +392,16 @@ if require_dir "$IOS_DIR"; then
 fi
 
 if [ "$SELF_PLATFORM" = "android" ]; then
-  publish_android_release "$new_version" "$new_code" "$tag" "$android_apk"
-  if [ "$publish_sibling" = true ] && [ -n "$ios_ipa" ]; then
-    publish_ios_release "$new_version" "$new_code" "$tag" "$ios_ipa"
+  publish_android_release "$new_version" "$new_code" "$tag" "$ARTIFACT_ANDROID_APK"
+  if [ "$publish_sibling" = true ] && [ -n "$ARTIFACT_IOS_UNSIGNED_IPA" ]; then
+    publish_ios_release "$new_version" "$new_code" "$tag" "$ARTIFACT_IOS_UNSIGNED_IPA"
   else
     echo "Skipped iOS artifact release."
   fi
 else
-  publish_ios_release "$new_version" "$new_code" "$tag" "$ios_ipa"
-  if [ "$publish_sibling" = true ] && [ -n "$android_apk" ]; then
-    publish_android_release "$new_version" "$new_code" "$tag" "$android_apk"
+  publish_ios_release "$new_version" "$new_code" "$tag" "$ARTIFACT_IOS_UNSIGNED_IPA"
+  if [ "$publish_sibling" = true ] && [ -n "$ARTIFACT_ANDROID_APK" ]; then
+    publish_android_release "$new_version" "$new_code" "$tag" "$ARTIFACT_ANDROID_APK"
   else
     echo "Skipped Android artifact release."
   fi
@@ -336,10 +411,13 @@ echo ""
 echo "==========================================="
 echo "Released ${tag}"
 echo "  Shared version : ${new_version} (${new_code})"
-if [ -n "$android_apk" ]; then
-  echo "  Android APK    : $(basename "$android_apk")"
+if [ -n "$ARTIFACT_ANDROID_APK" ]; then
+  echo "  Android APK    : $ARTIFACT_ANDROID_APK"
 fi
-if [ -n "$ios_ipa" ]; then
-  echo "  iOS IPA        : $(basename "$ios_ipa")"
+if [ -n "$ARTIFACT_IOS_UNSIGNED_IPA" ]; then
+  echo "  iOS unsigned   : $ARTIFACT_IOS_UNSIGNED_IPA"
+fi
+if [ -n "$ARTIFACT_IOS_SIGNED_IPA" ]; then
+  echo "  iOS signed     : $ARTIFACT_IOS_SIGNED_IPA"
 fi
 echo "==========================================="

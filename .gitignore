@@ -4,6 +4,7 @@ Klic.xcodeproj/
 DerivedData*/
 .build/
 build/
+build-ios/
 *.ipa
 xcuserdata/
 *.xcuserstate
