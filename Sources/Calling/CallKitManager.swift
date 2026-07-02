@@ -326,6 +326,16 @@ final class CallKitManager: NSObject, ObservableObject {
     /// (outcome completed), not a decline/cancel.
     private var isMediaConnected: Bool { statusText == "Connected" || statusText == "Reconnecting…" }
 
+    /// The in-flight server-side teardown (end/cancel/decline) of the most recently finished
+    /// call. Starting a new call awaits this first — otherwise POST /calls races our own
+    /// teardown, bounces off 409 call_exists for the call we just left, and the tap appears
+    /// to do nothing (the "dead call button right after hanging up" bug).
+    private var serverTeardown: Task<Void, Never>?
+
+    func awaitServerTeardown() async {
+        _ = await serverTeardown?.value
+    }
+
     private func finishCallOnServer(callId: String, wasOutgoing: Bool, wasConnected: Bool) async {
         if wasConnected {
             _ = try? await APIClient.shared.endCall(callId: callId)
@@ -349,7 +359,7 @@ final class CallKitManager: NSObject, ObservableObject {
             activeCall = nil
         }
         if notifyServer {
-            Task { await self.finishCallOnServer(callId: callId, wasOutgoing: wasOutgoing, wasConnected: wasConnected) }
+            serverTeardown = Task { await self.finishCallOnServer(callId: callId, wasOutgoing: wasOutgoing, wasConnected: wasConnected) }
         }
         endSystemCall(callId: callId, reason: endReason)
         Task {
@@ -376,7 +386,7 @@ final class CallKitManager: NSObject, ObservableObject {
         Ringback.shared.stop()
         recentlyEndedCallIds.insert(callId)
         cancelRingTimeout(callId)
-        Task { await self.finishCallOnServer(callId: callId, wasOutgoing: wasOutgoing, wasConnected: wasConnected) }
+        serverTeardown = Task { await self.finishCallOnServer(callId: callId, wasOutgoing: wasOutgoing, wasConnected: wasConnected) }
         endSystemCall(callId: callId)
         clear(callId)
         if activeCall?.id == callId { activeCall = nil }
@@ -619,17 +629,26 @@ extension CallKitManager: CXProviderDelegate {
             action.fulfill()
             if let id {
                 recentlyEndedCallIds.insert(id)
-                if activeCall == nil, pendingInvites[id] != nil {
-                    _ = try? await APIClient.shared.declineCall(callId: id)
-                } else if !isMediaConnected {
-                    if activeCall?.id == id && activeCall?.isOutgoing == true {
-                        _ = try? await APIClient.shared.cancelCall(callId: id)
-                    } else {
+                let isRingingInvite = activeCall == nil && pendingInvites[id] != nil
+                let wasOutgoing = activeCall?.id == id && activeCall?.isOutgoing == true
+                let wasConnected = isMediaConnected
+                // Registered as serverTeardown so a fast follow-up call awaits it instead of
+                // racing it into a 409 call_exists (the dead-call-button-after-hang-up bug).
+                let teardown = Task {
+                    if isRingingInvite {
                         _ = try? await APIClient.shared.declineCall(callId: id)
+                    } else if !wasConnected {
+                        if wasOutgoing {
+                            _ = try? await APIClient.shared.cancelCall(callId: id)
+                        } else {
+                            _ = try? await APIClient.shared.declineCall(callId: id)
+                        }
+                    } else {
+                        _ = try? await APIClient.shared.endCall(callId: id)
                     }
-                } else {
-                    _ = try? await APIClient.shared.endCall(callId: id)
                 }
+                serverTeardown = teardown
+                _ = await teardown.value
                 endSystemCall(callId: id)
                 clear(id)
             }

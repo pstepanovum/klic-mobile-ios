@@ -12,6 +12,9 @@ extension ChatView {
             await joinActiveCall(ongoing)
             return
         }
+        // Let the previous call's server-side end/cancel land first, or POST /calls 409s
+        // against the call we just hung up and the tap looks dead.
+        await CallKitManager.shared.awaitServerTeardown()
         guard let s = try? await APIClient.shared.startCall(conversationId: conversation.id, kind: kind)
         else { return }
         CallKitManager.shared.startOutgoing(
@@ -78,6 +81,7 @@ extension ChatView {
 
     func startDirectCall(with member: ChatProfileTarget, kind: String) async {
         guard member.id != myId else { return }
+        await CallKitManager.shared.awaitServerTeardown()
         guard let directConversation = try? await APIClient.shared.openConversation(userId: member.id),
               let session = try? await APIClient.shared.startCall(conversationId: directConversation.id, kind: kind)
         else { return }
