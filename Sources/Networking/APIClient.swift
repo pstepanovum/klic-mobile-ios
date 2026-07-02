@@ -294,6 +294,18 @@ actor APIClient {
         try await put("/keys/signed-prekey", encodable: body)
     }
 
+    func userKeys(userId: String) async throws -> UserKeysResponse {
+        try await get("/users/\(userId)/keys")
+    }
+
+    func conversationDevices(conversationId: String) async throws -> DeviceDirectoryResponse {
+        try await get("/conversations/\(conversationId)/devices")
+    }
+
+    func sendCiphertext(conversationId: String, body: CipherSendRequest) async throws -> Message {
+        try await post("/conversations/\(conversationId)/messages", encodable: body)
+    }
+
     // MARK: - Core
 
     private func get<T: Decodable>(_ path: String) async throws -> T {
