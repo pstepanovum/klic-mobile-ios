@@ -188,41 +188,60 @@ final class AppLockManager: ObservableObject {
 
 // MARK: - Lock overlay
 
-/// Full-screen lock overlay: passcode dots + Klic keypad + Face ID shortcut.
+/// §11.3 lock overlay: the app content behind is FULLY blurred (RootView blurs the
+/// content itself and this adds a heavy material wash — unreadable), with the
+/// passcode entry presented as a Klic-styled bottom sheet card. Rendered UNDER the
+/// call fullScreenCover so incoming CallKit call UI keeps bypassing the lock.
 struct LockScreenView: View {
     @ObservedObject private var lock = AppLockManager.shared
     @State private var entered = ""
     @State private var shake = false
 
     var body: some View {
-        VStack(spacing: 0) {
-            Spacer()
+        ZStack(alignment: .bottom) {
+            // Privacy backdrop — never a plain dim (§11.3).
+            Rectangle()
+                .fill(.ultraThinMaterial)
+                .ignoresSafeArea()
+            KlicColor.background.opacity(0.45)
+                .ignoresSafeArea()
 
-            Image(systemName: "lock.fill")
-                .font(.system(size: 34, weight: .medium))
-                .foregroundStyle(KlicColor.primary)
-            Text("Enter your passcode")
-                .font(KlicFont.headline(17))
-                .foregroundStyle(KlicColor.textPrimary)
-                .padding(.top, 14)
+            // Klic-styled sheet card.
+            VStack(spacing: 0) {
+                Capsule()
+                    .fill(KlicColor.textMuted.opacity(0.35))
+                    .frame(width: 36, height: 5)
+                    .padding(.top, 10)
 
-            PasscodeDots(count: entered.count)
-                .padding(.top, 22)
-                .offset(x: shake ? -10 : 0)
-                .animation(shake ? .spring(response: 0.12, dampingFraction: 0.2) : .default, value: shake)
+                Image(systemName: "lock.fill")
+                    .font(.system(size: 30, weight: .medium))
+                    .foregroundStyle(KlicColor.primary)
+                    .padding(.top, 22)
+                Text("Enter your passcode")
+                    .font(KlicFont.headline(17))
+                    .foregroundStyle(KlicColor.textPrimary)
+                    .padding(.top, 12)
 
-            PasscodeKeypad(
-                showBiometrics: lock.biometricEnabled && AppLockManager.biometryAvailable,
-                onDigit: { digit in append(digit) },
-                onDelete: { if !entered.isEmpty { entered.removeLast() } },
-                onBiometrics: { Task { _ = await lock.unlockWithBiometrics() } }
+                PasscodeDots(count: entered.count)
+                    .padding(.top, 20)
+                    .offset(x: shake ? -10 : 0)
+                    .animation(shake ? .spring(response: 0.12, dampingFraction: 0.2) : .default, value: shake)
+
+                PasscodeKeypad(
+                    showBiometrics: lock.biometricEnabled && AppLockManager.biometryAvailable,
+                    onDigit: { digit in append(digit) },
+                    onDelete: { if !entered.isEmpty { entered.removeLast() } },
+                    onBiometrics: { Task { _ = await lock.unlockWithBiometrics() } }
+                )
+                .padding(.top, 30)
+                .padding(.bottom, 34)
+            }
+            .frame(maxWidth: .infinity)
+            .background(
+                KlicColor.background,
+                in: UnevenRoundedRectangle(topLeadingRadius: 28, topTrailingRadius: 28)
             )
-            .padding(.top, 36)
-
-            Spacer()
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(KlicColor.background.ignoresSafeArea())
         .task {
             // Offer Face ID as soon as the lock appears.
             _ = await lock.unlockWithBiometrics()
@@ -403,6 +422,9 @@ struct PasscodeSettingsView: View {
             .adaptiveWidth()
         }
         .background(KlicColor.background.ignoresSafeArea())
+        // §11.3: while the set/change sheet is up the page behind is fully blurred.
+        .blur(radius: passcodeFlow != nil ? 26 : 0)
+        .animation(.easeInOut(duration: 0.2), value: passcodeFlow != nil)
         .navigationTitle("Passcode & Face ID")
         .navigationBarTitleDisplayMode(.inline)
         .klicSelectionSheet(
@@ -436,7 +458,8 @@ struct PasscodeSettingsView: View {
     }
 }
 
-/// Two-step set/change passcode sheet: enter a new 4–6 digit code, then confirm it.
+/// Two-step set/change passcode sheet (§11.3, Klic-styled): enter a new 4–6 digit
+/// code, then confirm it. The presenting page blurs itself while this is up.
 private struct SetPasscodeSheet: View {
     @Environment(\.dismiss) private var dismiss
     @State private var stage: Stage = .enter
@@ -449,6 +472,10 @@ private struct SetPasscodeSheet: View {
     var body: some View {
         VStack(spacing: 0) {
             Spacer()
+            Image(systemName: "lock.fill")
+                .font(.system(size: 30, weight: .medium))
+                .foregroundStyle(KlicColor.primary)
+                .padding(.bottom, 12)
             Text(stage == .enter ? String(localized: "Enter a new passcode") : String(localized: "Confirm your passcode"))
                 .font(KlicFont.headline(17))
                 .foregroundStyle(KlicColor.textPrimary)
@@ -488,7 +515,9 @@ private struct SetPasscodeSheet: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(KlicColor.background.ignoresSafeArea())
+        .presentationDetents([.large])
         .presentationDragIndicator(.visible)
+        .presentationBackground(KlicColor.background)
     }
 
     private func advance() {

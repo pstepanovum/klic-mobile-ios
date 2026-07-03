@@ -2,13 +2,16 @@ import SwiftUI
 import Photos
 import PhotosUI
 import VisionKit
+import AVFoundation
 
-/// The composer's + sheet (§10.11): ONE Klic bottom sheet with Gallery | Files tabs.
-/// Gallery = a live PHAsset grid (newest first, multi-select, album dropdown,
-/// limited-library aware) with a "Select from Gallery" system-picker fallback.
-/// Files = "Select from Files" + "Scan Document" (VisionKit → multi-page PDF).
+/// The composer's + sheet (§10.11/§11.2): ONE Klic bottom sheet with Gallery | Files
+/// tabs. Gallery = a live camera tile (first column, two rows, live preview) plus a
+/// PHAsset grid (newest first, ordered multi-select with numbered badges, album
+/// dropdown, limited-library aware) and a "Select from Gallery" system-picker
+/// fallback. Files = "Select from Files" + "Scan Document" (VisionKit → PDF).
 struct KlicAttachmentSheet: View {
-    /// Multi-selected grid assets → the caller stages them into the pre-send flow.
+    /// Multi-selected grid assets, in pick order — the caller sends each as its own
+    /// message through the upload-pill pipeline (§11.2).
     let onSendAssets: ([PHAsset]) -> Void
     let onOpenSystemPicker: () -> Void
     let onOpenCamera: () -> Void
@@ -128,12 +131,16 @@ struct KlicAttachmentSheet: View {
                         dismiss()
                         onSendAssets(picked)
                     } label: {
-                        Text("Send (\(selected.count))")
-                            .font(KlicFont.headline(14))
-                            .foregroundStyle(KlicColor.onPrimary)
-                            .padding(.horizontal, 18)
-                            .padding(.vertical, 9)
-                            .background(KlicColor.primary, in: Capsule())
+                        HStack(spacing: 6) {
+                            Image(systemName: "paperplane.fill")
+                                .font(.system(size: 12, weight: .semibold))
+                            Text("Send \(selected.count)")
+                                .font(KlicFont.headline(14))
+                        }
+                        .foregroundStyle(KlicColor.onPrimary)
+                        .padding(.horizontal, 18)
+                        .padding(.vertical, 9)
+                        .background(KlicColor.primary, in: Capsule())
                     }
                     .buttonStyle(.plain)
                 }
@@ -144,48 +151,88 @@ struct KlicAttachmentSheet: View {
             if authStatus == .denied || authStatus == .restricted {
                 deniedState
             } else {
-                ScrollView {
-                    // Limited library: surface the "manage" row (§10.11).
-                    if authStatus == .limited {
-                        Button {
-                            presentLimitedLibraryPicker()
-                        } label: {
-                            HStack(spacing: 8) {
-                                Image(systemName: "photo.badge.plus")
-                                    .font(.system(size: 14, weight: .medium))
-                                Text("Klic can only access some photos. Manage…")
-                                    .font(KlicFont.caption(12))
+                GeometryReader { geo in
+                    let spacing: CGFloat = 2
+                    let cell = max((geo.size.width - 4 - spacing * 2) / 3, 44)
+                    ScrollView {
+                        // Limited library: surface the "manage" row (§10.11).
+                        if authStatus == .limited {
+                            Button {
+                                presentLimitedLibraryPicker()
+                            } label: {
+                                HStack(spacing: 8) {
+                                    Image(systemName: "photo.badge.plus")
+                                        .font(.system(size: 14, weight: .medium))
+                                    Text("Klic can only access some photos. Manage…")
+                                        .font(KlicFont.caption(12))
+                                }
+                                .foregroundStyle(KlicColor.primary)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(.horizontal, 20)
+                                .padding(.vertical, 8)
                             }
-                            .foregroundStyle(KlicColor.primary)
+                            .buttonStyle(.plain)
+                        }
+
+                        VStack(spacing: spacing) {
+                            // Top block: camera tile spans the first column × 2 rows
+                            // (§11.2, WhatsApp-style), with a 2×2 asset block beside it.
+                            HStack(alignment: .top, spacing: spacing) {
+                                CameraGridTile {
+                                    dismiss()
+                                    onOpenCamera()
+                                }
+                                .frame(width: cell, height: cell * 2 + spacing)
+                                .clipShape(RoundedRectangle(cornerRadius: 4))
+
+                                LazyVGrid(
+                                    columns: [GridItem(.fixed(cell), spacing: spacing), GridItem(.fixed(cell), spacing: spacing)],
+                                    spacing: spacing
+                                ) {
+                                    ForEach(assets.prefix(4), id: \.localIdentifier) { asset in
+                                        assetCell(asset, side: cell)
+                                    }
+                                }
+                            }
                             .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(.horizontal, 20)
-                            .padding(.vertical, 8)
-                        }
-                        .buttonStyle(.plain)
-                    }
 
-                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 100), spacing: 2)], spacing: 2) {
-                        ForEach(assets, id: \.localIdentifier) { asset in
-                            AssetGridCell(
-                                asset: asset,
-                                selectionIndex: selected.firstIndex(of: asset.localIdentifier).map { $0 + 1 }
-                            ) {
-                                toggle(asset)
+                            // The rest of the library in a plain 3-column grid.
+                            if assets.count > 4 {
+                                LazyVGrid(
+                                    columns: Array(repeating: GridItem(.fixed(cell), spacing: spacing), count: 3),
+                                    spacing: spacing
+                                ) {
+                                    ForEach(assets.dropFirst(4), id: \.localIdentifier) { asset in
+                                        assetCell(asset, side: cell)
+                                    }
+                                }
+                                .frame(maxWidth: .infinity, alignment: .leading)
                             }
                         }
-                    }
-                    .padding(.horizontal, 2)
+                        .padding(.horizontal, 2)
 
-                    // Fallback: the full system picker (current flow).
-                    capsuleButton(String(localized: "Select from Gallery"), systemImage: "photo.on.rectangle") {
-                        dismiss()
-                        onOpenSystemPicker()
+                        // Fallback: the full system picker (current flow).
+                        capsuleButton(String(localized: "Select from Gallery"), systemImage: "photo.on.rectangle") {
+                            dismiss()
+                            onOpenSystemPicker()
+                        }
+                        .padding(.horizontal, 20)
+                        .padding(.vertical, 14)
                     }
-                    .padding(.horizontal, 20)
-                    .padding(.vertical, 14)
                 }
             }
         }
+    }
+
+    private func assetCell(_ asset: PHAsset, side: CGFloat) -> some View {
+        AssetGridCell(
+            asset: asset,
+            selectionIndex: selected.firstIndex(of: asset.localIdentifier).map { $0 + 1 }
+        ) {
+            toggle(asset)
+        }
+        .frame(width: side, height: side)
+        .clipShape(RoundedRectangle(cornerRadius: 4))
     }
 
     private var deniedState: some View {
@@ -337,18 +384,19 @@ private struct AssetGridCell: View {
     private static let manager = PHCachingImageManager()
 
     var body: some View {
-        ZStack {
-            if let thumbnail {
-                Image(uiImage: thumbnail)
-                    .resizable()
-                    .scaledToFill()
-            } else {
-                KlicColor.surfaceRaised
+        GeometryReader { geo in
+            ZStack {
+                if let thumbnail {
+                    Image(uiImage: thumbnail)
+                        .resizable()
+                        .scaledToFill()
+                } else {
+                    KlicColor.surfaceRaised
+                }
             }
+            .frame(width: geo.size.width, height: geo.size.height)
+            .clipped()
         }
-        .frame(minWidth: 0, maxWidth: .infinity)
-        .aspectRatio(1, contentMode: .fill)
-        .clipped()
         .overlay(alignment: .bottomLeading) {
             if asset.mediaType == .video {
                 Text(Self.durationText(asset.duration))
@@ -400,6 +448,121 @@ private struct AssetGridCell: View {
     private static func durationText(_ seconds: TimeInterval) -> String {
         let total = Int(seconds.rounded())
         return String(format: "%d:%02d", total / 60, total % 60)
+    }
+}
+
+// MARK: - Camera tile (§11.2)
+
+/// First-column, two-row grid tile with a LIVE camera preview (WhatsApp-style).
+/// Tap opens the full photo+video capture. Without camera permission it renders as
+/// a static camera icon that requests permission on tap (denied → Settings).
+private struct CameraGridTile: View {
+    let onOpen: () -> Void
+
+    @State private var status = AVCaptureDevice.authorizationStatus(for: .video)
+
+    var body: some View {
+        Button {
+            switch status {
+            case .authorized:
+                onOpen()
+            case .notDetermined:
+                AVCaptureDevice.requestAccess(for: .video) { granted in
+                    DispatchQueue.main.async {
+                        status = granted ? .authorized : .denied
+                    }
+                }
+            default:
+                // Denied/restricted — the only way forward is the Settings app.
+                if let url = URL(string: UIApplication.openSettingsURLString) {
+                    UIApplication.shared.open(url)
+                }
+            }
+        } label: {
+            ZStack {
+                if status == .authorized {
+                    CameraTilePreview()
+                    // Frosted camera badge over the live feed.
+                    VStack {
+                        Spacer()
+                        Image(systemName: "camera.fill")
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundStyle(.white)
+                            .frame(width: 32, height: 32)
+                            .background(.black.opacity(0.45), in: Circle())
+                            .padding(.bottom, 10)
+                    }
+                } else {
+                    KlicColor.surfaceRaised
+                    VStack(spacing: 8) {
+                        Image(systemName: "camera.fill")
+                            .font(.system(size: 24, weight: .medium))
+                            .foregroundStyle(KlicColor.primary)
+                        Text("Camera")
+                            .font(KlicFont.caption(11))
+                            .foregroundStyle(KlicColor.textMuted)
+                    }
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+/// The tile's live AVCaptureSession preview — low preset, configured and started off
+/// the main thread, stopped when the tile leaves the hierarchy.
+private struct CameraTilePreview: UIViewRepresentable {
+    final class PreviewView: UIView {
+        override class var layerClass: AnyClass { AVCaptureVideoPreviewLayer.self }
+        var previewLayer: AVCaptureVideoPreviewLayer { layer as! AVCaptureVideoPreviewLayer }
+    }
+
+    final class Coordinator {
+        private let session = AVCaptureSession()
+        private let queue = DispatchQueue(label: "com.klic.mobile.app.cameratile")
+
+        func attach(to view: PreviewView) {
+            view.previewLayer.session = session
+            view.previewLayer.videoGravity = .resizeAspectFill
+            queue.async { [session] in
+                guard session.inputs.isEmpty else {
+                    if !session.isRunning { session.startRunning() }
+                    return
+                }
+                session.beginConfiguration()
+                session.sessionPreset = .medium
+                if let device = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .back),
+                   let input = try? AVCaptureDeviceInput(device: device),
+                   session.canAddInput(input) {
+                    session.addInput(input)
+                }
+                session.commitConfiguration()
+                session.startRunning()
+            }
+        }
+
+        func stop() {
+            queue.async { [session] in
+                if session.isRunning { session.stopRunning() }
+            }
+        }
+    }
+
+    func makeCoordinator() -> Coordinator { Coordinator() }
+
+    func makeUIView(context: Context) -> PreviewView {
+        let view = PreviewView()
+        view.backgroundColor = .black
+        context.coordinator.attach(to: view)
+        return view
+    }
+
+    func updateUIView(_ view: PreviewView, context: Context) {}
+
+    static func dismantleUIView(_ view: PreviewView, coordinator: Coordinator) {
+        coordinator.stop()
     }
 }
 

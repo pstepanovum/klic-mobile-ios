@@ -55,6 +55,8 @@ private struct GroupInfoContent: View {
     @State private var memberQuery = ""
     @State private var addSheet = false
     @State private var pickedCover: PhotosPickerItem?
+    /// §11.5: the raw pick goes through the adjust step before uploading.
+    @State private var adjustingCover: UIImage?
     @State private var savingCover = false
     /// Visible cover-upload failure (§10.1) — presented as an alert, never swallowed.
     @State private var coverAlert: String?
@@ -199,10 +201,19 @@ private struct GroupInfoContent: View {
         .onChange(of: pickedCover) { _, item in
             guard let item else { return }
             Task {
-                await uploadCover(item)
+                await stageCover(item)
                 // Reset the selection or picking the SAME photo again never fires
                 // onChange — this is what made re-uploading a cover look broken.
                 pickedCover = nil
+            }
+        }
+        // §11.5: pinch/drag adjust inside a rounded-square mask before the upload.
+        .fullScreenCover(item: Binding(
+            get: { adjustingCover.map(CoverAdjustBox.init) },
+            set: { adjustingCover = $0?.image }
+        )) { box in
+            KlicImageAdjustSheet(image: box.image, mask: .roundedSquare) { cropped in
+                Task { await uploadCover(cropped) }
             }
         }
         .klicSelectionSheet(
@@ -472,6 +483,14 @@ private struct GroupInfoContent: View {
                     Text("@\(member.username)")
                         .font(KlicFont.caption())
                         .foregroundStyle(KlicColor.textMuted)
+                    // §11.5: the member's About line, when shared with us.
+                    if let aboutText = member.about?.trimmingCharacters(in: .whitespacesAndNewlines),
+                       !aboutText.isEmpty {
+                        Text(aboutText)
+                            .font(KlicFont.caption(11))
+                            .foregroundStyle(KlicColor.textMuted.opacity(0.8))
+                            .lineLimit(1)
+                    }
                 }
                 Spacer()
                 if removingMemberIds.contains(member.id) {
@@ -560,27 +579,29 @@ private struct GroupInfoContent: View {
         }
     }
 
-    /// §10.1: every step of the cover chain (read → presign → PUT → PATCH) surfaces
-    /// its own visible alert + a diagnostic event; nothing is silently swallowed.
-    private func uploadCover(_ item: PhotosPickerItem) async {
-        savingCover = true
-        defer { savingCover = false }
-        error = nil
-
-        let jpeg: Data
+    /// §11.5: read the pick and hand it to the adjust sheet — the crop uploads.
+    private func stageCover(_ item: PhotosPickerItem) async {
         do {
             guard let data = try await item.loadTransferable(type: Data.self),
                   let image = UIImage(data: data) else {
                 coverFailed(step: "read", message: String(localized: "Couldn't read the selected photo."))
                 return
             }
-            guard let (encoded, _, _) = Media.encodeImage(image) else {
-                coverFailed(step: "encode", message: String(localized: "Couldn't process the selected photo."))
-                return
-            }
-            jpeg = encoded
+            adjustingCover = image
         } catch {
             coverFailed(step: "read", message: String(localized: "Couldn't read the selected photo."), detail: "\(error)")
+        }
+    }
+
+    /// §10.1: every step of the cover chain (encode → presign → PUT → PATCH) surfaces
+    /// its own visible alert + a diagnostic event; nothing is silently swallowed.
+    private func uploadCover(_ image: UIImage) async {
+        savingCover = true
+        defer { savingCover = false }
+        error = nil
+
+        guard let (jpeg, _, _) = Media.encodeImage(image) else {
+            coverFailed(step: "encode", message: String(localized: "Couldn't process the selected photo."))
             return
         }
 
@@ -679,6 +700,12 @@ private struct GroupInfoContent: View {
     }
 }
 
+/// Identifiable wrapper so the adjust cover can present from an optional UIImage.
+private struct CoverAdjustBox: Identifiable {
+    let image: UIImage
+    var id: ObjectIdentifier { ObjectIdentifier(image) }
+}
+
 private extension GroupConversationDetails {
     func removingMember(_ memberId: String) -> GroupConversationDetails {
         GroupConversationDetails(
@@ -725,6 +752,14 @@ private struct GroupMemberListView: View {
                                     Text("@\(member.username)")
                                         .font(KlicFont.caption())
                                         .foregroundStyle(KlicColor.textMuted)
+                                    // §11.5: the member's About line, when shared.
+                                    if let aboutText = member.about?.trimmingCharacters(in: .whitespacesAndNewlines),
+                                       !aboutText.isEmpty {
+                                        Text(aboutText)
+                                            .font(KlicFont.caption(11))
+                                            .foregroundStyle(KlicColor.textMuted.opacity(0.8))
+                                            .lineLimit(1)
+                                    }
                                 }
                                 Spacer()
                                 if canRemove(member) {

@@ -5,7 +5,19 @@ struct User: Codable, Identifiable, Hashable {
     let username: String
     let displayName: String
     var avatarUrl: String?
-    var showLastSeen: Bool?      // present on /me + auth responses
+    var showLastSeen: Bool?      // present on /me + auth responses (legacy toggle)
+    // §11.5 profile fields (additive on GET /me; absent on older servers).
+    var about: String?
+    var links: [String]?
+    // §11.6 privacy fields — raw enum strings "EVERYBODY" | "FRIENDS" | "NOBODY".
+    var lastSeenVisibility: String?
+    var aboutVisibility: String?
+    var avatarVisibility: String?
+    var linksVisibility: String?
+    var groupsVisibility: String?
+    var statusVisibility: String?
+    var silenceUnknownCallers: Bool?
+    var readReceipts: Bool?
 }
 
 /// A friend's profile (GET /users/:id). `lastSeenAt`/`online` are nil when hidden by privacy.
@@ -16,6 +28,25 @@ struct UserProfile: Codable, Identifiable, Hashable {
     var avatarUrl: String?
     var lastSeenAt: String?
     var online: Bool?
+    /// §11.5 — present only when shared with the viewer (§11.6 visibility).
+    var about: String?
+    var links: [String]?
+}
+
+/// §11.6 visibility levels — raw values match the server's zod enum exactly.
+enum KlicVisibility: String, CaseIterable, Identifiable {
+    case everybody = "EVERYBODY"
+    case friends = "FRIENDS"
+    case nobody = "NOBODY"
+
+    var id: String { rawValue }
+    var label: String {
+        switch self {
+        case .everybody: return String(localized: "Everybody")
+        case .friends:   return String(localized: "My friends")
+        case .nobody:    return String(localized: "Nobody")
+        }
+    }
 }
 
 struct AuthResponse: Codable {
@@ -59,6 +90,8 @@ struct GroupConversationDetails: Codable, Identifiable, Hashable {
         var avatarUrl: String?
         let joinedAt: String
         let isMe: Bool
+        /// §11.5 About line — present when the member shares it with the viewer.
+        var about: String? = nil
     }
 }
 

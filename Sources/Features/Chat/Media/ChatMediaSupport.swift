@@ -115,6 +115,9 @@ struct CameraPicker: UIViewControllerRepresentable {
     enum Mode {
         case photo
         case video
+        /// §11.2: full capture from the attachment sheet's camera tile — the user can
+        /// switch between photo and video inside the system camera UI.
+        case photoOrVideo
     }
 
     let mode: Mode
@@ -124,15 +127,21 @@ struct CameraPicker: UIViewControllerRepresentable {
     func makeUIViewController(context: Context) -> UIImagePickerController {
         let picker = UIImagePickerController()
         picker.sourceType = .camera
+        // Upload quality (§8.3): HD records/exports at high quality; Standard
+        // keeps the previous medium-quality pipeline.
+        let hd = UploadQuality.current == .hd
         switch mode {
         case .photo:
             picker.cameraCaptureMode = .photo
         case .video:
             picker.mediaTypes = [UTType.movie.identifier]
             picker.cameraCaptureMode = .video
-            // Upload quality (§8.3): HD records/exports at high quality; Standard
-            // keeps the previous medium-quality pipeline.
-            let hd = UploadQuality.current == .hd
+            picker.videoQuality = hd ? .typeHigh : .typeMedium
+            picker.videoExportPreset = hd ? AVAssetExportPresetHighestQuality : AVAssetExportPresetMediumQuality
+            picker.videoMaximumDuration = 60
+        case .photoOrVideo:
+            picker.mediaTypes = [UTType.image.identifier, UTType.movie.identifier]
+            picker.cameraCaptureMode = .photo
             picker.videoQuality = hd ? .typeHigh : .typeMedium
             picker.videoExportPreset = hd ? AVAssetExportPresetHighestQuality : AVAssetExportPresetMediumQuality
             picker.videoMaximumDuration = 60

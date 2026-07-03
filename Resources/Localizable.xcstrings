@@ -341,6 +341,23 @@
         }
       }
     },
+    "About": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "О себе"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "关于"
+          }
+        }
+      }
+    },
     "Access to Contacts": {
       "extractionState": "manual",
       "localizations": {
@@ -426,6 +443,40 @@
         }
       }
     },
+    "Add a few words about yourself": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Расскажите о себе"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "添加个人简介"
+          }
+        }
+      }
+    },
+    "Add link": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Добавить ссылку"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "添加链接"
+          }
+        }
+      }
+    },
     "Add members": {
       "extractionState": "manual",
       "localizations": {
@@ -490,6 +541,40 @@
           "stringUnit": {
             "state": "translated",
             "value": "正在添加…"
+          }
+        }
+      }
+    },
+    "Adjust the cover": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Настройте обложку"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "调整封面"
+          }
+        }
+      }
+    },
+    "Adjust your photo": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Настройте фото"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "调整照片"
           }
         }
       }
@@ -698,6 +783,23 @@
         }
       }
     },
+    "At work": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "На работе"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在工作"
+          }
+        }
+      }
+    },
     "Audio": {
       "extractionState": "manual",
       "localizations": {
@@ -779,6 +881,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "基于环境光线"
+          }
+        }
+      }
+    },
+    "Battery about to die": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Батарея почти разряжена"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "电量即将耗尽"
           }
         }
       }
@@ -868,6 +987,23 @@
         }
       }
     },
+    "Busy": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Занят"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "忙碌"
+          }
+        }
+      }
+    },
     "Cached media will be re-downloaded when needed. Your messages are not affected.": {
       "extractionState": "manual",
       "localizations": {
@@ -898,6 +1034,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "通话"
+          }
+        }
+      }
+    },
+    "Calls from people who aren't your friends won't ring. They still appear in Recent Calls.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Вызовы от людей не из списка друзей будут беззвучными. Они всё равно появятся в списке недавних."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "非好友的来电将不会响铃，但仍会显示在“最近通话”中。"
           }
         }
       }
@@ -1034,6 +1187,40 @@
           "stringUnit": {
             "state": "translated",
             "value": "聊天"
+          }
+        }
+      }
+    },
+    "Choose": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Выбрать"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "选择"
+          }
+        }
+      }
+    },
+    "Clear About": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Очистить «О себе»"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "清除个人简介"
           }
         }
       }
@@ -1412,6 +1599,23 @@
         }
       }
     },
+    "Couldn't save. Please try again.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не удалось сохранить. Попробуйте ещё раз."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法保存，请重试。"
+          }
+        }
+      }
+    },
     "Couldn't send the request.": {
       "extractionState": "manual",
       "localizations": {
@@ -1561,6 +1765,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "高清通话与即时消息，\n尽在一处。"
+          }
+        }
+      }
+    },
+    "Custom…": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Свой вариант…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "自定义…"
           }
         }
       }
@@ -2024,6 +2245,23 @@
         }
       }
     },
+    "Edit link": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Изменить ссылку"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "编辑链接"
+          }
+        }
+      }
+    },
     "Edit profile": {
       "extractionState": "manual",
       "localizations": {
@@ -2126,6 +2364,23 @@
         }
       }
     },
+    "Enter a valid http(s) link.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Введите корректную ссылку http(s)."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请输入有效的 http(s) 链接。"
+          }
+        }
+      }
+    },
     "Enter your passcode": {
       "extractionState": "manual",
       "localizations": {
@@ -2139,6 +2394,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "输入您的密码"
+          }
+        }
+      }
+    },
+    "Everybody": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Все"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "所有人"
           }
         }
       }
@@ -2347,6 +2619,23 @@
         }
       }
     },
+    "Free to chat": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Готов(а) общаться"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "有空聊天"
+          }
+        }
+      }
+    },
     "Frequent": {
       "extractionState": "manual",
       "localizations": {
@@ -2517,6 +2806,23 @@
         }
       }
     },
+    "Groups": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Группы"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "群组"
+          }
+        }
+      }
+    },
     "HD": {
       "extractionState": "manual",
       "localizations": {
@@ -2568,19 +2874,19 @@
         }
       }
     },
-    "If turned off, you won't see anyone else's last seen.": {
+    "If turned off, you won't send or receive read receipts in chats. Groups always send them.": {
       "extractionState": "manual",
       "localizations": {
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Если отключить, вы не будете видеть время последнего входа других пользователей."
+            "value": "Если функция отключена, вы не будете отправлять и получать отчёты о прочтении в чатах. В группах они отправляются всегда."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "如果关闭，您将无法查看他人的最后上线时间。"
+            "value": "如果关闭，你将不会在聊天中发送或接收已读回执。群组聊天始终会发送。"
           }
         }
       }
@@ -2806,7 +3112,7 @@
         }
       }
     },
-    "Last seen": {
+    "Last seen & online": {
       "extractionState": "manual",
       "localizations": {
         "ru": {
@@ -2818,7 +3124,7 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "最后上线"
+            "value": "最后上线时间与在线状态"
           }
         }
       }
@@ -2836,6 +3142,40 @@
           "stringUnit": {
             "state": "translated",
             "value": "稍后"
+          }
+        }
+      }
+    },
+    "Link": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ссылка"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "链接"
+          }
+        }
+      }
+    },
+    "Links": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ссылки"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "链接"
           }
         }
       }
@@ -3095,6 +3435,23 @@
         }
       }
     },
+    "My friends": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Мои друзья"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "我的好友"
+          }
+        }
+      }
+    },
     "Never": {
       "extractionState": "manual",
       "localizations": {
@@ -3312,6 +3669,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "没有名为“%@”的用户。"
+          }
+        }
+      }
+    },
+    "Nobody": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Никто"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无人"
           }
         }
       }
@@ -3673,6 +4047,23 @@
         }
       }
     },
+    "Pinch to zoom, drag to position": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Масштабируйте и перемещайте"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "双指缩放，拖动调整位置"
+          }
+        }
+      }
+    },
     "Platform": {
       "extractionState": "manual",
       "localizations": {
@@ -3741,6 +4132,23 @@
         }
       }
     },
+    "Privacy": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Конфиденциальность"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "隐私"
+          }
+        }
+      }
+    },
     "Privacy Policy": {
       "extractionState": "manual",
       "localizations": {
@@ -3792,6 +4200,23 @@
         }
       }
     },
+    "Profile picture": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Фото профиля"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "个人头像"
+          }
+        }
+      }
+    },
     "QR Code": {
       "extractionState": "manual",
       "localizations": {
@@ -3822,6 +4247,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "立即退出"
+          }
+        }
+      }
+    },
+    "Read receipts": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Отчеты о прочтении"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已读回执"
           }
         }
       }
@@ -3958,6 +4400,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "从群组中移除"
+          }
+        }
+      }
+    },
+    "Remove link": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Удалить ссылку"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "移除链接"
           }
         }
       }
@@ -4251,6 +4710,23 @@
         }
       }
     },
+    "Save": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сохранить"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "保存"
+          }
+        }
+      }
+    },
     "Save Passcode": {
       "extractionState": "manual",
       "localizations": {
@@ -4298,6 +4774,40 @@
           "stringUnit": {
             "state": "translated",
             "value": "保存到相册"
+          }
+        }
+      }
+    },
+    "Saving…": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сохранение…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在保存…"
+          }
+        }
+      }
+    },
+    "Say something about yourself": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Расскажите о себе"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "介绍一下你自己"
           }
         }
       }
@@ -4489,19 +4999,19 @@
         }
       }
     },
-    "Send (%lld)": {
+    "Send %lld": {
       "extractionState": "manual",
       "localizations": {
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Отправить (%lld)"
+            "value": "Отправить %lld"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "发送 (%lld)"
+            "value": "发送 %lld"
           }
         }
       }
@@ -4608,6 +5118,23 @@
         }
       }
     },
+    "Shown on your profile.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Отображается в вашем профиле."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "显示在个人资料中。"
+          }
+        }
+      }
+    },
     "Shows the people you message most at the top of pickers.": {
       "extractionState": "manual",
       "localizations": {
@@ -4638,6 +5165,40 @@
           "stringUnit": {
             "state": "translated",
             "value": "使用通行密钥登录"
+          }
+        }
+      }
+    },
+    "Silence unknown callers": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Заглушать звонки от незнакомцев"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "静音未知来电"
+          }
+        }
+      }
+    },
+    "Slow to respond": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Отвечаю редко"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "回复较慢"
           }
         }
       }
@@ -4723,6 +5284,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "已加星标"
+          }
+        }
+      }
+    },
+    "Status": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Статус"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "状态"
           }
         }
       }
@@ -5067,6 +5645,23 @@
         }
       }
     },
+    "Traveling": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "В путешествии"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在旅行"
+          }
+        }
+      }
+    },
     "Turn Passcode Off": {
       "extractionState": "manual",
       "localizations": {
@@ -5237,6 +5832,23 @@
         }
       }
     },
+    "Up to 5 links.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "До 5 ссылок."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "最多 5 个链接。"
+          }
+        }
+      }
+    },
     "Updates": {
       "extractionState": "manual",
       "localizations": {
@@ -5322,6 +5934,23 @@
         }
       }
     },
+    "Use lowercase letters, numbers, _ and . (no leading or trailing dot).": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Используйте строчные буквы, цифры, _ и . (без точки в начале или конце)."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "使用小写字母、数字、_ 和 .（首尾不能是句点）。"
+          }
+        }
+      }
+    },
     "Username": {
       "extractionState": "manual",
       "localizations": {
@@ -5335,6 +5964,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "用户名"
+          }
+        }
+      }
+    },
+    "Usernames have at least 3 characters.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Имя пользователя должно содержать не менее 3 символов."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "用户名至少包含 3 个字符。"
           }
         }
       }
@@ -5505,6 +6151,108 @@
           "stringUnit": {
             "state": "translated",
             "value": "在当前网络下关闭时，媒体文件将显示下载按钮，而不是自动下载。"
+          }
+        }
+      }
+    },
+    "Who can add you to groups.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Кто может добавлять вас в группы."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "谁可以将你拉入群组。"
+          }
+        }
+      }
+    },
+    "Who can see when you were last online.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Кто видит время вашего последнего посещения."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "谁可以看到你的最后上线时间。"
+          }
+        }
+      }
+    },
+    "Who can see your About.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Кто видит сведения «О себе»."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "谁可以看到你的个人简介。"
+          }
+        }
+      }
+    },
+    "Who can see your links.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Кто видит ваши ссылки."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "谁可以看到你的链接。"
+          }
+        }
+      }
+    },
+    "Who can see your profile picture.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Кто видит ваше фото профиля."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "谁可以看到你的个人头像。"
+          }
+        }
+      }
+    },
+    "Who can see your status.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Кто видит ваш статус."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "谁可以看到你的状态。"
           }
         }
       }
@@ -5862,6 +6610,40 @@
           "stringUnit": {
             "state": "translated",
             "value": "phone.down.fill"
+          }
+        }
+      }
+    },
+    "readReceipts": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Отчеты о прочтении"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已读回执"
+          }
+        }
+      }
+    },
+    "silenceUnknownCallers": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Заглушать неизвестные номера"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "静音未知来电"
           }
         }
       }

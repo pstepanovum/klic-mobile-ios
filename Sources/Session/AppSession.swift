@@ -1,5 +1,17 @@
 import Foundation
 
+/// Synchronous mirror of privacy prefs needed deep in view trees (§11.6).
+enum PrivacyPrefs {
+    private static let readReceiptsKey = "klic.privacy.readReceipts"
+
+    /// When OFF, read (blue) ticks are hidden in DMs both ways (§11.6). Groups
+    /// always show read state, like WhatsApp.
+    static var readReceipts: Bool {
+        get { UserDefaults.standard.object(forKey: readReceiptsKey) as? Bool ?? true }
+        set { UserDefaults.standard.set(newValue, forKey: readReceiptsKey) }
+    }
+}
+
 /// App-wide auth/session state.
 @MainActor
 final class AppSession: ObservableObject {
@@ -43,6 +55,11 @@ final class AppSession: ObservableObject {
             DeviceRegistrar.sync()
             // E2EE: publish/refresh this install's key bundle (generates keys on first run).
             Task { await E2eeKeyManager.shared.ensureReady() }
+            // Reconcile the cached profile with the server (§11.5/§11.6 — picks up
+            // about/links/privacy fields and username changes from other devices).
+            if let fresh = try? await APIClient.shared.me() {
+                updateCurrentUser(fresh)
+            }
         }
     }
 
@@ -59,8 +76,7 @@ final class AppSession: ObservableObject {
     /// Adopt a token pair obtained outside the password flow (passkey sign-in, §10.4).
     func signIn(with response: AuthResponse) {
         TokenStore.save(access: response.accessToken, refresh: response.refreshToken)
-        Self.saveUser(response.user)
-        currentUser = response.user
+        updateCurrentUser(response.user)
         SocketService.shared.connect()
         DeviceRegistrar.sync()
         Task { await E2eeKeyManager.shared.ensureReady() }
@@ -78,14 +94,16 @@ final class AppSession: ObservableObject {
     func updateCurrentUser(_ user: User) {
         currentUser = user
         Self.saveUser(user)
+        // Mirror the read-receipts pref where views without the session can read it
+        // synchronously (tick rendering, §11.6).
+        PrivacyPrefs.readReceipts = user.readReceipts ?? true
     }
 
     private func authenticate(_ op: () async throws -> AuthResponse) async {
         do {
             let res = try await op()
             TokenStore.save(access: res.accessToken, refresh: res.refreshToken)
-            Self.saveUser(res.user)
-            currentUser = res.user
+            updateCurrentUser(res.user)
             SocketService.shared.connect()
             DeviceRegistrar.sync()
             Task { await E2eeKeyManager.shared.ensureReady() }
