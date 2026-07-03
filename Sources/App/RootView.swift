@@ -62,6 +62,10 @@ struct RootView: View {
                     WelcomeView { withAnimation { didGetStarted = true } }
                 }
             }
+            // §11.3: while locked, the app content itself is fully blurred (the lock
+            // overlay adds a material wash on top — nothing behind is readable).
+            .blur(radius: appLock.isLocked && session.isAuthenticated ? 28 : 0)
+            .animation(.easeInOut(duration: 0.2), value: appLock.isLocked)
 
             // Floating in-call overlay while minimized, above all navigation. Disappears on
             // its own when the call ends (activeCall goes nil → callMinimized resets).
