@@ -7,10 +7,29 @@ struct WelcomeView: View {
     @Environment(\.colorScheme) private var colorScheme
     let onGetStarted: () -> Void
 
-    /// Ornament geometry: the Lottie's original on-page size was 320pt; the design
-    /// blows it up into a full-bleed background texture, nudged right of center.
-    private static let ornamentSide: CGFloat = 320 * 15
-    private static let ornamentShift: CGFloat = 120
+    /// Ornament geometry: a full-bleed background texture, nudged right of center.
+    /// Values are expressed relative to `ornamentReferenceDimension` (the longer
+    /// side of the iPhone canvas they were tuned against) so the same visual
+    /// "zoom level" carries over to larger canvases like iPad instead of staying
+    /// pinned to a flat point value.
+    private static let ornamentReferenceDimension: CGFloat = 844
+    private static let ornamentShiftX: CGFloat = 200
+    private static let ornamentShiftY: CGFloat = -150
+    /// Fixed render size Lottie draws the mask at before it's blown up via
+    /// `.scaleEffect`. Growing the ornament by pumping the LottieView's own
+    /// `.frame()` doesn't work — lottie-ios's SwiftUI wrapper silently stops
+    /// honoring layout sizes much past its authored composition, so past a
+    /// point the mask just stopped growing no matter how big that constant got.
+    /// Rendering at a fixed, reasonable size and scaling the *rasterized* result
+    /// with a real transform sidesteps that.
+    private static let ornamentDesignSide: CGFloat = 2000
+    /// How many times bigger than `ornamentDesignSide` the ornament renders, at
+    /// the reference canvas size. Empirically, stacking `.mask()` under a
+    /// `.scaleEffect` on this Lottie view goes fully transparent somewhere
+    /// between 4.5x-6.5x of `ornamentDesignSide` — `ornamentMaxZoom` keeps every
+    /// canvas size (including scaled-up iPad) comfortably under that ceiling.
+    private static let ornamentZoom: CGFloat = 1.7
+    private static let ornamentMaxZoom: CGFloat = 2.4
 
     private var ornamentTint: Color {
         colorScheme == .dark ? Color(hex: 0x232323) : Color(hex: 0xEAEAEA)
@@ -34,7 +53,7 @@ struct WelcomeView: View {
                         .tracking(0.5)
 
                     Text("Crystal-clear calls and instant messages,\nall in one place.")
-                        .font(KlicFont.body())
+                        .font(KlicFont.expandedMedium(13))
                         .foregroundStyle(KlicColor.textMuted)
                         .multilineTextAlignment(.center)
                         .lineSpacing(4)
@@ -47,15 +66,16 @@ struct WelcomeView: View {
 
             PillButton(
                 title: String(localized: "Get Started"),
+                fill: AuthStyle.ctaRed,
                 font: KlicFont.expandedMedium(17),
                 action: onGetStarted
             )
-            .padding(.horizontal, 28)
+            .padding(.horizontal, 32)
             .padding(.bottom, 20)
 
             Text("Free forever · No ads · Private by design")
                 .font(KlicFont.caption(12))
-                .foregroundStyle(KlicColor.textMuted)
+                .foregroundStyle(AuthStyle.smallText)
                 .padding(.bottom, 48)
         }
         .frame(maxWidth: 500)
@@ -66,18 +86,26 @@ struct WelcomeView: View {
         // pushed the bottom-pinned CTA off-screen. Clipped to the screen, and
         // hit-testing disabled so it can never swallow taps meant for the button.
         .background {
-            ZStack {
-                KlicColor.background
+            GeometryReader { geo in
+                let scale = max(geo.size.width, geo.size.height) / Self.ornamentReferenceDimension
+                let zoomFactor = min(Self.ornamentZoom * scale, Self.ornamentMaxZoom)
 
-                Rectangle()
-                    .fill(ornamentTint)
-                    .frame(width: Self.ornamentSide, height: Self.ornamentSide)
-                    .mask(
-                        LottieView(animation: .named("12"))
-                            .playing(loopMode: .loop)
-                            .frame(width: Self.ornamentSide, height: Self.ornamentSide)
-                    )
-                    .offset(x: Self.ornamentShift)
+                ZStack {
+                    KlicColor.background
+
+                    Rectangle()
+                        .fill(ornamentTint)
+                        .frame(width: Self.ornamentDesignSide, height: Self.ornamentDesignSide)
+                        .scaleEffect(zoomFactor)
+                        .mask(
+                            LottieView(animation: .named("12"))
+                                .playing(loopMode: .loop)
+                                .frame(width: Self.ornamentDesignSide, height: Self.ornamentDesignSide)
+                                .scaleEffect(zoomFactor)
+                        )
+                        .offset(x: Self.ornamentShiftX * scale, y: Self.ornamentShiftY * scale)
+                }
+                .frame(width: geo.size.width, height: geo.size.height)
             }
             .clipped()
             .ignoresSafeArea()
