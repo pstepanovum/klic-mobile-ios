@@ -10,4 +10,9 @@ enum KlicFont {
     static func caption(_ size: CGFloat = 13) -> Font { .custom("TikTokSans-Light", size: size) }
     /// Bangers — a bold display face used for the brand tagline.
     static func banger(_ size: CGFloat = 34) -> Font { .custom("Bangers-Regular", size: size) }
+
+    /// TikTok Sans, 24pt-optical-size Expanded cut — the auth pages' big-title/CTA face
+    /// (Welcome "Get Started", Login/Sign Up titles and primary buttons).
+    static func expandedMedium(_ size: CGFloat = 17) -> Font { .custom("TikTokSans24ptExpanded-Medium", size: size) }
+    static func expandedBold(_ size: CGFloat = 28) -> Font { .custom("TikTokSans24ptExpanded-Bold", size: size) }
 }
