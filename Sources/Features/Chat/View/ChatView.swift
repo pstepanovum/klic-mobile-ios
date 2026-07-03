@@ -9,6 +9,7 @@ struct ChatView: View {
     let conversation: Conversation
     @EnvironmentObject var session: AppSession
     @Environment(\.dismiss) var dismiss
+    @Environment(\.scenePhase) private var scenePhase
     @StateObject var socket = SocketService.shared
 
     @State var messages: [Message] = []
@@ -43,6 +44,8 @@ struct ChatView: View {
     @State var activeCallInfo: ActiveCallInfo?
     @ObservedObject var callKit = CallKitManager.shared
     @State var pendingMedia: [PendingMediaDraft] = []
+    /// Optimistic in-flight sends rendered as progress pills at the list's tail (§9.1).
+    @State var outgoingUploads: [OutgoingUpload] = []
     @State var selectedMediaAttachmentId: String?
     @State var captureMode: MessageComposer.CaptureMode = .audio
     @State var cameraMode: CameraPicker.Mode = .photo
@@ -136,6 +139,10 @@ struct ChatView: View {
                             onCancel: { withAnimation { replyingTo = nil } }
                         )
                     }
+                    // "@" typed in a group composer → member/@all suggestions (§9.5).
+                    if !mentionSuggestions.isEmpty {
+                        MentionSuggestionStrip(suggestions: mentionSuggestions) { insertMention($0) }
+                    }
                     composer
                 }
             }
@@ -201,14 +208,16 @@ struct ChatView: View {
                 onSelect: { pendingSearchJump = $0 }
             )
         }
-        .confirmationDialog("Delete message", isPresented: deleteDialogBinding, titleVisibility: .visible) {
-            Button("Delete for me", role: .destructive) { if let m = deleteTarget { deleteForMe(m) }; dismissMenu() }
-            if deleteTarget?.senderId == myId {
-                Button("Delete for everyone", role: .destructive) {
-                    if let m = deleteTarget { Task { await deleteEveryone(m) } }; dismissMenu()
-                }
-            }
-            Button("Cancel", role: .cancel) { dismissMenu() }
+        .klicSelectionSheet(
+            isPresented: deleteDialogBinding,
+            title: "Delete message",
+            options: deleteOptions,
+            onDismiss: { dismissMenu() }
+        ) { option in
+            guard let m = deleteTarget else { return }
+            if option.id == "me" { deleteForMe(m) }
+            else { Task { await deleteEveryone(m) } }
+            dismissMenu()
         }
         .task {
             hiddenIds = Self.loadHidden(conversation.id)
@@ -223,6 +232,16 @@ struct ChatView: View {
         .onAppear { isComposerFocused = true }
         .onDisappear { emitTyping(false) }
         .onChange(of: draft) { _, value in emitTyping(!value.trimmingCharacters(in: .whitespaces).isEmpty) }
+        // Keep the cached first page fresh so re-opening this chat paints instantly (§9.9).
+        .onChange(of: messages) { _, value in
+            guard !value.isEmpty else { return }
+            ChatCaches.messagePages[conversation.id] = Array(value.suffix(50))
+        }
+        // Re-verify call state when the app comes back to the foreground (§9.7).
+        .onChange(of: scenePhase) { _, phase in
+            guard phase == .active, !isDirect else { return }
+            Task { await refreshActiveCall() }
+        }
         .onReceive(socket.$lastMessage.compactMap { $0 }) { msg in
             guard msg.conversationId == conversation.id else { return }
             // Upsert by id — the server echoes our own sends back for multi-device sync.
@@ -234,8 +253,17 @@ struct ChatView: View {
             } else {
                 messages.append(msg)
             }
+            // SYSTEM fanout (members added/removed) — refresh the member list.
+            if !isDirect, msg.isSystem {
+                Task { await loadGroupDetails() }
+            }
             markRead()
             scrollToBottom()
+        }
+        // This user was removed from the group: drop it locally and close the chat (§9.3).
+        .onReceive(socket.$lastConversationRemoved.compactMap { $0 }) { removedId in
+            guard removedId == conversation.id else { return }
+            dismiss()
         }
         .onReceive(socket.$lastRead.compactMap { $0 }) { applyReceipt($0, status: "read") }
         .onReceive(socket.$lastDelivered.compactMap { $0 }) { applyReceipt($0, status: "delivered") }
@@ -253,8 +281,13 @@ struct ChatView: View {
             Task { await refreshActiveCall() }
         }
         .onReceive(socket.$lastCallEnded.compactMap { $0 }) { event in
-            guard activeCallInfo?.callId == event.callId else { return }
-            activeCallInfo = nil
+            // Clear the banner the moment ITS call ends; any other call:end still
+            // re-verifies, so a stale banner never survives a missed event (§9.7).
+            if activeCallInfo?.callId == event.callId {
+                activeCallInfo = nil
+            } else if activeCallInfo != nil {
+                Task { await refreshActiveCall() }
+            }
         }
         .onReceive(socket.$lastReaction.compactMap { $0 }) { update in
             guard update.conversationId == conversation.id,
@@ -307,6 +340,14 @@ struct ChatView: View {
 
     private var deleteDialogBinding: Binding<Bool> {
         Binding(get: { deleteTarget != nil }, set: { if !$0 { deleteTarget = nil } })
+    }
+
+    private var deleteOptions: [KlicSheetOption] {
+        var options = [KlicSheetOption(id: "me", label: "Delete for me", isDestructive: true)]
+        if deleteTarget?.senderId == myId {
+            options.append(KlicSheetOption(id: "everyone", label: "Delete for everyone", isDestructive: true))
+        }
+        return options
     }
 
     var mediaViewerPresented: Binding<Bool> {

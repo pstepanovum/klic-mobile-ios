@@ -39,6 +39,7 @@ extension ChatView {
                                 senderName: senderDisplayName(for: msg.senderId),
                                 senderAvatarURL: senderAvatarURL(for: msg.senderId),
                                 replyAuthorName: msg.replyTo.map { replyAuthorName(for: $0.senderId) } ?? "",
+                                mentionNames: mentionHighlightNames,
                                 onCallBack: { kind in Task { await startCall(kind: kind) } },
                                 onAvatarTap: isDirect ? nil : { openProfile(for: msg.senderId) },
                                 onLongPress: { withAnimation(.easeIn(duration: 0.15)) { menuTarget = msg } },
@@ -48,6 +49,16 @@ extension ChatView {
                                 }
                             )
                             .id(msg.id)
+                        }
+                        // Optimistic sends: byte-progress pills below the delivered
+                        // history until each is swapped for its server bubble (§9.1).
+                        ForEach(outgoingUploads) { upload in
+                            UploadingMessageBubble(
+                                upload: upload,
+                                onRetry: { retryUpload(upload.id) },
+                                onDiscard: { discardUpload(upload.id) }
+                            )
+                            .id("upload-\(upload.id.uuidString)")
                         }
                         if peerIsTyping {
                             HStack { TypingDots(); Spacer(minLength: 56) }

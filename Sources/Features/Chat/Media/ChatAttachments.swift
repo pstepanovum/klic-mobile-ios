@@ -13,6 +13,8 @@ struct MessageAttachmentsView: View {
     var starred: Bool = false
     /// Highlight "@all" mentions in the caption (group chats).
     var highlightMentions: Bool = false
+    /// Member names highlighted as mentions alongside @all (§9.5).
+    var mentionNames: [String] = []
     /// Conversation context for the auto-download gate + "Save to Photos" auto-save.
     var conversationId: String = ""
     var onOpenAttachment: (Attachment) -> Void = { _ in }
@@ -32,6 +34,7 @@ struct MessageAttachmentsView: View {
                     status: status,
                     starred: starred,
                     highlightMentions: highlightMentions,
+                    mentionNames: mentionNames,
                     conversationId: conversationId,
                     onOpen: onOpenAttachment,
                     onLongPress: onLongPress
@@ -89,6 +92,7 @@ private struct MediaMessageCard: View {
     let status: String?
     var starred: Bool = false
     var highlightMentions: Bool = false
+    var mentionNames: [String] = []
     var conversationId: String = ""
     let onOpen: (Attachment) -> Void
     var onLongPress: () -> Void = {}
@@ -122,6 +126,7 @@ private struct MediaMessageCard: View {
                         font: UIFont(name: "TikTokSans-Regular", size: 16) ?? .systemFont(ofSize: 16),
                         textColor: UIColor(isMine ? KlicColor.onPrimary : KlicColor.textPrimary),
                         highlightMentions: highlightMentions,
+                        mentionNames: mentionNames,
                         mentionColor: UIColor(isMine ? KlicColor.onPrimary : KlicColor.primary),
                         onLongPress: onLongPress
                     )
@@ -343,8 +348,11 @@ private struct MediaTile: View {
             state = .failed
             return
         }
+        // §9.9: cache by attachment id, not the (rotating) presigned URL, so
+        // re-entering a chat never re-downloads media.
+        let cacheKey = RemoteImageStore.attachmentCacheKey(attachment.id)
         // Already cached → always show (no network involved).
-        if let cached = await RemoteImageStore.shared.cachedImage(for: url) {
+        if let cached = await RemoteImageStore.shared.cachedImage(for: url, cacheKey: cacheKey) {
             state = .loaded(cached)
             return
         }
@@ -353,7 +361,7 @@ private struct MediaTile: View {
             return
         }
         state = .loading
-        guard let image = await RemoteImageStore.shared.image(for: url) else {
+        guard let image = await RemoteImageStore.shared.image(for: url, cacheKey: cacheKey) else {
             state = .failed
             return
         }

@@ -3,6 +3,9 @@ import PhotosUI
 import AVFoundation
 
 /// Staging (preview-before-send) and uploading of photo/video/voice/file attachments.
+/// Media sends are optimistic (§9.1): the composer clears immediately, an in-chat pill
+/// tracks the real upload bytes, and the pill is swapped for the server message in
+/// place when the send lands.
 extension ChatView {
     func stagePickedMedia(_ items: [PhotosPickerItem]) async {
         for item in items {
@@ -64,28 +67,6 @@ extension ChatView {
         )
     }
 
-    private func sendImage(_ image: UIImage) async {
-        let quality = UploadQuality.current
-        guard let (data, w, h) = Media.encodeImage(
-            image, maxDimension: quality.imageMaxDimension, quality: quality.imageJpegQuality
-        ) else { return }
-        await sendAttachment(kind: "IMAGE", contentType: "image/jpeg", data: data, width: w, height: h)
-    }
-
-    private func sendVideo(_ url: URL) async {
-        guard let data = try? Data(contentsOf: url) else { return }
-        let asset = AVURLAsset(url: url)
-        var durationMs = 0
-        if let d = try? await asset.load(.duration) { durationMs = Int(CMTimeGetSeconds(d) * 1000) }
-        var w: Int?, h: Int?
-        if let track = try? await asset.loadTracks(withMediaType: .video).first,
-           let size = try? await track.load(.naturalSize) {
-            w = Int(abs(size.width)); h = Int(abs(size.height))
-        }
-        await sendAttachment(kind: "VIDEO", contentType: Media.mime(for: url, fallback: "video/quicktime"),
-                             data: data, width: w, height: h, durationMs: durationMs)
-    }
-
     private func videoThumbnail(for asset: AVURLAsset) -> UIImage? {
         let generator = AVAssetImageGenerator(asset: asset)
         generator.appliesPreferredTrackTransform = true
@@ -94,32 +75,76 @@ extension ChatView {
         return UIImage(cgImage: cgImage)
     }
 
+    /// Files go straight into the optimistic upload pipeline (doc pill with progress).
     func sendFile(_ url: URL) async {
         let scoped = url.startAccessingSecurityScopedResource()
         defer { if scoped { url.stopAccessingSecurityScopedResource() } }
         guard let data = try? Data(contentsOf: url) else { return }
-        await sendAttachment(kind: "FILE", contentType: Media.mime(for: url, fallback: "application/octet-stream"),
-                             data: data, fileName: url.lastPathComponent)
+        let draft = PendingMediaDraft(
+            kind: "FILE",
+            contentType: Media.mime(for: url, fallback: "application/octet-stream"),
+            data: data,
+            previewImage: nil,
+            fileName: url.lastPathComponent
+        )
+        await MainActor.run {
+            startUpload(items: [draft], caption: "", replyToId: nil)
+        }
     }
 
     func stopAndSendVoice() async {
         guard let (data, durationMs, waveform) = recorder.stop() else { return }
-        await sendAttachment(kind: "VOICE", contentType: "audio/m4a", data: data, durationMs: durationMs, waveform: waveform)
+        await sendVoiceAttachment(data: data, durationMs: durationMs, waveform: waveform)
     }
 
+    /// Text-only drafts go through send(); staged media becomes ONE optimistic upload
+    /// pill (all staged items ride in a single message, like before).
     func sendComposerPayload() async {
         if pendingMedia.isEmpty {
             await send()
             return
         }
-
-        uploading = true
-        defer { uploading = false }
-        let body = draft.trimmingCharacters(in: .whitespaces)
+        let items = pendingMedia
+        let caption = draft.trimmingCharacters(in: .whitespaces)
         let replyId = replyingTo?.id
+        draft = ""
+        pendingMedia.removeAll()
+        withAnimation { replyingTo = nil }
+        startUpload(items: items, caption: caption, replyToId: replyId)
+    }
+
+    /// Insert the optimistic pill and kick the transfer off. The chat stays fully
+    /// interactive; concurrent uploads each own their pill and progress.
+    @MainActor
+    func startUpload(items: [PendingMediaDraft], caption: String, replyToId: String?) {
+        let upload = OutgoingUpload(items: items, caption: caption, replyToId: replyToId)
+        outgoingUploads.append(upload)
+        scrollToBottom()
+        Task { await performUpload(upload.id) }
+    }
+
+    func retryUpload(_ id: UUID) {
+        guard let idx = outgoingUploads.firstIndex(where: { $0.id == id }) else { return }
+        outgoingUploads[idx].failed = false
+        outgoingUploads[idx].progress = 0
+        Task { await performUpload(id) }
+    }
+
+    func discardUpload(_ id: UUID) {
+        outgoingUploads.removeAll { $0.id == id }
+    }
+
+    /// Upload every item's bytes (aggregated real progress across the whole payload),
+    /// then send the message and swap the pill for the server bubble in one update.
+    func performUpload(_ id: UUID) async {
+        guard let upload = outgoingUploads.first(where: { $0.id == id }) else { return }
+        let totalBytes = max(upload.totalBytes, 1)
+        var uploadedBytes = 0
         do {
             var drafts: [AttachmentDraft] = []
-            for item in pendingMedia {
+            for item in upload.items {
+                let base = uploadedBytes
+                let itemBytes = item.data.count
                 let draft = try await Media.upload(
                     conversationId: conversation.id,
                     kind: item.kind,
@@ -129,36 +154,49 @@ extension ChatView {
                     height: item.height,
                     durationMs: item.durationMs,
                     waveform: item.waveform,
-                    fileName: item.fileName
+                    fileName: item.fileName,
+                    onProgress: { fraction in
+                        let sent = base + Int(fraction * Double(itemBytes))
+                        Task { @MainActor in
+                            self.setUploadProgress(id, Double(sent) / Double(totalBytes))
+                        }
+                    }
                 )
                 drafts.append(draft)
+                uploadedBytes += itemBytes
+                setUploadProgress(id, Double(uploadedBytes) / Double(totalBytes))
             }
             let msg = try await APIClient.shared.sendMessage(
                 conversationId: conversation.id,
-                body: body.isEmpty ? nil : body,
+                body: upload.caption.isEmpty ? nil : upload.caption,
                 attachments: drafts,
-                replyToId: replyId
+                replyToId: upload.replyToId
             )
-            draft = ""
-            pendingMedia.removeAll()
-            withAnimation { replyingTo = nil }
+            // Replace in place: pill out, server bubble in, one state turn — no flash,
+            // and the bottom-anchored list keeps its scroll position.
+            outgoingUploads.removeAll { $0.id == id }
             upsert(msg)
-            scrollToBottom()
+            if atBottom { scrollToBottom(animated: false) }
         } catch {
-            // Keep the staged media + caption in place so the user can retry.
+            if let idx = outgoingUploads.firstIndex(where: { $0.id == id }) {
+                outgoingUploads[idx].failed = true
+            }
         }
     }
 
-    private func sendAttachment(kind: String, contentType: String, data: Data,
-                                width: Int? = nil, height: Int? = nil,
-                                durationMs: Int? = nil, waveform: Data? = nil, fileName: String? = nil) async {
-        uploading = true
-        defer { uploading = false }
+    private func setUploadProgress(_ id: UUID, _ value: Double) {
+        guard let idx = outgoingUploads.firstIndex(where: { $0.id == id }) else { return }
+        outgoingUploads[idx].progress = min(max(value, outgoingUploads[idx].progress), 1)
+    }
+
+    /// Voice notes keep the direct path (they're small and the recorder bar already
+    /// gives feedback), but no longer block the composer.
+    private func sendVoiceAttachment(data: Data, durationMs: Int, waveform: Data?) async {
         let replyId = replyingTo?.id
         do {
             let draft = try await Media.upload(
-                conversationId: conversation.id, kind: kind, contentType: contentType, data: data,
-                width: width, height: height, durationMs: durationMs, waveform: waveform, fileName: fileName)
+                conversationId: conversation.id, kind: "VOICE", contentType: "audio/m4a", data: data,
+                durationMs: durationMs, waveform: waveform)
             let msg = try await APIClient.shared.sendMessage(
                 conversationId: conversation.id, body: nil, attachments: [draft], replyToId: replyId)
             withAnimation { replyingTo = nil }

@@ -59,6 +59,8 @@ struct MessageBubble: View {
     var senderName: String? = nil
     var senderAvatarURL: String? = nil
     var replyAuthorName: String = ""
+    /// Member names highlighted as mentions alongside @all (group chats, §9.5).
+    var mentionNames: [String] = []
     var onCallBack: (String) -> Void = { _ in }
     var onAvatarTap: (() -> Void)? = nil
     var onLongPress: () -> Void = {}
@@ -157,6 +159,7 @@ struct MessageBubble: View {
                     status: message.status,
                     starred: message.starred == true,
                     highlightMentions: isGroupChat,
+                    mentionNames: mentionNames,
                     conversationId: message.conversationId,
                     onOpenAttachment: onOpenAttachment,
                     onLongPress: onLongPress
@@ -187,6 +190,7 @@ struct MessageBubble: View {
                                 font: UIFont(name: "TikTokSans-Regular", size: 16) ?? .systemFont(ofSize: 16),
                                 textColor: UIColor(isMine ? KlicColor.onPrimary : KlicColor.textPrimary),
                                 highlightMentions: isGroupChat,
+                                mentionNames: mentionNames,
                                 mentionColor: UIColor(isMine ? KlicColor.onPrimary : KlicColor.primary),
                                 onLongPress: onLongPress
                             )

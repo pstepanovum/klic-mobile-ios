@@ -10,6 +10,8 @@ struct RichMessageText: UIViewRepresentable {
     let textColor: UIColor
     /// Render "@all" mentions with an accent tint (group bubbles; CALLS.md §8.4).
     var highlightMentions: Bool = false
+    /// Member display names whose "@Name" occurrences also get the accent (§9.5).
+    var mentionNames: [String] = []
     var mentionColor: UIColor = .systemRed
     var onLongPress: () -> Void = {}
 
@@ -17,6 +19,20 @@ struct RichMessageText: UIViewRepresentable {
     static let mentionsAllRegex = try? NSRegularExpression(
         pattern: "(^|\\s)(@all)\\b", options: [.caseInsensitive]
     )
+
+    /// "@all" plus every current member name, longest first so "@Anna Maria" wins
+    /// over "@Anna". Names are escaped; matches are case-insensitive like @all.
+    private func mentionsRegex() -> NSRegularExpression? {
+        guard !mentionNames.isEmpty else { return Self.mentionsAllRegex }
+        let names = mentionNames
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
+            .sorted { $0.count > $1.count }
+            .map(NSRegularExpression.escapedPattern(for:))
+        let pattern = "(^|\\s)(@(?:all|\(names.joined(separator: "|"))))\\b"
+        return (try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]))
+            ?? Self.mentionsAllRegex
+    }
 
     func makeUIView(context: Context) -> UITextView {
         let view = UITextView()
@@ -60,11 +76,11 @@ struct RichMessageText: UIViewRepresentable {
         ]
     }
 
-    /// Attributed body with "@all" runs tinted + bolded — nil when highlighting is
+    /// Attributed body with mention runs tinted + bolded — nil when highlighting is
     /// off or the text has no mention (keeps the cheap plain-text path).
     private func mentionAttributedText() -> NSAttributedString? {
-        guard highlightMentions,
-              let regex = Self.mentionsAllRegex else { return nil }
+        guard highlightMentions, text.contains("@"),
+              let regex = mentionsRegex() else { return nil }
         let range = NSRange(text.startIndex..., in: text)
         let matches = regex.matches(in: text, range: range)
         guard !matches.isEmpty else { return nil }
