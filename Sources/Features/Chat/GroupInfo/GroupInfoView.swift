@@ -99,7 +99,7 @@ private struct GroupInfoContent: View {
     private var createdByName: String? {
         guard let creatorId = resolvedDetails?.createdById else { return nil }
         if let member = members.first(where: { $0.id == creatorId }) {
-            return member.isMe ? "you" : member.displayName
+            return member.isMe ? String(localized: "you") : member.displayName
         }
         return fallbackMembers.first(where: { $0.id == creatorId })?.displayName
     }
@@ -207,9 +207,9 @@ private struct GroupInfoContent: View {
         }
         .klicSelectionSheet(
             isPresented: $showDeleteDialog,
-            title: "Delete this group?",
-            message: "This removes the group chat and all of its messages for everyone.",
-            options: [KlicSheetOption(id: "delete", label: "Delete Group", isDestructive: true)]
+            title: String(localized: "Delete this group?"),
+            message: String(localized: "This removes the group chat and all of its messages for everyone."),
+            options: [KlicSheetOption(id: "delete", label: String(localized: "Delete Group"), isDestructive: true)]
         ) { _ in
             Task { await deleteGroup() }
         }
@@ -222,8 +222,8 @@ private struct GroupInfoContent: View {
             title: memberActionTarget?.displayName ?? "Member",
             message: memberActionTarget.map { "@\($0.username)" },
             options: [
-                KlicSheetOption(id: "profile", label: "View profile"),
-                KlicSheetOption(id: "remove", label: "Remove from group", isDestructive: true),
+                KlicSheetOption(id: "profile", label: String(localized: "View profile")),
+                KlicSheetOption(id: "remove", label: String(localized: "Remove from group"), isDestructive: true),
             ]
         ) { option in
             guard let member = memberActionTarget else { return }
@@ -245,9 +245,9 @@ private struct GroupInfoContent: View {
                 get: { removeConfirmTarget != nil },
                 set: { if !$0 { removeConfirmTarget = nil } }
             ),
-            title: "Remove \(removeConfirmTarget?.displayName ?? "member")?",
-            message: "They will no longer see this group or its messages.",
-            options: [KlicSheetOption(id: "remove", label: "Remove from group", isDestructive: true)]
+            title: String(localized: "Remove \(removeConfirmTarget?.displayName ?? "member")?"),
+            message: String(localized: "They will no longer see this group or its messages."),
+            options: [KlicSheetOption(id: "remove", label: String(localized: "Remove from group"), isDestructive: true)]
         ) { _ in
             guard let member = removeConfirmTarget else { return }
             removeConfirmTarget = nil
@@ -272,7 +272,7 @@ private struct GroupInfoContent: View {
                         .foregroundStyle(KlicColor.textMuted)
                         .multilineTextAlignment(.center)
                 }
-                Text(members.count == 1 ? "1 member" : "\(members.count) members")
+                Text(members.count == 1 ? String(localized: "1 member") : String(localized: "\(members.count) members"))
                     .font(KlicFont.caption())
                     .foregroundStyle(KlicColor.textMuted)
             }
@@ -315,19 +315,19 @@ private struct GroupInfoContent: View {
 
     private var actionsRow: some View {
         HStack(spacing: 12) {
-            actionButton(title: "Audio", systemName: "phone.fill") {
+            actionButton(title: String(localized: "Audio"), systemName: "phone.fill") {
                 onStartCall("AUDIO")
                 dismiss()
             }
-            actionButton(title: "Video", systemName: "video.fill") {
+            actionButton(title: String(localized: "Video"), systemName: "video.fill") {
                 onStartCall("VIDEO")
                 dismiss()
             }
-            actionButton(title: "Add", systemName: "person.badge.plus.fill", disabled: !isAdmin) {
+            actionButton(title: String(localized: "Add"), systemName: "person.badge.plus.fill", disabled: !isAdmin) {
                 addSheet = true
             }
             // Message search over the chat's history (CALLS.md §8.4).
-            actionButton(title: "Search", systemName: "magnifyingglass") {
+            actionButton(title: String(localized: "Search"), systemName: "magnifyingglass") {
                 onSearchMessages()
                 dismiss()
             }
@@ -359,7 +359,7 @@ private struct GroupInfoContent: View {
             Text("Edit group")
                 .font(KlicFont.headline(17))
                 .foregroundStyle(KlicColor.textPrimary)
-            KlicTextField(placeholder: "Group name", text: $editTitle)
+            KlicTextField(placeholder: String(localized: "Group name"), text: $editTitle)
             TextField("Description", text: $editDescription, axis: .vertical)
                 .font(KlicFont.body())
                 .foregroundStyle(KlicColor.textPrimary)
@@ -368,7 +368,7 @@ private struct GroupInfoContent: View {
                 .padding(.horizontal, 18)
                 .padding(.vertical, 12)
                 .background(KlicColor.background, in: RoundedRectangle(cornerRadius: 20))
-            PillButton(title: "Save changes") { Task { await saveEdits() } }
+            PillButton(title: String(localized: "Save changes")) { Task { await saveEdits() } }
         }
         .padding(18)
         .background(KlicColor.surface, in: RoundedRectangle(cornerRadius: 20))
@@ -385,7 +385,7 @@ private struct GroupInfoContent: View {
                 .padding(.top, 16)
                 .padding(.bottom, 8)
 
-            KlicSearchField(placeholder: "Search members", text: $memberQuery)
+            KlicSearchField(placeholder: String(localized: "Search members"), text: $memberQuery)
                 .padding(.horizontal, 14)
                 .padding(.bottom, 6)
 
@@ -499,7 +499,7 @@ private struct GroupInfoContent: View {
     private var dangerZone: some View {
         Group {
             if isAdmin {
-                PillButton(title: "Delete Group", fill: KlicColor.surface, textColor: KlicColor.danger) {
+                PillButton(title: String(localized: "Delete Group"), fill: KlicColor.surface, textColor: KlicColor.danger) {
                     showDeleteDialog = true
                 }
             } else {
@@ -709,7 +709,7 @@ private struct GroupMemberListView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 12) {
-                KlicSearchField(placeholder: "Search members", text: $query)
+                KlicSearchField(placeholder: String(localized: "Search members"), text: $query)
 
                 VStack(spacing: 0) {
                     ForEach(Array(filtered.enumerated()), id: \.element.id) { index, member in

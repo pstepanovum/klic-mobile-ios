@@ -40,7 +40,7 @@ struct ChatNotificationsCard: View {
             Button {
                 showMessageMuteSheet = true
             } label: {
-                valueRow(icon: "message", title: "Mute messages",
+                valueRow(icon: "message", title: String(localized: "Mute messages"),
                          value: ChatLocalPrefs.muteSummary(prefs.messagesMutedUntil))
             }
             .buttonStyle(.plain)
@@ -67,7 +67,7 @@ struct ChatNotificationsCard: View {
             Button {
                 showAlertToneSheet = true
             } label: {
-                valueRow(icon: "bell", title: "Alert tone",
+                valueRow(icon: "bell", title: String(localized: "Alert tone"),
                          value: KlicTone.alertTones.first(where: { $0.file == alertTone })?.name ?? "Default")
             }
             .buttonStyle(.plain)
@@ -78,7 +78,7 @@ struct ChatNotificationsCard: View {
             Button {
                 showCallMuteSheet = true
             } label: {
-                valueRow(icon: "phone", title: "Mute calls",
+                valueRow(icon: "phone", title: String(localized: "Mute calls"),
                          value: ChatLocalPrefs.muteSummary(prefs.callsMutedUntil))
             }
             .buttonStyle(.plain)
@@ -88,7 +88,7 @@ struct ChatNotificationsCard: View {
             Button {
                 showRingtoneSheet = true
             } label: {
-                valueRow(icon: "bell.badge", title: "Ringtone",
+                valueRow(icon: "bell.badge", title: String(localized: "Ringtone"),
                          value: KlicTone.ringtones.first(where: { $0.file == (ringtone ?? ChatLocalPrefs.globalRingtone) })?.name ?? "Klic")
             }
             .buttonStyle(.plain)
@@ -104,7 +104,7 @@ struct ChatNotificationsCard: View {
         .task { await load() }
         .klicSelectionSheet(
             isPresented: $showMessageMuteSheet,
-            title: "Mute messages",
+            title: String(localized: "Mute messages"),
             options: Self.muteOptions,
             selectedId: Self.muteSelectionId(prefs.messagesMutedUntil)
         ) { option in
@@ -112,7 +112,7 @@ struct ChatNotificationsCard: View {
         }
         .klicSelectionSheet(
             isPresented: $showCallMuteSheet,
-            title: "Mute call notifications",
+            title: String(localized: "Mute call notifications"),
             options: Self.muteOptions,
             selectedId: Self.muteSelectionId(prefs.callsMutedUntil)
         ) { option in
@@ -120,7 +120,7 @@ struct ChatNotificationsCard: View {
         }
         .klicSelectionSheet(
             isPresented: $showAlertToneSheet,
-            title: "Alert tone",
+            title: String(localized: "Alert tone"),
             options: KlicTone.alertTones.map { KlicSheetOption(id: $0.id, label: $0.name) },
             selectedId: alertTone ?? "default",
             dismissOnSelect: false,
@@ -133,7 +133,7 @@ struct ChatNotificationsCard: View {
         }
         .klicSelectionSheet(
             isPresented: $showRingtoneSheet,
-            title: "Ringtone",
+            title: String(localized: "Ringtone"),
             options: KlicTone.ringtones.map { KlicSheetOption(id: $0.id, label: $0.name) },
             selectedId: ringtone ?? ChatLocalPrefs.globalRingtone ?? "default",
             dismissOnSelect: false,
@@ -149,10 +149,10 @@ struct ChatNotificationsCard: View {
     // MARK: Mute options
 
     private static let muteOptions: [KlicSheetOption] = [
-        KlicSheetOption(id: "8h", label: "For 8 hours"),
-        KlicSheetOption(id: "1w", label: "For 1 week"),
-        KlicSheetOption(id: "always", label: "Always"),
-        KlicSheetOption(id: "off", label: "Unmute"),
+        KlicSheetOption(id: "8h", label: String(localized: "For 8 hours")),
+        KlicSheetOption(id: "1w", label: String(localized: "For 1 week")),
+        KlicSheetOption(id: "always", label: String(localized: "Always")),
+        KlicSheetOption(id: "off", label: String(localized: "Unmute")),
     ]
 
     private static func muteValue(for id: String) -> String? {

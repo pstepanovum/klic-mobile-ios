@@ -26,7 +26,7 @@ struct MessageSearchSheet: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                KlicTextField(placeholder: "Search messages", text: $query)
+                KlicTextField(placeholder: String(localized: "Search messages"), text: $query)
                     .focused($focused)
                     .padding(.horizontal, 16)
                     .padding(.vertical, 10)
@@ -73,7 +73,7 @@ struct MessageSearchSheet: View {
                             } label: {
                                 HStack(spacing: 8) {
                                     if isLoadingMore { ProgressView().controlSize(.small) }
-                                    Text(isLoadingMore ? "Searching older messages…" : "Search older messages")
+                                    Text(isLoadingMore ? String(localized: "Searching older messages…") : String(localized: "Search older messages"))
                                         .font(KlicFont.body(14))
                                         .foregroundStyle(KlicColor.primary)
                                 }

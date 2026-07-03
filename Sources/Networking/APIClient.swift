@@ -339,7 +339,7 @@ actor APIClient {
         req.setValue(contentType, forHTTPHeaderField: "Content-Type")
         let (_, resp) = try await session.upload(for: req, from: data)
         guard let http = resp as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
-            throw APIError.server(message: "Upload failed", status: (resp as? HTTPURLResponse)?.statusCode ?? 0)
+            throw APIError.server(message: String(localized: "Upload failed"), status: (resp as? HTTPURLResponse)?.statusCode ?? 0)
         }
         DataUsageTracker.shared.record(
             type: DataUsageTracker.mediaType(forContentType: contentType),
@@ -361,7 +361,7 @@ actor APIClient {
         let delegate = UploadProgressDelegate(onProgress: onProgress)
         let (_, resp) = try await session.upload(for: req, from: data, delegate: delegate)
         guard let http = resp as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
-            throw APIError.server(message: "Upload failed", status: (resp as? HTTPURLResponse)?.statusCode ?? 0)
+            throw APIError.server(message: String(localized: "Upload failed"), status: (resp as? HTTPURLResponse)?.statusCode ?? 0)
         }
         DataUsageTracker.shared.record(
             type: DataUsageTracker.mediaType(forContentType: contentType),

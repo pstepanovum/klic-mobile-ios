@@ -99,7 +99,7 @@ struct RecentCallRow: View {
 
     private var missed: Bool { call.outcome != "completed" }
     private var subtitle: String {
-        let dir = call.outgoing ? "Outgoing" : (missed ? "Missed" : "Incoming")
+        let dir = call.outgoing ? String(localized: "Outgoing") : (missed ? String(localized: "Missed") : String(localized: "Incoming"))
         let when = RecentCallRow.relativeTime(call.startedAt)
         if !missed, let ms = call.durationMs { return "\(dir) · \(CallEventRow.duration(ms)) · \(when)" }
         return "\(dir) · \(when)"

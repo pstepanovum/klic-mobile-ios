@@ -82,9 +82,9 @@ struct MediaViewerVideoControls: View {
 
             HStack {
                 HStack(spacing: 10) {
-                    speedButton(1.0, title: "1x")
-                    speedButton(1.5, title: "1.5x")
-                    speedButton(2.0, title: "2x")
+                    speedButton(1.0, title: String(localized: "1x"))
+                    speedButton(1.5, title: String(localized: "1.5x"))
+                    speedButton(2.0, title: String(localized: "2x"))
                 }
                 Spacer()
                 Button(action: onPictureInPicture) {

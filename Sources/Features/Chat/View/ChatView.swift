@@ -143,7 +143,7 @@ struct ChatView: View {
                     }
                     if let target = replyingTo {
                         ReplyComposerBar(
-                            authorName: target.senderId == myId ? "yourself" : title,
+                            authorName: target.senderId == myId ? String(localized: "yourself") : title,
                             preview: previewText(for: target),
                             onCancel: { withAnimation { replyingTo = nil } }
                         )
@@ -219,7 +219,7 @@ struct ChatView: View {
         }
         .klicSelectionSheet(
             isPresented: deleteDialogBinding,
-            title: "Delete message",
+            title: String(localized: "Delete message"),
             options: deleteOptions,
             onDismiss: { dismissMenu() }
         ) { option in
@@ -377,9 +377,9 @@ struct ChatView: View {
     }
 
     private var deleteOptions: [KlicSheetOption] {
-        var options = [KlicSheetOption(id: "me", label: "Delete for me", isDestructive: true)]
+        var options = [KlicSheetOption(id: "me", label: String(localized: "Delete for me"), isDestructive: true)]
         if deleteTarget?.senderId == myId {
-            options.append(KlicSheetOption(id: "everyone", label: "Delete for everyone", isDestructive: true))
+            options.append(KlicSheetOption(id: "everyone", label: String(localized: "Delete for everyone"), isDestructive: true))
         }
         return options
     }
@@ -419,7 +419,7 @@ private struct JoinCallBanner: View {
                 Text("Ongoing call")
                     .font(KlicFont.headline(14))
                     .foregroundStyle(KlicColor.onPrimary)
-                Text(info.joinedCount == 1 ? "1 person in the call" : "\(info.joinedCount) people in the call")
+                Text(info.joinedCount == 1 ? String(localized: "1 person in the call") : String(localized: "\(info.joinedCount) people in the call"))
                     .font(KlicFont.caption(12))
                     .foregroundStyle(KlicColor.onPrimary.opacity(0.85))
             }

@@ -74,7 +74,7 @@ struct ChatInfoCommonRows: View {
             NavigationLink {
                 ChatMediaLinksDocsView(conversationId: conversationId, members: members)
             } label: {
-                infoRow(icon: "photo.on.rectangle", title: "Media, links, docs")
+                infoRow(icon: "photo.on.rectangle", title: String(localized: "Media, links, docs"))
             }
             .buttonStyle(.plain)
 
@@ -83,7 +83,7 @@ struct ChatInfoCommonRows: View {
             NavigationLink {
                 StarredMessagesView(conversationId: conversationId, members: members)
             } label: {
-                infoRow(icon: "star", title: "Starred")
+                infoRow(icon: "star", title: String(localized: "Starred"))
             }
             .buttonStyle(.plain)
 
@@ -92,7 +92,7 @@ struct ChatInfoCommonRows: View {
             NavigationLink {
                 ChatStorageManageView(conversationId: conversationId)
             } label: {
-                infoRow(icon: "externaldrive", title: "Manage storage")
+                infoRow(icon: "externaldrive", title: String(localized: "Manage storage"))
             }
             .buttonStyle(.plain)
 
@@ -101,15 +101,15 @@ struct ChatInfoCommonRows: View {
             Button {
                 showSaveDialog = true
             } label: {
-                infoRow(icon: "square.and.arrow.down", title: "Save to Photos", value: saveMode.label)
+                infoRow(icon: "square.and.arrow.down", title: String(localized: "Save to Photos"), value: saveMode.label)
             }
             .buttonStyle(.plain)
         }
         .background(KlicColor.surface, in: RoundedRectangle(cornerRadius: 20))
         .klicSelectionSheet(
             isPresented: $showSaveDialog,
-            title: "Save to Photos",
-            message: "\"Always\" saves incoming photos and downloaded videos from this chat to your photo library.",
+            title: String(localized: "Save to Photos"),
+            message: String(localized: "\"Always\" saves incoming photos and downloaded videos from this chat to your photo library."),
             options: ChatLocalPrefs.SaveToPhotosMode.allCases.map { KlicSheetOption(id: $0.rawValue, label: $0.label) },
             selectedId: saveMode.rawValue
         ) { option in
@@ -187,7 +187,7 @@ struct ChatStorageManageView: View {
                 .background(KlicColor.surface, in: RoundedRectangle(cornerRadius: 20))
 
                 if !loading, totalBytes > 0 {
-                    PillButton(title: "Clear chat cache", fill: KlicColor.surface, textColor: KlicColor.danger) {
+                    PillButton(title: String(localized: "Clear chat cache"), fill: KlicColor.surface, textColor: KlicColor.danger) {
                         clear()
                     }
                 }

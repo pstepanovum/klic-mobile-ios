@@ -33,7 +33,7 @@ final class DataUsageTracker: @unchecked Sendable {
     enum Direction: String, CaseIterable { case sent, received }
     enum NetworkKind: String, CaseIterable { case wifi, mobile }
 
-    private let queue = DispatchQueue(label: "klic.datausage")
+    private let queue = DispatchQueue(label: String(localized: "klic.datausage"))
     private let monitor = NWPathMonitor()
     private let defaultsKey = "datausage.counters.v1"
 

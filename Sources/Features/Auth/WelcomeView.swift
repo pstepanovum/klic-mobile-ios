@@ -47,7 +47,7 @@ struct WelcomeView: View {
 
             Spacer()
 
-            PillButton(title: "Get Started", action: onGetStarted)
+            PillButton(title: String(localized: "Get Started"), action: onGetStarted)
                 .padding(.horizontal, 28)
                 .padding(.bottom, 20)
 

@@ -300,8 +300,8 @@ struct DateSeparator: View {
         df2.formatOptions = [.withInternetDateTime]
         guard let date = df.date(from: dateString) ?? df2.date(from: dateString) else { return dateString }
         let f = DateFormatter()
-        if Calendar.current.isDateInToday(date)     { return "Today" }
-        if Calendar.current.isDateInYesterday(date) { return "Yesterday" }
+        if Calendar.current.isDateInToday(date)     { return String(localized: "Today") }
+        if Calendar.current.isDateInYesterday(date) { return String(localized: "Yesterday") }
         f.dateFormat = "MMMM d"
         return f.string(from: date)
     }

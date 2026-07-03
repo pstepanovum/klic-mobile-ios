@@ -24,7 +24,7 @@ struct SettingsView: View {
                     // Privacy — own card, navigates to full page
                     privacySection
 
-                    PillButton(title: "Log out", fill: KlicColor.surfaceRaised, textColor: KlicColor.textMuted) {
+                    PillButton(title: String(localized: "Log out"), fill: KlicColor.surfaceRaised, textColor: KlicColor.textMuted) {
                         session.logout()
                     }
                     VStack(spacing: 6) {
@@ -73,14 +73,14 @@ struct SettingsView: View {
     private var mainSection: some View {
         VStack(spacing: 0) {
             NavigationLink { EditProfileView() } label: {
-                SettingsRow(icon: "person", title: "My Profile")
+                SettingsRow(icon: "person", title: String(localized: "My Profile"))
             }
             .buttonStyle(.plain)
 
             Divider().padding(.leading, 64).opacity(0.4)
 
             NavigationLink { AppearanceView() } label: {
-                SettingsRow(icon: "sun.max", title: "Appearance")
+                SettingsRow(icon: "sun.max", title: String(localized: "Appearance"))
             }
             .buttonStyle(.plain)
         }
@@ -119,7 +119,7 @@ struct SettingsView: View {
     private var updatesSection: some View {
         VStack(spacing: 0) {
             NavigationLink { AppUpdateInfoView(version: appVersion) } label: {
-                SettingsRow(icon: "arrow.down.circle", title: "Updates")
+                SettingsRow(icon: "arrow.down.circle", title: String(localized: "Updates"))
             }
             .buttonStyle(.plain)
         }
@@ -301,11 +301,11 @@ private struct AppUpdateInfoView: View {
 
                 // Info rows
                 VStack(spacing: 0) {
-                    infoRow(label: "Version", value: version)
+                    infoRow(label: String(localized: "Version"), value: version)
                     Divider().padding(.leading, 20).opacity(0.4)
-                    infoRow(label: "Platform", value: "iOS")
+                    infoRow(label: String(localized: "Platform"), value: "iOS")
                     Divider().padding(.leading, 20).opacity(0.4)
-                    infoRow(label: "Distribution", value: "TestFlight")
+                    infoRow(label: String(localized: "Distribution"), value: "TestFlight")
                 }
                 .background(KlicColor.surface, in: RoundedRectangle(cornerRadius: 20))
 
@@ -370,10 +370,10 @@ private struct SettingsRow: View {
 private extension ThemeManager.NightMode {
     var subtitle: String? {
         switch self {
-        case .system:    return "Follows your iOS appearance setting"
-        case .disabled:  return "Always light"
-        case .scheduled: return "Set custom day / night hours"
-        case .automatic: return "Based on ambient light"
+        case .system:    return String(localized: "Follows your iOS appearance setting")
+        case .disabled:  return String(localized: "Always light")
+        case .scheduled: return String(localized: "Set custom day / night hours")
+        case .automatic: return String(localized: "Based on ambient light")
         }
     }
 }

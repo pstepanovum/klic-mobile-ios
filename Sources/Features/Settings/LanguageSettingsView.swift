@@ -13,9 +13,9 @@ struct LanguageSettingsView: View {
 
     private let options: [Option] = [
         Option(id: "", label: String(localized: "System default")),
-        Option(id: "en", label: "English"),
-        Option(id: "ru", label: "Русский"),
-        Option(id: "zh-Hans", label: "中文 (简体)"),
+        Option(id: "en", label: String(localized: "English")),
+        Option(id: "ru", label: String(localized: "Русский")),
+        Option(id: "zh-Hans", label: String(localized: "中文 (简体)")),
     ]
 
     @State private var selected: String = {

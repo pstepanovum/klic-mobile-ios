@@ -50,11 +50,11 @@ struct NewMessageSheet: View {
                         }
 
                         if searchText.isEmpty {
-                            actionRow(icon: .user, title: "New Group", style: .line) {
+                            actionRow(icon: .user, title: String(localized: "New Group"), style: .line) {
                                 path.append(.newGroup)
                             }
                             Divider().padding(.leading, 82).opacity(0.4)
-                            actionRow(icon: .addUser, title: "New Contact", style: .line) {
+                            actionRow(icon: .addUser, title: String(localized: "New Contact"), style: .line) {
                                 path.append(.newContact)
                             }
                             Divider().opacity(0.4)
@@ -294,7 +294,7 @@ private struct NewGroupPickerView: View {
             .scrollContentBackground(.hidden)
 
             Divider().opacity(0.4)
-            PillButton(title: "Next") {
+            PillButton(title: String(localized: "Next")) {
                 path.append(.newGroupDetails(Array(selectedIds)))
             }
             .opacity(selectedIds.isEmpty ? 0.4 : 1)
@@ -388,7 +388,7 @@ private struct NewGroupDetailsView: View {
                 }
                 .padding(.top, 8)
 
-                KlicTextField(placeholder: "Group Name", text: $groupName)
+                KlicTextField(placeholder: String(localized: "Group Name"), text: $groupName)
 
                 if let error {
                     Text(error).font(KlicFont.caption()).foregroundStyle(KlicColor.danger)
@@ -457,7 +457,7 @@ private struct NewContactView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
                 HStack(spacing: 10) {
-                    KlicTextField(placeholder: "username", text: $username)
+                    KlicTextField(placeholder: String(localized: "username"), text: $username)
                     Button { Task { await sendRequest() } } label: {
                         if isSending {
                             ProgressView()

@@ -11,9 +11,11 @@ enum UploadQuality: String, CaseIterable, Identifiable {
     case standard, hd
 
     var id: String { rawValue }
-    var label: String { self == .hd ? "HD" : "Standard" }
+    var label: String { self == .hd ? String(localized: "HD") : String(localized: "Standard") }
     var subtitle: String {
-        self == .hd ? "Larger files, best quality" : "Faster uploads, less data"
+        self == .hd
+            ? String(localized: "Larger files, best quality")
+            : String(localized: "Faster uploads, less data")
     }
 
     /// JPEG pipeline parameters for chat images.
@@ -39,10 +41,10 @@ enum AutoDownloadPrefs {
         var id: String { rawValue }
         var label: String {
             switch self {
-            case .photos: return "Photos"
-            case .audio: return "Audio"
-            case .video: return "Video"
-            case .documents: return "Documents"
+            case .photos: return String(localized: "Photos")
+            case .audio: return String(localized: "Audio")
+            case .video: return String(localized: "Video")
+            case .documents: return String(localized: "Documents")
             }
         }
 
@@ -168,9 +170,9 @@ enum ChatLocalPrefs {
         var id: String { rawValue }
         var label: String {
             switch self {
-            case .standard: return "Default (Off)"
-            case .always: return "Always"
-            case .never: return "Never"
+            case .standard: return String(localized: "Default (Off)")
+            case .always: return String(localized: "Always")
+            case .never: return String(localized: "Never")
             }
         }
     }
@@ -306,11 +308,11 @@ enum ChatLocalPrefs {
 
     /// Human summary for a mute state ("Off", "Until 3:26 PM", "Always").
     static func muteSummary(_ iso: String?) -> String {
-        guard let date = parseISO(iso), date > Date() else { return "Off" }
-        if date.timeIntervalSinceNow > 365 * 24 * 3600 { return "Always" }
+        guard let date = parseISO(iso), date > Date() else { return String(localized: "Off") }
+        if date.timeIntervalSinceNow > 365 * 24 * 3600 { return String(localized: "Always") }
         let formatter = DateFormatter()
         formatter.dateStyle = Calendar.current.isDateInToday(date) ? .none : .short
         formatter.timeStyle = .short
-        return "Until \(formatter.string(from: date))"
+        return String(localized: "Until \(formatter.string(from: date))")
     }
 }

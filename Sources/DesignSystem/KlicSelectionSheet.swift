@@ -41,7 +41,7 @@ struct KlicSelectionSheet: View {
 
             optionList
 
-            PillButton(title: "Cancel", fill: KlicColor.surfaceRaised, textColor: KlicColor.textMuted) {
+            PillButton(title: String(localized: "Cancel"), fill: KlicColor.surfaceRaised, textColor: KlicColor.textMuted) {
                 dismiss()
             }
             .padding(.horizontal, 16)

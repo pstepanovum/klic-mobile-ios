@@ -22,17 +22,17 @@ struct AuthView: View {
                 .scaledToFit()
                 .frame(width: 88)
 
-            Text(isRegistering ? "Create your account" : "Welcome back")
+            Text(isRegistering ? String(localized: "Create your account") : String(localized: "Welcome back"))
                 .font(KlicFont.body())
                 .foregroundStyle(KlicColor.textMuted)
                 .padding(.top, 10)
 
             VStack(spacing: 12) {
-                KlicTextField(placeholder: "Username", text: $username)
+                KlicTextField(placeholder: String(localized: "Username"), text: $username)
                 if isRegistering {
-                    KlicTextField(placeholder: "Display name", text: $displayName)
+                    KlicTextField(placeholder: String(localized: "Display name"), text: $displayName)
                 }
-                KlicTextField(placeholder: "Password", text: $password, isSecure: true)
+                KlicTextField(placeholder: String(localized: "Password"), text: $password, isSecure: true)
 
                 if isRegistering && !password.isEmpty {
                     strengthBar

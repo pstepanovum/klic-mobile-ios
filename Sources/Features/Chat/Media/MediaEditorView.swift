@@ -79,8 +79,8 @@ struct MediaEditorView: View {
             options: [
                 KlicSheetOption(id: "free", label: String(localized: "Original")),
                 KlicSheetOption(id: "1:1", label: String(localized: "Square (1:1)")),
-                KlicSheetOption(id: "4:3", label: "4:3"),
-                KlicSheetOption(id: "16:9", label: "16:9"),
+                KlicSheetOption(id: "4:3", label: String(localized: "4:3")),
+                KlicSheetOption(id: "16:9", label: String(localized: "16:9")),
                 KlicSheetOption(id: "rotate", label: String(localized: "Rotate 90°")),
             ]
         ) { option in

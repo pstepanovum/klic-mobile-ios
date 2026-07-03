@@ -65,13 +65,13 @@ struct ProfileView: View {
                 }
 
                 HStack(spacing: 16) {
-                    CallActionButton(systemName: "phone.fill", label: "Audio") { onCall("AUDIO"); dismiss() }
-                    CallActionButton(systemName: "video.fill", label: "Video") { onCall("VIDEO"); dismiss() }
+                    CallActionButton(systemName: "phone.fill", label: String(localized: "Audio")) { onCall("AUDIO"); dismiss() }
+                    CallActionButton(systemName: "video.fill", label: String(localized: "Video")) { onCall("VIDEO"); dismiss() }
                     if let onMessage {
-                        CallActionButton(systemName: "message.fill", label: "Message") { onMessage(); dismiss() }
+                        CallActionButton(systemName: "message.fill", label: String(localized: "Message")) { onMessage(); dismiss() }
                     }
                     if let onInvite {
-                        CallActionButton(systemName: "person.badge.plus.fill", label: "Invite") { onInvite(); dismiss() }
+                        CallActionButton(systemName: "person.badge.plus.fill", label: String(localized: "Invite")) { onInvite(); dismiss() }
                     }
                 }
                 .padding(.top, 8)
@@ -154,7 +154,7 @@ struct ProfileView: View {
 
     private var groupsInCommonCard: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Text(groupsInCommon.count == 1 ? "1 group in common" : "\(groupsInCommon.count) groups in common")
+            Text(groupsInCommon.count == 1 ? String(localized: "1 group in common") : String(localized: "\(groupsInCommon.count) groups in common"))
                 .font(KlicFont.headline(17))
                 .foregroundStyle(KlicColor.textPrimary)
                 .padding(.horizontal, 18)
@@ -206,7 +206,7 @@ struct ProfileView: View {
     private func memberCountText(_ group: Conversation) -> String {
         // The list payload's members exclude the current user — count them back in.
         let count = group.members.count + 1
-        return count == 1 ? "1 member" : "\(count) members"
+        return count == 1 ? String(localized: "1 member") : String(localized: "\(count) members")
     }
 
     // MARK: Block (§10.4)
@@ -230,7 +230,7 @@ struct ProfileView: View {
     private var isOnline: Bool { socket.presence[userId]?.online == true }
 
     private var presenceText: String? {
-        if isOnline { return "Online" }
+        if isOnline { return String(localized: "Online") }
         let live = socket.presence[userId]?.lastSeen
         let fetched = profile?.lastSeenAt.flatMap(SocketService.parseDate)
         guard let date = live ?? fetched else { return nil }
@@ -240,9 +240,9 @@ struct ProfileView: View {
     private static func lastSeen(_ date: Date) -> String {
         let cal = Calendar.current
         let f = DateFormatter()
-        if cal.isDateInToday(date) { f.dateFormat = "HH:mm"; return "last seen today at \(f.string(from: date))" }
-        if cal.isDateInYesterday(date) { f.dateFormat = "HH:mm"; return "last seen yesterday at \(f.string(from: date))" }
-        f.dateFormat = "MMM d"; return "last seen \(f.string(from: date))"
+        if cal.isDateInToday(date) { f.dateFormat = "HH:mm"; return String(localized: "last seen today at \(f.string(from: date))") }
+        if cal.isDateInYesterday(date) { f.dateFormat = "HH:mm"; return String(localized: "last seen yesterday at \(f.string(from: date))") }
+        f.dateFormat = "MMM d"; return String(localized: "last seen \(f.string(from: date))")
     }
 }
 
