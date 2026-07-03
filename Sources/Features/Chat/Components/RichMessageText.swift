@@ -117,6 +117,20 @@ struct RichMessageText: UIViewRepresentable {
             onLongPress()
         }
 
+        /// Web links honor the "Open links in" preference (§10.4); other detector
+        /// types (phone, address, calendar) keep the system behavior.
+        func textView(
+            _ textView: UITextView,
+            shouldInteractWith URL: URL,
+            in characterRange: NSRange,
+            interaction: UITextItemInteraction
+        ) -> Bool {
+            guard interaction == .invokeDefaultAction,
+                  URL.scheme == "http" || URL.scheme == "https" else { return true }
+            Task { @MainActor in LinkOpener.open(URL) }
+            return false
+        }
+
         func gestureRecognizer(
             _ gestureRecognizer: UIGestureRecognizer,
             shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer

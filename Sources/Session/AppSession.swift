@@ -56,6 +56,17 @@ final class AppSession: ObservableObject {
         }
     }
 
+    /// Adopt a token pair obtained outside the password flow (passkey sign-in, §10.4).
+    func signIn(with response: AuthResponse) {
+        TokenStore.save(access: response.accessToken, refresh: response.refreshToken)
+        Self.saveUser(response.user)
+        currentUser = response.user
+        SocketService.shared.connect()
+        DeviceRegistrar.sync()
+        Task { await E2eeKeyManager.shared.ensureReady() }
+        errorMessage = nil
+    }
+
     func logout() {
         TokenStore.clear()
         Self.clearUser()

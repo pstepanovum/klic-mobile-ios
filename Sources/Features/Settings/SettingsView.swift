@@ -92,14 +92,22 @@ struct SettingsView: View {
     private var dataSection: some View {
         VStack(spacing: 0) {
             NavigationLink { NotificationsSettingsView() } label: {
-                SettingsRow(icon: "bell", title: "Notifications")
+                SettingsRow(icon: "bell", title: String(localized: "Notifications"))
             }
             .buttonStyle(.plain)
 
             Divider().padding(.leading, 64).opacity(0.4)
 
             NavigationLink { DataStorageView() } label: {
-                SettingsRow(icon: "externaldrive", title: "Data and Storage")
+                SettingsRow(icon: "externaldrive", title: String(localized: "Data and Storage"))
+            }
+            .buttonStyle(.plain)
+
+            Divider().padding(.leading, 64).opacity(0.4)
+
+            // Recent Calls (§10.6) — the SAME list the Call tab shows.
+            NavigationLink { RecentCallsView() } label: {
+                SettingsRow(icon: "phone.arrow.up.right", title: String(localized: "Recent Calls"))
             }
             .buttonStyle(.plain)
         }
@@ -122,8 +130,24 @@ struct SettingsView: View {
 
     private var privacySection: some View {
         VStack(spacing: 0) {
-            NavigationLink { PrivacyView() } label: {
-                SettingsRow(icon: "lock", title: "Privacy")
+            NavigationLink { PrivacySecurityView() } label: {
+                SettingsRow(icon: "lock", title: String(localized: "Privacy and Security"))
+            }
+            .buttonStyle(.plain)
+
+            Divider().padding(.leading, 64).opacity(0.4)
+
+            // My QR code + scanner (§10.7).
+            NavigationLink { QRCodeView() } label: {
+                SettingsRow(icon: "qrcode", title: String(localized: "QR Code"))
+            }
+            .buttonStyle(.plain)
+
+            Divider().padding(.leading, 64).opacity(0.4)
+
+            // Language (§10.5).
+            NavigationLink { LanguageSettingsView() } label: {
+                SettingsRow(icon: "globe", title: String(localized: "Language"))
             }
             .buttonStyle(.plain)
         }
@@ -311,58 +335,6 @@ private struct AppUpdateInfoView: View {
         }
         .padding(.horizontal, 20)
         .padding(.vertical, 14)
-    }
-}
-
-// MARK: - Privacy page
-
-private struct PrivacyView: View {
-    @EnvironmentObject var session: AppSession
-    @State private var showLastSeen = true
-    @State private var saving = false
-
-    var body: some View {
-        ScrollView {
-            VStack(spacing: 16) {
-                VStack(spacing: 0) {
-                    Toggle(isOn: $showLastSeen) {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("Last seen")
-                                .font(KlicFont.body())
-                                .foregroundStyle(KlicColor.textPrimary)
-                            Text("If turned off, you won't see anyone else's last seen.")
-                                .font(KlicFont.caption(12))
-                                .foregroundStyle(KlicColor.textMuted)
-                        }
-                    }
-                    .tint(KlicColor.primary)
-                    .disabled(saving)
-                    .padding(.horizontal, 18)
-                    .padding(.vertical, 14)
-                    .onChange(of: showLastSeen) { _, newValue in
-                        guard newValue != (session.currentUser?.showLastSeen ?? true) else { return }
-                        Task { await save(newValue) }
-                    }
-                }
-                .background(KlicColor.surface, in: RoundedRectangle(cornerRadius: 20))
-            }
-            .padding(20)
-            .adaptiveWidth()
-        }
-        .background(KlicColor.background.ignoresSafeArea())
-        .navigationTitle("Privacy")
-        .navigationBarTitleDisplayMode(.inline)
-        .onAppear { showLastSeen = session.currentUser?.showLastSeen ?? true }
-    }
-
-    private func save(_ value: Bool) async {
-        saving = true
-        defer { saving = false }
-        if let user = try? await APIClient.shared.updateProfile(showLastSeen: value) {
-            session.updateCurrentUser(user)
-        } else {
-            showLastSeen = session.currentUser?.showLastSeen ?? true
-        }
     }
 }
 

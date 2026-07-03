@@ -176,6 +176,7 @@ extension ChatView {
             // and the bottom-anchored list keeps its scroll position.
             outgoingUploads.removeAll { $0.id == id }
             upsert(msg)
+            FrequentContacts.recordSend(conversationId: conversation.id)   // §10.4
             if atBottom { scrollToBottom(animated: false) }
         } catch {
             if let idx = outgoingUploads.firstIndex(where: { $0.id == id }) {

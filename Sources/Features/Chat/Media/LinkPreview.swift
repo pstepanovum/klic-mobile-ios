@@ -52,10 +52,10 @@ struct LinkPreviewCard: View {
         .clipShape(RoundedRectangle(cornerRadius: 14))
         .contentShape(RoundedRectangle(cornerRadius: 14))
         .onTapGesture {
-            if let embed = videoEmbed {
+            if let embed = videoEmbed, !LinkOpenPrefs.forceExternal {
                 activeEmbed = embed
             } else {
-                openURL(url)
+                LinkOpener.open(url)   // honors "Open links in" (§10.4)
             }
         }
         .sheet(isPresented: Binding(

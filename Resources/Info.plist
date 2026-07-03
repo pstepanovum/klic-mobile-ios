@@ -32,6 +32,10 @@
     <string>Klic uses your microphone for voice and video calls.</string>
     <key>NSPhotoLibraryAddUsageDescription</key>
     <string>Klic saves photos and videos from chats to your library when you turn on “Save to Photos”.</string>
+    <key>NSPhotoLibraryUsageDescription</key>
+    <string>Klic shows your photos and videos in the attachment picker so you can send them in chats.</string>
+    <key>NSFaceIDUsageDescription</key>
+    <string>Klic uses Face ID to unlock the app when the app lock is enabled.</string>
 
     <key>UIBackgroundModes</key>
     <array>

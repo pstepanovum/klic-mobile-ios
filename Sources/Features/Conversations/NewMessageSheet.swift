@@ -58,6 +58,20 @@ struct NewMessageSheet: View {
                                 path.append(.newContact)
                             }
                             Divider().opacity(0.4)
+
+                            // "Frequent" row (§10.4): most-messaged friends, computed
+                            // locally, gated by the Suggest Frequent Contacts pref.
+                            let frequent = FrequentContacts.topFriends(from: friends)
+                            if !frequent.isEmpty {
+                                sectionHeader(String(localized: "Frequent"))
+                                ForEach(Array(frequent.enumerated()), id: \.element.id) { idx, friend in
+                                    friendRow(friend)
+                                    if idx < frequent.count - 1 {
+                                        Divider().padding(.leading, 82).opacity(0.4)
+                                    }
+                                }
+                                Divider().opacity(0.4)
+                            }
                         }
 
                         ForEach(sections, id: \.letter) { section in
@@ -239,6 +253,19 @@ private struct NewGroupPickerView: View {
     var body: some View {
         VStack(spacing: 0) {
             List {
+                // "Frequent" row atop the group-create picker (§10.4).
+                let frequent = FrequentContacts.topFriends(from: friends)
+                if !frequent.isEmpty {
+                    Section {
+                        ForEach(frequent) { friend in
+                            pickerRow(friend)
+                        }
+                    } header: {
+                        Text("Frequent")
+                            .font(KlicFont.caption(12))
+                            .foregroundStyle(KlicColor.textMuted)
+                    }
+                }
                 ForEach(friends) { friend in
                     Button { toggle(friend.id) } label: {
                         HStack(spacing: 14) {
@@ -296,6 +323,29 @@ private struct NewGroupPickerView: View {
 
     private func toggle(_ id: String) {
         if selectedIds.contains(id) { selectedIds.remove(id) } else { selectedIds.insert(id) }
+    }
+
+    private func pickerRow(_ friend: User) -> some View {
+        Button { toggle(friend.id) } label: {
+            HStack(spacing: 14) {
+                AvatarView(url: friend.avatarUrl, name: friend.displayName, size: 44)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(friend.displayName)
+                        .font(KlicFont.medium())
+                        .foregroundStyle(KlicColor.textPrimary)
+                    Text("@\(friend.username)")
+                        .font(KlicFont.caption())
+                        .foregroundStyle(KlicColor.textMuted)
+                }
+                Spacer()
+                Image(systemName: selectedIds.contains(friend.id) ? "checkmark.circle.fill" : "circle")
+                    .font(.system(size: 22))
+                    .foregroundStyle(selectedIds.contains(friend.id) ? KlicColor.primary : KlicColor.textMuted)
+            }
+            .padding(.vertical, 4)
+        }
+        .buttonStyle(.plain)
+        .listRowBackground(KlicColor.background)
     }
 }
 

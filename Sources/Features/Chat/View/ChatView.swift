@@ -221,6 +221,10 @@ struct ChatView: View {
         }
         .task {
             hiddenIds = Self.loadHidden(conversation.id)
+            // Restore this chat's saved composer draft (§10.4).
+            if draft.isEmpty {
+                draft = ChatDrafts.load(conversation.id)
+            }
             await load()
             if !isDirect {
                 await loadGroupDetails()
@@ -230,7 +234,11 @@ struct ChatView: View {
             initialLoadDone = true
         }
         .onAppear { isComposerFocused = true }
-        .onDisappear { emitTyping(false) }
+        .onDisappear {
+            emitTyping(false)
+            // Persist unsent text as this chat's draft (§10.4).
+            ChatDrafts.save(conversation.id, text: draft)
+        }
         .onChange(of: draft) { _, value in emitTyping(!value.trimmingCharacters(in: .whitespaces).isEmpty) }
         // Keep the cached first page fresh so re-opening this chat paints instantly (§9.9).
         .onChange(of: messages) { _, value in

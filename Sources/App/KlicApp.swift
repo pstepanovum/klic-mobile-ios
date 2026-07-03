@@ -23,6 +23,8 @@ struct KlicApp: App {
                 .tint(KlicColor.primary)
                 .onAppear { session.bootstrap() }
                 .onChange(of: scenePhase) { _, phase in
+                    // App lock (§10.4): lock on background/foreground per the auto-lock pref.
+                    AppLockManager.shared.handleScenePhase(phase)
                     if phase == .active {
                         // Clear the app-icon badge + delivered banners when the user is back in.
                         UNUserNotificationCenter.current().setBadgeCount(0)
