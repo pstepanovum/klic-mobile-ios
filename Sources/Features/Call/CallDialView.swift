@@ -77,7 +77,8 @@ private struct SectionHeader: View {
     }
 }
 
-private struct RecentCallRow: View {
+/// One recent-call row — shared by the Call tab and Settings → Recent Calls (§10.6).
+struct RecentCallRow: View {
     let call: RecentCall
     @State private var isCalling = false
     private static let iso8601Fractional: ISO8601DateFormatter = {
@@ -159,6 +160,40 @@ private struct RecentCallRow: View {
     static func relativeTime(_ iso: String) -> String {
         guard let date = iso8601Fractional.date(from: iso) ?? iso8601.date(from: iso) else { return "" }
         return relative.localizedString(for: date, relativeTo: Date())
+    }
+}
+
+/// Settings → Recent Calls (§10.6): the SAME rows as the Call tab's "Recent" section,
+/// pushed as its own page — no duplicate implementation.
+struct RecentCallsView: View {
+    @State private var recents: [RecentCall] = []
+    @State private var loaded = false
+
+    var body: some View {
+        ScrollView {
+            LazyVStack(spacing: 4) {
+                if loaded && recents.isEmpty {
+                    Text("No recent calls yet.")
+                        .font(KlicFont.body(14))
+                        .foregroundStyle(KlicColor.textMuted)
+                        .padding(.top, 32)
+                        .frame(maxWidth: .infinity, alignment: .center)
+                }
+                ForEach(recents) { call in
+                    RecentCallRow(call: call)
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.top, 8)
+            .adaptiveWidth()
+        }
+        .background(KlicColor.background.ignoresSafeArea())
+        .navigationTitle("Recent Calls")
+        .navigationBarTitleDisplayMode(.inline)
+        .task {
+            recents = (try? await APIClient.shared.recentCalls()) ?? []
+            loaded = true
+        }
     }
 }
 

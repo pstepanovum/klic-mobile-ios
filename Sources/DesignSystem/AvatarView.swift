@@ -53,10 +53,27 @@ actor RemoteImageStore {
         try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
     }
 
+    /// Stable cache key for a remote URL (§10.1): strips rotating presign signature
+    /// params (X-Amz-*, X-Goog-*, Signature/Expires) but KEEPS content-version params
+    /// like `v` — the server appends `?v=<hash of avatarKey>` to avatar URLs, so a
+    /// changed cover busts the cache while an unchanged one still hits.
+    nonisolated static func stableKey(for url: URL) -> String {
+        guard var components = URLComponents(url: url, resolvingAgainstBaseURL: false) else {
+            return url.absoluteString
+        }
+        let kept = (components.queryItems ?? []).filter { item in
+            let name = item.name.lowercased()
+            return !(name.hasPrefix("x-amz-") || name.hasPrefix("x-goog-")
+                     || name == "signature" || name == "expires" || name == "awsaccesskeyid")
+        }
+        components.queryItems = kept.isEmpty ? nil : kept
+        return components.url?.absoluteString ?? url.absoluteString
+    }
+
     /// `cacheKey` (§9.9): stable identity for the bytes — attachment ids for chat
-    /// media, whose presigned URLs rotate. Nil falls back to the URL string.
+    /// media, whose presigned URLs rotate. Nil falls back to the normalized URL.
     func image(for url: URL, cacheKey: String? = nil) async -> UIImage? {
-        let key = cacheKey ?? url.absoluteString
+        let key = cacheKey ?? Self.stableKey(for: url)
         if let cached = memory.object(forKey: key as NSString) {
             return cached
         }
@@ -79,7 +96,7 @@ actor RemoteImageStore {
     /// Cached-only lookup (memory/disk, no network) — used by the auto-download
     /// gate so already-fetched photos still render when auto-download is off.
     func cachedImage(for url: URL, cacheKey: String? = nil) -> UIImage? {
-        let key = cacheKey ?? url.absoluteString
+        let key = cacheKey ?? Self.stableKey(for: url)
         if let cached = memory.object(forKey: key as NSString) { return cached }
         if let cached = try? Data(contentsOf: fileURL(for: key)),
            let image = UIImage(data: cached) {
@@ -136,6 +153,26 @@ actor RemoteImageStore {
     /// Drop the in-memory cache (used right after the disk cache is cleared).
     func purgeMemory() {
         memory.removeAllObjects()
+    }
+
+    /// Key-only cached lookup for locally-rendered entries (PDF thumbnails, §10.10).
+    func renderedImage(forKey key: String) -> UIImage? {
+        if let cached = memory.object(forKey: key as NSString) { return cached }
+        if let data = try? Data(contentsOf: fileURL(for: key)),
+           let image = UIImage(data: data) {
+            remember(image, for: key)
+            return image
+        }
+        return nil
+    }
+
+    /// Insert a locally-rendered image (e.g. a PDF first-page thumbnail, §10.10)
+    /// under a stable key so it persists like any fetched image.
+    func storeRendered(_ image: UIImage, forKey key: String) {
+        remember(image, for: key)
+        if let data = image.jpegData(compressionQuality: 0.85), data.count <= maxDiskEntryBytes {
+            try? data.write(to: fileURL(for: key), options: .atomic)
+        }
     }
 
     private func remember(_ image: UIImage, for key: String) {

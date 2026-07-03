@@ -29,7 +29,8 @@ extension ChatView {
                 .padding(.leading, 4)
                 .padding(.trailing, 12)
                 .padding(.vertical, 4)
-                .background(.ultraThinMaterial, in: Capsule())
+                // Fixed theme surface (§10.8) — the pill must never adapt to the
+                // content scrolling behind it, in light or dark.
                 .background(KlicColor.surface, in: Capsule())
             }
             .buttonStyle(.plain)
@@ -73,7 +74,7 @@ extension ChatView {
                 .padding(.leading, 4)
                 .padding(.trailing, 12)
                 .padding(.vertical, 4)
-                .background(.ultraThinMaterial, in: Capsule())
+                // Fixed theme surface (§10.8) — never adapts to scrolled content.
                 .background(KlicColor.surface, in: Capsule())
             }
             .buttonStyle(.plain)

@@ -56,6 +56,8 @@ private struct GroupInfoContent: View {
     @State private var addSheet = false
     @State private var pickedCover: PhotosPickerItem?
     @State private var savingCover = false
+    /// Visible cover-upload failure (§10.1) — presented as an alert, never swallowed.
+    @State private var coverAlert: String?
     @State private var leaving = false
     @State private var error: String?
     @State private var showDeleteDialog = false
@@ -185,6 +187,14 @@ private struct GroupInfoContent: View {
             }
             .presentationDetents([.medium, .large])
             .presentationDragIndicator(.visible)
+        }
+        .alert(
+            String(localized: "Group cover"),
+            isPresented: Binding(get: { coverAlert != nil }, set: { if !$0 { coverAlert = nil } })
+        ) {
+            Button(String(localized: "OK"), role: .cancel) { coverAlert = nil }
+        } message: {
+            Text(coverAlert ?? "")
         }
         .onChange(of: pickedCover) { _, item in
             guard let item else { return }
@@ -550,27 +560,81 @@ private struct GroupInfoContent: View {
         }
     }
 
+    /// §10.1: every step of the cover chain (read → presign → PUT → PATCH) surfaces
+    /// its own visible alert + a diagnostic event; nothing is silently swallowed.
     private func uploadCover(_ item: PhotosPickerItem) async {
         savingCover = true
         defer { savingCover = false }
         error = nil
+
+        let jpeg: Data
         do {
             guard let data = try await item.loadTransferable(type: Data.self),
-                  let image = UIImage(data: data),
-                  let (jpeg, _, _) = Media.encodeImage(image) else { return }
-            let ticket = try await APIClient.shared.requestGroupAvatarUpload(
+                  let image = UIImage(data: data) else {
+                coverFailed(step: "read", message: String(localized: "Couldn't read the selected photo."))
+                return
+            }
+            guard let (encoded, _, _) = Media.encodeImage(image) else {
+                coverFailed(step: "encode", message: String(localized: "Couldn't process the selected photo."))
+                return
+            }
+            jpeg = encoded
+        } catch {
+            coverFailed(step: "read", message: String(localized: "Couldn't read the selected photo."), detail: "\(error)")
+            return
+        }
+
+        let ticket: UploadTicket
+        do {
+            ticket = try await APIClient.shared.requestGroupAvatarUpload(
                 conversationId: conversationId,
                 contentType: "image/jpeg",
                 byteSize: jpeg.count
             )
+        } catch {
+            coverFailed(
+                step: "presign",
+                message: String(localized: "Couldn't start the cover upload: ") + Self.describe(error),
+                detail: "\(error)"
+            )
+            return
+        }
+
+        do {
             try await APIClient.shared.uploadData(jpeg, to: ticket.uploadUrl, contentType: "image/jpeg")
+        } catch {
+            coverFailed(
+                step: "put",
+                message: String(localized: "Couldn't upload the cover image: ") + Self.describe(error),
+                detail: "\(error)"
+            )
+            return
+        }
+
+        do {
             let updated = try await APIClient.shared.updateGroupConversation(id: conversationId, avatarKey: ticket.key)
             apply(updated)
-        } catch let e as APIError {
-            self.error = e.userMessage
+            APIClient.mobileDiagnostic(event: "group-cover-updated", detail: conversationId)
         } catch {
-            self.error = "Couldn't upload the group cover."
+            coverFailed(
+                step: "patch",
+                message: String(localized: "The cover uploaded but couldn't be saved: ") + Self.describe(error),
+                detail: "\(error)"
+            )
         }
+    }
+
+    private func coverFailed(step: String, message: String, detail: String? = nil) {
+        coverAlert = message
+        APIClient.mobileDiagnostic(
+            event: "group-cover-failed-\(step)",
+            detail: "\(conversationId) \(detail ?? "")"
+        )
+    }
+
+    private static func describe(_ error: Error) -> String {
+        if let apiError = error as? APIError { return apiError.userMessage }
+        return (error as NSError).localizedDescription
     }
 
     private func leaveGroup() async {
@@ -605,6 +669,9 @@ private struct GroupInfoContent: View {
     private func apply(_ updated: GroupConversationDetails) {
         details = updated
         ChatCaches.groupDetails[conversationId] = updated
+        // §10.1: reflect title/cover edits into the cached conversations list so the
+        // Chats tab row updates in place, no refetch needed.
+        ConversationStore.shared.applyGroupDetails(updated)
         onUpdated(updated)
         editTitle = updated.title ?? fallbackTitle
         editDescription = updated.description ?? ""

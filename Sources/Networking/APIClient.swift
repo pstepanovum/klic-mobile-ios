@@ -115,6 +115,66 @@ actor APIClient {
         try await delete("/conversations/\(conversationId)")
     }
 
+    // MARK: Blocks (§10.4)
+
+    func blockedUsers() async throws -> [BlockedUser] { try await get("/blocks") }
+
+    func blockUser(userId: String) async throws -> EmptyResponse {
+        try await post("/blocks", body: ["userId": userId])
+    }
+
+    func unblockUser(userId: String) async throws {
+        let _: EmptyResponse = try await delete("/blocks/\(userId)")
+    }
+
+    // MARK: Passkeys (§10.4)
+
+    /// Registration options for adding a passkey (auth'd). Raw JSON — the WebAuthn
+    /// options dictionary is handed to AuthenticationServices almost verbatim.
+    func passkeyRegisterOptions() async throws -> Data {
+        try await rawRequest("/auth/passkeys/register/options", method: "POST", body: Data("{}".utf8), authed: true)
+    }
+
+    func passkeyRegisterVerify(_ payload: [String: Any]) async throws -> PasskeyCredentialInfo {
+        try await post("/auth/passkeys/register/verify", body: payload)
+    }
+
+    func passkeys() async throws -> [PasskeyCredentialInfo] { try await get("/me/passkeys") }
+
+    func deletePasskey(id: String) async throws {
+        let _: EmptyResponse = try await delete("/me/passkeys/\(id)")
+    }
+
+    /// Login options (unauth'd) — returns the WebAuthn request JSON.
+    func passkeyLoginOptions() async throws -> Data {
+        try await rawRequest("/auth/passkeys/login/options", method: "POST", body: Data("{}".utf8), authed: false)
+    }
+
+    func passkeyLoginVerify(_ payload: [String: Any]) async throws -> AuthResponse {
+        let data = try JSONSerialization.data(withJSONObject: payload)
+        return try await request("/auth/passkeys/login/verify", method: "POST", body: data, authed: false)
+    }
+
+    // MARK: Contacts sync (§10.4)
+
+    func uploadContactHashes(_ hashes: [String]) async throws -> EmptyResponse {
+        try await post("/me/contacts", body: ["hashes": hashes])
+    }
+
+    func deleteSyncedContacts() async throws {
+        let _: EmptyResponse = try await delete("/me/contacts")
+    }
+
+    // MARK: Account deletion (§10.4)
+
+    func setDeleteIfAway(months: Int?) async throws -> User {
+        try await patch("/me", body: ["deleteIfAwayMonths": months ?? NSNull()])
+    }
+
+    func deleteAccount() async throws {
+        let _: EmptyResponse = try await delete("/me")
+    }
+
     // MARK: Conversations / messaging
 
     func conversations() async throws -> [Conversation] {
@@ -484,6 +544,32 @@ actor APIClient {
 
     private func delete<T: Decodable>(_ path: String) async throws -> T {
         try await request(path, method: "DELETE", body: nil, authed: true)
+    }
+
+    /// Same as `request` but returns the raw response body (WebAuthn options JSON is
+    /// passed through to AuthenticationServices without a Decodable model).
+    private func rawRequest(
+        _ path: String,
+        method: String,
+        body: Data?,
+        authed: Bool
+    ) async throws -> Data {
+        guard let url = URL(string: Self.baseURL.absoluteString + path) else { throw APIError.noData }
+        var req = URLRequest(url: url)
+        req.httpMethod = method
+        req.httpBody = body
+        if body != nil {
+            req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        }
+        if authed, let token = await validAccessToken() {
+            req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
+        let (respData, resp) = try await session.data(for: req)
+        guard let http = resp as? HTTPURLResponse else { throw APIError.noData }
+        guard (200..<300).contains(http.statusCode) else {
+            throw APIError.server(message: Self.message(from: respData, status: http.statusCode), status: http.statusCode)
+        }
+        return respData
     }
 
     private func request<T: Decodable>(

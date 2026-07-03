@@ -25,6 +25,16 @@ struct ProfileView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var profile: UserProfile?
     @State private var openedGroup: Conversation?
+    /// §10.2: when opened from the Friends list (no conversationId), the DM is
+    /// resolved via POST /conversations {userId} so both entry points show the SAME
+    /// full sections.
+    @State private var resolvedConversationId: String?
+    // Block flow (§10.4): confirm sheet → POST /blocks.
+    @State private var showBlockConfirm = false
+    @State private var blocking = false
+    @State private var blockError: String?
+
+    private var effectiveConversationId: String? { conversationId ?? resolvedConversationId }
 
     private var resolvedAvatar: String? { profile?.avatarUrl ?? avatarUrl }
 
@@ -66,21 +76,42 @@ struct ProfileView: View {
                 }
                 .padding(.top, 8)
 
-                // Chat-info sections (only when reached from a conversation; §8.4).
-                if let conversationId {
+                // Chat-info sections — both entry points (chat header AND friends
+                // list) land on the same full component (§10.2). From the friends
+                // list the DM id is resolved lazily in .task.
+                if let chatId = effectiveConversationId {
                     ChatInfoCommonRows(
-                        conversationId: conversationId,
+                        conversationId: chatId,
                         members: chatMembers.isEmpty
                             ? [ChatProfileTarget(id: userId, username: username, displayName: displayName, avatarUrl: avatarUrl)]
                             : chatMembers
                     )
                     .padding(.top, 12)
 
-                    ChatNotificationsCard(conversationId: conversationId, isGroup: false)
+                    ChatNotificationsCard(conversationId: chatId, isGroup: false)
                 }
 
                 if !groupsInCommon.isEmpty {
                     groupsInCommonCard
+                }
+
+                // Block (§10.4) — with confirm; blocked users are managed in
+                // Settings → Privacy and Security → Blocked Users.
+                PillButton(
+                    title: blocking ? String(localized: "Blocking…") : String(localized: "Block User"),
+                    fill: KlicColor.surface,
+                    textColor: KlicColor.danger
+                ) {
+                    showBlockConfirm = true
+                }
+                .disabled(blocking)
+                .padding(.top, 8)
+
+                if let blockError {
+                    Text(blockError)
+                        .font(KlicFont.caption())
+                        .foregroundStyle(KlicColor.danger)
+                        .multilineTextAlignment(.center)
                 }
             }
             .frame(maxWidth: 520)
@@ -102,6 +133,19 @@ struct ProfileView: View {
             }
             // Groups in common come from the conversations cache — warm it if needed.
             if store.conversations.isEmpty { await store.refresh() }
+            // §10.2: no conversation context → resolve the DM (POST returns the
+            // existing conversation) so the full sections render here too.
+            if conversationId == nil, resolvedConversationId == nil {
+                resolvedConversationId = (try? await APIClient.shared.openConversation(userId: userId))?.id
+            }
+        }
+        .klicSelectionSheet(
+            isPresented: $showBlockConfirm,
+            title: String(localized: "Block \(displayName)?"),
+            message: String(localized: "They won't be able to message or call you. You can unblock them from Settings → Privacy and Security."),
+            options: [KlicSheetOption(id: "block", label: String(localized: "Block User"), isDestructive: true)]
+        ) { _ in
+            Task { await blockUser() }
         }
         .enableInjection()
     }
@@ -163,6 +207,22 @@ struct ProfileView: View {
         // The list payload's members exclude the current user — count them back in.
         let count = group.members.count + 1
         return count == 1 ? "1 member" : "\(count) members"
+    }
+
+    // MARK: Block (§10.4)
+
+    private func blockUser() async {
+        blocking = true
+        defer { blocking = false }
+        do {
+            _ = try await APIClient.shared.blockUser(userId: userId)
+            ChatCaches.friends.removeAll { $0.id == userId }
+            dismiss()
+        } catch let e as APIError {
+            blockError = e.userMessage
+        } catch {
+            blockError = String(localized: "Couldn't block this user right now.")
+        }
     }
 
     // MARK: Presence
