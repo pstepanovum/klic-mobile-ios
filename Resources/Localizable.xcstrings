@@ -6766,7 +6766,81 @@
           }
         }
       }
-    }
+    },
+    "": {},
+    "@%@": {},
+    "%lld": {},
+    "%lld people in the call": {},
+    "%lld%%": {},
+    "99+": {},
+    "Choose Photo": {},
+    "Couldn't reach the server — showing nothing to clear.": {},
+    "Create an account": {},
+    "Edit": {},
+    "I already have an account": {},
+    "If turned off, you won't see anyone else's last seen.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Если отключить, вы не будете видеть время последнего входа других пользователей."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "如果关闭，您将无法查看他人的最后上线时间。"
+          }
+        }
+      }
+    },
+    "Last seen": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Был(а) в сети"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "最后上线"
+          }
+        }
+      }
+    },
+    "Login": {},
+    "Media from this chat stored on this device": {},
+    "Network": {},
+    "No starred messages yet.\nLong-press a message and tap Star.": {},
+    "password": {},
+    "SD": {},
+    "Search contacts": {},
+    "Send (%lld)": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Отправить (%lld)"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "发送 (%lld)"
+          }
+        }
+      }
+    },
+    "Sign up": {},
+    "Sign Up": {},
+    "Starred messages need the latest server.": {},
+    "Welcome back — sign in to keep chatting.": {},
+    "Yo! Let's create an account for you": {}
   },
   "version": "1.0"
 }

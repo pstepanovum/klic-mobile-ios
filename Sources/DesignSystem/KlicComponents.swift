@@ -5,18 +5,26 @@ struct PillButton: View {
     let title: String
     var fill: Color = KlicColor.primary
     var textColor: Color = KlicColor.onPrimary
+    var font: Font = KlicFont.headline()
+    var isLoading: Bool = false
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
-            Text(title)
-                .font(KlicFont.headline())
-                .foregroundStyle(textColor)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 16)
-                .background(fill, in: Capsule())
+            ZStack {
+                Text(title).opacity(isLoading ? 0 : 1)
+                if isLoading {
+                    LoadingCircle(size: 18, color: textColor)
+                }
+            }
+            .font(font)
+            .foregroundStyle(textColor)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 16)
+            .background(fill, in: Capsule())
         }
         .buttonStyle(.plain)
+        .disabled(isLoading)
     }
 }
 
