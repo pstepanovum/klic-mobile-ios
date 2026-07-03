@@ -19,10 +19,10 @@ struct SignUpView: View {
     @State private var isSubmitting = false
 
     var body: some View {
-        AuthScaffold(artworkName: "AuthSignupArt", tipFraction: 0.27) {
+        AuthScaffold(artworkName: "AuthSignupArt", tipFraction: 0.34) {
             VStack(spacing: 0) {
                 Text("Sign Up")
-                    .font(KlicFont.expandedBold(30))
+                    .font(KlicFont.expandedMedium(30))
                     .foregroundStyle(AuthStyle.titleColor(colorScheme))
 
                 Text("Yo! Let's create an account for you")
@@ -34,7 +34,7 @@ struct SignUpView: View {
                 VStack(spacing: 12) {
                     AuthTextField(
                         prefix: "@",
-                        placeholder: String(localized: "username"),
+                        placeholder: String(localized: "Username"),
                         text: $username,
                         contentType: .username
                     )
@@ -44,7 +44,7 @@ struct SignUpView: View {
                         contentType: .name
                     )
                     AuthTextField(
-                        placeholder: String(localized: "password"),
+                        placeholder: String(localized: "Password"),
                         text: $password,
                         isSecure: true,
                         contentType: .newPassword
@@ -63,14 +63,13 @@ struct SignUpView: View {
 
                 PillButton(
                     title: String(localized: "Sign up"),
-                    fill: AuthStyle.ctaRed,
+                    fill: agreedToPrivacy ? AuthStyle.ctaRed : Color(hex: 0xB2B2B2),
                     font: KlicFont.expandedMedium(17),
                     isLoading: isSubmitting
                 ) {
                     Task { await submit() }
                 }
                 .padding(.top, 18)
-                .opacity(agreedToPrivacy ? 1 : 0.4)
                 .disabled(!agreedToPrivacy || isSubmitting)
 
                 if let error = session.errorMessage {
@@ -86,7 +85,7 @@ struct SignUpView: View {
                 } label: {
                     Text("I already have an account")
                         .font(KlicFont.medium(14))
-                        .foregroundStyle(KlicColor.textMuted)
+                        .foregroundStyle(AuthStyle.smallText)
                         .underline()
                 }
                 .buttonStyle(.plain)
