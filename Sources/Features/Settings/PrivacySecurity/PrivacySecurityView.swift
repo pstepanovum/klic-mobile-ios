@@ -1,14 +1,21 @@
 import SwiftUI
 
-/// Settings → Privacy and Security (§10.4): rounded cards for Blocked Users,
-/// Passcode & Face ID, Passkeys, Open links in, Data Settings and account deletion,
-/// plus the existing "Last seen" privacy toggle.
+/// Settings → Privacy and Security (§10.4/§11.6): the Privacy card (visibility
+/// selectors, silence unknown callers, read receipts), plus rounded cards for
+/// Blocked Users, Passcode & Face ID, Passkeys, Open links in, Data Settings and
+/// account deletion.
 struct PrivacySecurityView: View {
     @EnvironmentObject var session: AppSession
 
-    // Last seen (kept from the previous Privacy page).
-    @State private var showLastSeen = true
-    @State private var savingLastSeen = false
+    // Privacy controls (§11.6).
+    @State private var visibilities: [PrivacyField: KlicVisibility] = [:]
+    @State private var activeField: PrivacyField?
+    @State private var silenceUnknownCallers = false
+    @State private var readReceipts = true
+    @State private var savingPrivacy = false
+    @State private var privacyError: String?
+    /// Guards the toggle onChange handlers while state is programmatically synced.
+    @State private var syncingToggles = false
 
     // Auto-delete account (§10.4).
     @State private var deleteIfAwayMonths: Int?
@@ -21,31 +28,55 @@ struct PrivacySecurityView: View {
 
     private static let awayOptions = [1, 3, 6, 12, 18, 24]
 
+    /// The §11.6 visibility rows — id doubles as the PATCH /me field name.
+    enum PrivacyField: String, CaseIterable, Identifiable {
+        case lastSeen = "lastSeenVisibility"
+        case about = "aboutVisibility"
+        case avatar = "avatarVisibility"
+        case links = "linksVisibility"
+        case groups = "groupsVisibility"
+        case status = "statusVisibility"
+
+        var id: String { rawValue }
+        var title: String {
+            switch self {
+            case .lastSeen: return String(localized: "Last seen & online")
+            case .about:    return String(localized: "About")
+            case .avatar:   return String(localized: "Profile picture")
+            case .links:    return String(localized: "Links")
+            case .groups:   return String(localized: "Groups")
+            case .status:   return String(localized: "Status")
+            }
+        }
+        var icon: String {
+            switch self {
+            case .lastSeen: return "clock"
+            case .about:    return "text.quote"
+            case .avatar:   return "person.crop.circle"
+            case .links:    return "link"
+            case .groups:   return "person.3"
+            case .status:   return "message.badge"
+            }
+        }
+        var sheetMessage: String {
+            switch self {
+            case .lastSeen: return String(localized: "Who can see when you were last online.")
+            case .about:    return String(localized: "Who can see your About.")
+            case .avatar:   return String(localized: "Who can see your profile picture.")
+            case .links:    return String(localized: "Who can see your links.")
+            case .groups:   return String(localized: "Who can add you to groups.")
+            case .status:   return String(localized: "Who can see your status.")
+            }
+        }
+        /// Contract defaults: EVERYBODY everywhere, FRIENDS for last seen.
+        var defaultVisibility: KlicVisibility { self == .lastSeen ? .friends : .everybody }
+    }
+
     var body: some View {
         ScrollView {
             VStack(spacing: 16) {
-                // Last seen
-                VStack(spacing: 0) {
-                    Toggle(isOn: $showLastSeen) {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("Last seen")
-                                .font(KlicFont.body())
-                                .foregroundStyle(KlicColor.textPrimary)
-                            Text("If turned off, you won't see anyone else's last seen.")
-                                .font(KlicFont.caption(12))
-                                .foregroundStyle(KlicColor.textMuted)
-                        }
-                    }
-                    .tint(KlicColor.primary)
-                    .disabled(savingLastSeen)
-                    .padding(.horizontal, 18)
-                    .padding(.vertical, 14)
-                    .onChange(of: showLastSeen) { _, newValue in
-                        guard newValue != (session.currentUser?.showLastSeen ?? true) else { return }
-                        Task { await saveLastSeen(newValue) }
-                    }
-                }
-                .background(KlicColor.surface, in: RoundedRectangle(cornerRadius: 20))
+                // Privacy (§11.6) — replaces the old "Last seen" toggle.
+                privacyCard
 
                 // Blocked users + app lock + passkeys
                 VStack(spacing: 0) {
@@ -136,7 +167,29 @@ struct PrivacySecurityView: View {
         .background(KlicColor.background.ignoresSafeArea())
         .navigationTitle("Privacy and Security")
         .navigationBarTitleDisplayMode(.inline)
-        .onAppear { showLastSeen = session.currentUser?.showLastSeen ?? true }
+        .onAppear { syncPrivacy(from: session.currentUser) }
+        .task {
+            // The privacy fields ride GET /me (additive) — reconcile with the server.
+            if let fresh = try? await APIClient.shared.me() {
+                session.updateCurrentUser(fresh)
+                syncPrivacy(from: fresh)
+            }
+        }
+        // §11.6: one shared Everybody / My friends / Nobody selector for every row.
+        .klicSelectionSheet(
+            isPresented: Binding(
+                get: { activeField != nil },
+                set: { if !$0 { activeField = nil } }
+            ),
+            title: activeField?.title ?? "",
+            message: activeField?.sheetMessage,
+            options: KlicVisibility.allCases.map { KlicSheetOption(id: $0.rawValue, label: $0.label) },
+            selectedId: activeField.map { visibility(for: $0).rawValue }
+        ) { option in
+            guard let field = activeField, let picked = KlicVisibility(rawValue: option.id) else { return }
+            activeField = nil
+            Task { await saveVisibility(picked, for: field) }
+        }
         .klicSelectionSheet(
             isPresented: $showAwaySheet,
             title: String(localized: "Delete my account if away for"),
@@ -173,19 +226,146 @@ struct PrivacySecurityView: View {
         }
     }
 
+    // MARK: Privacy card (§11.6)
+
+    private var privacyCard: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text("Privacy")
+                .font(KlicFont.headline(17))
+                .foregroundStyle(KlicColor.textPrimary)
+                .padding(.horizontal, 18)
+                .padding(.top, 16)
+                .padding(.bottom, 4)
+
+            ForEach(PrivacyField.allCases) { field in
+                Button { activeField = field } label: {
+                    PrivacyRow(icon: field.icon, title: field.title, value: visibility(for: field).label)
+                }
+                .buttonStyle(.plain)
+                .disabled(savingPrivacy)
+                Divider().padding(.leading, 64).opacity(0.4)
+            }
+
+            // Calls → silence unknown callers (§11.6).
+            toggleRow(
+                icon: "phone.badge.waveform",
+                title: String(localized: "Silence unknown callers"),
+                subtitle: String(localized: "Calls from people who aren't your friends won't ring. They still appear in Recent Calls."),
+                isOn: $silenceUnknownCallers
+            )
+            .onChange(of: silenceUnknownCallers) { _, value in
+                guard !syncingToggles else { return }
+                Task { await saveToggle("silenceUnknownCallers", value) }
+            }
+
+            Divider().padding(.leading, 64).opacity(0.4)
+
+            // Read receipts — reciprocal, DMs only (§11.6).
+            toggleRow(
+                icon: "checkmark.message",
+                title: String(localized: "Read receipts"),
+                subtitle: String(localized: "If turned off, you won't send or receive read receipts in chats. Groups always send them."),
+                isOn: $readReceipts
+            )
+            .onChange(of: readReceipts) { _, value in
+                guard !syncingToggles else { return }
+                Task { await saveToggle("readReceipts", value) }
+            }
+
+            if let privacyError {
+                Text(privacyError)
+                    .font(KlicFont.caption(12))
+                    .foregroundStyle(KlicColor.danger)
+                    .padding(.horizontal, 18)
+                    .padding(.top, 6)
+            }
+
+            Color.clear.frame(height: 8)
+        }
+        .background(KlicColor.surface, in: RoundedRectangle(cornerRadius: 20))
+    }
+
+    private func toggleRow(icon: String, title: String, subtitle: String, isOn: Binding<Bool>) -> some View {
+        HStack(spacing: 14) {
+            Image(systemName: icon)
+                .font(.system(size: 16, weight: .medium))
+                .foregroundStyle(KlicColor.primary)
+                .frame(width: 32, height: 32)
+                .background(KlicColor.primary.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
+            Toggle(isOn: isOn) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title)
+                        .font(KlicFont.body())
+                        .foregroundStyle(KlicColor.textPrimary)
+                    Text(subtitle)
+                        .font(KlicFont.caption(11))
+                        .foregroundStyle(KlicColor.textMuted)
+                }
+            }
+            .tint(KlicColor.primary)
+            .disabled(savingPrivacy)
+        }
+        .padding(.horizontal, 18)
+        .padding(.vertical, 12)
+    }
+
+    private func visibility(for field: PrivacyField) -> KlicVisibility {
+        visibilities[field] ?? field.defaultVisibility
+    }
+
+    private func syncPrivacy(from user: User?) {
+        guard let user else { return }
+        syncingToggles = true
+        visibilities[.lastSeen] = user.lastSeenVisibility.flatMap(KlicVisibility.init) ?? .friends
+        visibilities[.about] = user.aboutVisibility.flatMap(KlicVisibility.init) ?? .everybody
+        visibilities[.avatar] = user.avatarVisibility.flatMap(KlicVisibility.init) ?? .everybody
+        visibilities[.links] = user.linksVisibility.flatMap(KlicVisibility.init) ?? .everybody
+        visibilities[.groups] = user.groupsVisibility.flatMap(KlicVisibility.init) ?? .everybody
+        visibilities[.status] = user.statusVisibility.flatMap(KlicVisibility.init) ?? .everybody
+        silenceUnknownCallers = user.silenceUnknownCallers ?? false
+        readReceipts = user.readReceipts ?? true
+        DispatchQueue.main.async { syncingToggles = false }
+    }
+
+    private func saveVisibility(_ value: KlicVisibility, for field: PrivacyField) async {
+        let previous = visibilities[field]
+        visibilities[field] = value
+        savingPrivacy = true
+        defer { savingPrivacy = false }
+        privacyError = nil
+        do {
+            let user = try await APIClient.shared.updateMe([field.rawValue: value.rawValue])
+            session.updateCurrentUser(user)
+            syncPrivacy(from: user)
+        } catch let e as APIError {
+            visibilities[field] = previous
+            privacyError = e.userMessage
+        } catch {
+            visibilities[field] = previous
+            privacyError = String(localized: "Couldn't save the setting.")
+        }
+    }
+
+    private func saveToggle(_ key: String, _ value: Bool) async {
+        savingPrivacy = true
+        defer { savingPrivacy = false }
+        privacyError = nil
+        do {
+            let user = try await APIClient.shared.updateMe([key: value])
+            session.updateCurrentUser(user)
+            syncPrivacy(from: user)
+        } catch let e as APIError {
+            privacyError = e.userMessage
+            syncPrivacy(from: session.currentUser)
+        } catch {
+            privacyError = String(localized: "Couldn't save the setting.")
+            syncPrivacy(from: session.currentUser)
+        }
+    }
+
     private func awayLabel(_ months: Int?) -> String {
         guard let months else { return String(localized: "Never") }
         return months == 1 ? String(localized: "1 month") : String(localized: "\(months) months")
-    }
-
-    private func saveLastSeen(_ value: Bool) async {
-        savingLastSeen = true
-        defer { savingLastSeen = false }
-        if let user = try? await APIClient.shared.updateProfile(showLastSeen: value) {
-            session.updateCurrentUser(user)
-        } else {
-            showLastSeen = session.currentUser?.showLastSeen ?? true
-        }
     }
 
     private func saveAwayWindow(_ months: Int?) async {

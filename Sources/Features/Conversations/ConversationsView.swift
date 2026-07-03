@@ -120,7 +120,9 @@ private struct ConversationRow: View {
                     if let stamp = lastMessageStamp(conversation.lastMessage) {
                         HStack(spacing: 3) {
                             if let status = conversation.lastMessage?.status {
-                                MessageTicks(status: status)
+                                // §11.6: read receipts OFF hides blue ticks in DMs.
+                                let hideRead = status == "read" && conversation.type == "DIRECT" && !PrivacyPrefs.readReceipts
+                                MessageTicks(status: hideRead ? "delivered" : status)
                             }
                             Text(stamp).font(KlicFont.caption(12)).foregroundStyle(KlicColor.textMuted)
                         }

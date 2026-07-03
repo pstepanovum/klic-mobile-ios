@@ -52,6 +52,9 @@ final class SocketService: ObservableObject {
         var conversationType: String?    // "DIRECT" | "GROUP"
         var conversationTitle: String?   // group title, else the caller's display name
         var participantCount: Int?
+        /// §11.6: true when the callee silences unknown callers and this caller isn't
+        /// a friend — the client suppresses the in-app ring.
+        var silenced: Bool = false
         var isGroup: Bool { conversationType == "GROUP" }
         /// What the system call UI / in-call header shows: "<Caller> · <Group title>" for groups.
         var displayTitle: String {
@@ -161,6 +164,12 @@ final class SocketService: ObservableObject {
                 APIClient.mobileDiagnostic(event: "callkit.skippedMutedChat", callId: invite.id)
                 return
             }
+            // §11.6: silenced unknown caller — no ring; the call still lands in
+            // Recent Calls (server records it either way).
+            if invite.silenced {
+                APIClient.mobileDiagnostic(event: "callkit.skippedSilencedCaller", callId: invite.id)
+                return
+            }
             // Ring via the system call UI (Dynamic Island / Lock Screen).
             CallKitManager.shared.reportIncoming(invite)
         }
@@ -239,7 +248,8 @@ private extension SocketService.CallInvite {
             fromUserId: from?["id"] as? String,
             conversationType: dict["conversationType"] as? String,
             conversationTitle: dict["conversationTitle"] as? String,
-            participantCount: dict["participantCount"] as? Int
+            participantCount: dict["participantCount"] as? Int,
+            silenced: dict["silenced"] as? Bool ?? false
         )
     }
 }

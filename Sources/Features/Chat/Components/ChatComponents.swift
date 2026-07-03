@@ -24,6 +24,14 @@ struct MessageBubble: View {
     private var bottomRadius: CGFloat { isLast  ? 18 : (isMine ? 4  : 18) }
     private var tailRadius:   CGFloat { isLast  ? 4  : 18 }
 
+    /// §11.6: with read receipts OFF, DMs never show the blue read tick (both ways —
+    /// the server also stops emitting/exposing read state); groups are unaffected.
+    private var displayStatus: String? {
+        guard let status = message.status else { return nil }
+        if status == "read", !isGroupChat, !PrivacyPrefs.readReceipts { return "delivered" }
+        return status
+    }
+
     var body: some View {
         if message.isDeleted {
             DeletedBubble(isMine: isMine)
@@ -109,7 +117,7 @@ struct MessageBubble: View {
                     caption: hasMediaAttachments ? message.body : "",
                     showTime: message.body.isEmpty,
                     time: shortTime(message.createdAt),
-                    status: message.status,
+                    status: displayStatus,
                     starred: message.starred == true,
                     highlightMentions: isGroupChat,
                     mentionNames: mentionNames,
@@ -216,7 +224,7 @@ struct MessageBubble: View {
             Text(shortTime(message.createdAt))
                 .font(KlicFont.caption(11))
                 .foregroundStyle(onPrimary ? KlicColor.onPrimary.opacity(0.65) : KlicColor.textMuted)
-            if isMine, let status = message.status {
+            if isMine, let status = displayStatus {
                 MessageTicks(status: status, onPrimary: onPrimary)
             }
         }
