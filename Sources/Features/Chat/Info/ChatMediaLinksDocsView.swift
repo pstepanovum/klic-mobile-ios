@@ -22,6 +22,8 @@ struct ChatMediaLinksDocsView: View {
     @State private var attachmentsLoaded = false
     @State private var loadingAttachments = false
     @State private var attachmentsUnavailable = false
+    /// §9.9: the grid painted from the cache; the first fresh page replaces it.
+    @State private var seededFromCache = false
 
     // Links (message-history scan).
     @State private var links: [ChatLink] = []
@@ -68,6 +70,11 @@ struct ChatMediaLinksDocsView: View {
         .navigationTitle("Media, links, docs")
         .navigationBarTitleDisplayMode(.inline)
         .task {
+            // §9.9: paint the cached tab instantly, refresh in the background.
+            if attachments.isEmpty, let cached = ChatCaches.attachments[conversationId], !cached.isEmpty {
+                attachments = cached
+                seededFromCache = true
+            }
             if !attachmentsLoaded { await loadMoreAttachments() }
             if links.isEmpty, linksHaveMore { await loadMoreLinks() }
         }
@@ -223,8 +230,14 @@ struct ChatMediaLinksDocsView: View {
             return
         }
         attachmentsLoaded = true
-        attachments += page.items.filter { item in !attachments.contains(where: { $0.id == item.id }) }
+        if seededFromCache {
+            attachments = page.items   // fresh first page supersedes the cached copy
+            seededFromCache = false
+        } else {
+            attachments += page.items.filter { item in !attachments.contains(where: { $0.id == item.id }) }
+        }
         nextCursor = page.nextCursor
+        ChatCaches.attachments[conversationId] = attachments
     }
 
     private func loadMoreLinks() async {
@@ -292,7 +305,7 @@ private struct MediaBrowserTile: View {
                             .foregroundStyle(.white.opacity(0.95))
                     }
                 } else {
-                    RemoteImage(url: URL(string: attachment.url)) { phase in
+                    RemoteImage(url: URL(string: attachment.url), cacheKey: RemoteImageStore.attachmentCacheKey(attachment.id)) { phase in
                         switch phase {
                         case .success(let image):
                             image.resizable().scaledToFill()

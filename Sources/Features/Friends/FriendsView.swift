@@ -155,9 +155,16 @@ struct FriendsView: View {
     // MARK: Actions
 
     private func reload() async {
+        // §9.9: paint the cached list instantly, refresh in the background.
+        if friends.isEmpty, !ChatCaches.friends.isEmpty {
+            friends = ChatCaches.friends
+        }
         async let f = APIClient.shared.friends()
         async let r = APIClient.shared.friendRequests()
-        friends = (try? await f) ?? []
+        if let fetched = try? await f {
+            friends = fetched
+            ChatCaches.friends = fetched
+        }
         requests = (try? await r) ?? []
     }
 

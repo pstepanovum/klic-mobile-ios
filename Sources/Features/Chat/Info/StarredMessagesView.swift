@@ -11,6 +11,8 @@ struct StarredMessagesView: View {
     @State private var loaded = false
     @State private var loading = false
     @State private var unavailable = false
+    /// §9.9: painted from the cache; the first fresh page replaces it.
+    @State private var seededFromCache = false
 
     var body: some View {
         List {
@@ -55,7 +57,14 @@ struct StarredMessagesView: View {
         }
         .navigationTitle("Starred")
         .navigationBarTitleDisplayMode(.inline)
-        .task { if !loaded { await loadMore() } }
+        .task {
+            // §9.9: paint the cached list instantly, refresh in the background.
+            if messages.isEmpty, let cached = ChatCaches.starred[conversationId], !cached.isEmpty {
+                messages = cached
+                seededFromCache = true
+            }
+            if !loaded { await loadMore() }
+        }
     }
 
     private func loadMore() async {
@@ -72,12 +81,19 @@ struct StarredMessagesView: View {
             return
         }
         loaded = true
-        messages += page.items.filter { item in !messages.contains(where: { $0.id == item.id }) }
+        if seededFromCache {
+            messages = page.items   // fresh first page supersedes the cached copy
+            seededFromCache = false
+        } else {
+            messages += page.items.filter { item in !messages.contains(where: { $0.id == item.id }) }
+        }
         nextCursor = page.nextCursor
+        ChatCaches.starred[conversationId] = messages
     }
 
     private func unstar(_ message: Message) async {
         messages.removeAll { $0.id == message.id }
+        ChatCaches.starred[conversationId] = messages
         try? await APIClient.shared.unstarMessage(id: message.id)
     }
 

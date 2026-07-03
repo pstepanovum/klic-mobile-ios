@@ -99,6 +99,13 @@ extension ChatView {
     }
 
     func loadGroupDetails() async {
-        groupDetails = try? await APIClient.shared.conversationDetails(id: conversation.id)
+        // §9.9: cached details paint the header/member list instantly; the fetch reconciles.
+        if groupDetails == nil {
+            groupDetails = ChatCaches.groupDetails[conversation.id]
+        }
+        if let fetched = try? await APIClient.shared.conversationDetails(id: conversation.id) {
+            groupDetails = fetched
+            ChatCaches.groupDetails[conversation.id] = fetched
+        }
     }
 }

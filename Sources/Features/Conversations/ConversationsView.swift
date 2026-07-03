@@ -3,11 +3,15 @@ import Inject
 
 struct ConversationsView: View {
     @ObserveInjection var inject
-    @State private var conversations: [Conversation] = []
+    /// §9.9: the shared store renders the cached list instantly and refreshes in the
+    /// background; socket events keep it live (new previews, removed groups).
+    @ObservedObject private var store = ConversationStore.shared
     @State private var searchText = ""
     @State private var showNewMessage = false
     @State private var navPath: [Conversation] = []
     @State private var pendingConversation: Conversation?
+
+    private var conversations: [Conversation] { store.conversations }
 
     private var filtered: [Conversation] {
         guard !searchText.isEmpty else { return conversations }
@@ -26,6 +30,9 @@ struct ConversationsView: View {
         NavigationStack(path: $navPath) {
             ScrollView {
                 LazyVStack(spacing: 4) {
+                    // Capsule search bar matching the Login inputs (§9.8).
+                    KlicSearchField(placeholder: "Search chats", text: $searchText)
+                        .padding(.bottom, 6)
                     ForEach(filtered) { convo in
                         NavigationLink(value: convo) {
                             ConversationRow(conversation: convo)
@@ -41,11 +48,6 @@ struct ConversationsView: View {
             .background(KlicColor.background.ignoresSafeArea())
             .navigationTitle("Chats")
             .navigationDestination(for: Conversation.self) { ChatView(conversation: $0) }
-            .searchable(
-                text: $searchText,
-                placement: .navigationBarDrawer(displayMode: .always),
-                prompt: "Search chats"
-            )
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button { showNewMessage = true } label: {
@@ -65,14 +67,11 @@ struct ConversationsView: View {
                     showNewMessage = false
                 }
             }
-            .task { await load() }
+            .task { await store.refresh() }
+            .refreshable { await store.refresh() }
         }
         .tint(KlicColor.primary)
         .enableInjection()
-    }
-
-    private func load() async {
-        conversations = (try? await APIClient.shared.conversations()) ?? []
     }
 }
 

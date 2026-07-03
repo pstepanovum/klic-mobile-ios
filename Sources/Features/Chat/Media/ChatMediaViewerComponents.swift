@@ -131,6 +131,8 @@ struct MediaViewerBottomPanel: View {
     let onPlayPause: () -> Void
     let onDelete: () -> Void
 
+    @State private var showReactionRow = false
+
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             if !item.caption.isEmpty {
@@ -140,20 +142,41 @@ struct MediaViewerBottomPanel: View {
                     .lineLimit(3)
             }
 
-            Menu {
-                ForEach(quickReactions, id: \.self) { emoji in
-                    Button(emoji) { onReact(item.messageId, emoji) }
+            // Inline quick-reaction row (same pattern as the chat's long-press overlay) —
+            // no native Menu (§9.2).
+            if showReactionRow {
+                HStack(spacing: 6) {
+                    ForEach(quickReactions, id: \.self) { emoji in
+                        Button {
+                            onReact(item.messageId, emoji)
+                            withAnimation(.easeOut(duration: 0.15)) { showReactionRow = false }
+                        } label: {
+                            Text(emoji)
+                                .font(.system(size: 24))
+                                .padding(.vertical, 6)
+                                .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.plain)
+                    }
                 }
-            } label: {
-                HStack(spacing: 8) {
-                    Image(systemName: "face.smiling")
-                    Text(reactionSummary(item.reactions))
-                }
-                .font(KlicFont.caption(13))
-                .foregroundStyle(.white)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
+                .padding(.horizontal, 8)
                 .background(.white.opacity(0.12), in: Capsule())
+                .transition(.opacity.combined(with: .move(edge: .bottom)))
+            } else {
+                Button {
+                    withAnimation(.easeOut(duration: 0.15)) { showReactionRow = true }
+                } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: "face.smiling")
+                        Text(reactionSummary(item.reactions))
+                    }
+                    .font(KlicFont.caption(13))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .background(.white.opacity(0.12), in: Capsule())
+                }
+                .buttonStyle(.plain)
             }
 
             MediaViewerThumbnailStrip(
@@ -210,7 +233,7 @@ private struct MediaViewerThumbnailStrip: View {
                     } label: {
                         ZStack {
                             if let thumbnailURL = URL(string: item.thumbnailURL ?? item.url) {
-                                RemoteImage(url: thumbnailURL) { phase in
+                                RemoteImage(url: thumbnailURL, cacheKey: RemoteImageStore.attachmentCacheKey(item.attachmentId)) { phase in
                                     switch phase {
                                     case .success(let image):
                                         image.resizable().scaledToFill()

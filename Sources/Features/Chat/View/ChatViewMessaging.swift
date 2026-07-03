@@ -103,7 +103,15 @@ extension ChatView {
     }
 
     func load() async {
-        let batch = (try? await APIClient.shared.messages(conversationId: conversation.id)) ?? []
+        // §9.9: paint the cached newest page instantly, then reconcile with the server.
+        if messages.isEmpty, let cached = ChatCaches.messagePages[conversation.id], !cached.isEmpty {
+            messages = cached
+            hasMore = cached.count >= 50
+        }
+        guard let batch = try? await APIClient.shared.messages(conversationId: conversation.id) else {
+            markRead()
+            return   // offline — keep whatever the cache painted
+        }
         messages = batch.reversed()
         hasMore = batch.count >= 50
         markRead()
@@ -146,5 +154,6 @@ extension ChatView {
 
     func markRead() {
         socket.emit("message:read", ["conversationId": conversation.id])
+        ConversationStore.shared.clearUnread(conversationId: conversation.id)
     }
 }

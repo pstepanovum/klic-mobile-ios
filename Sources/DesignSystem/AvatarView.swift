@@ -9,13 +9,18 @@ enum RemoteImagePhase {
 
 struct RemoteImage<Content: View>: View {
     let url: URL?
+    /// Stable disk-cache key (§9.9). Presigned attachment URLs change on every fetch,
+    /// so caching by URL alone re-downloads media each time — pass the attachment id
+    /// instead and re-entering a chat never refetches. Defaults to the URL itself
+    /// (fine for stable avatar routes).
+    var cacheKey: String? = nil
     @ViewBuilder let content: (RemoteImagePhase) -> Content
 
     @State private var phase: RemoteImagePhase = .empty
 
     var body: some View {
         content(phase)
-            .task(id: url) { await load() }
+            .task(id: cacheKey ?? url?.absoluteString) { await load() }
     }
 
     private func load() async {
@@ -24,7 +29,7 @@ struct RemoteImage<Content: View>: View {
             return
         }
         phase = .empty
-        guard let uiImage = await RemoteImageStore.shared.image(for: url) else {
+        guard let uiImage = await RemoteImageStore.shared.image(for: url, cacheKey: cacheKey) else {
             phase = .failure
             return
         }
@@ -48,8 +53,10 @@ actor RemoteImageStore {
         try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
     }
 
-    func image(for url: URL) async -> UIImage? {
-        let key = url.absoluteString
+    /// `cacheKey` (§9.9): stable identity for the bytes — attachment ids for chat
+    /// media, whose presigned URLs rotate. Nil falls back to the URL string.
+    func image(for url: URL, cacheKey: String? = nil) async -> UIImage? {
+        let key = cacheKey ?? url.absoluteString
         if let cached = memory.object(forKey: key as NSString) {
             return cached
         }
@@ -71,8 +78,8 @@ actor RemoteImageStore {
 
     /// Cached-only lookup (memory/disk, no network) — used by the auto-download
     /// gate so already-fetched photos still render when auto-download is off.
-    func cachedImage(for url: URL) -> UIImage? {
-        let key = url.absoluteString
+    func cachedImage(for url: URL, cacheKey: String? = nil) -> UIImage? {
+        let key = cacheKey ?? url.absoluteString
         if let cached = memory.object(forKey: key as NSString) { return cached }
         if let cached = try? Data(contentsOf: fileURL(for: key)),
            let image = UIImage(data: cached) {
@@ -106,8 +113,13 @@ actor RemoteImageStore {
             .appendingPathComponent("klic-remote-images", isDirectory: true)
     }
 
-    /// Disk bytes cached for one specific remote URL (0 when absent).
-    nonisolated static func cachedBytes(forURLString key: String) -> Int64 {
+    /// Stable cache key for a chat attachment's image bytes (§9.9).
+    nonisolated static func attachmentCacheKey(_ attachmentId: String) -> String {
+        "attachment:\(attachmentId)"
+    }
+
+    /// Disk bytes cached for one specific cache key (0 when absent).
+    nonisolated static func cachedBytes(forKey key: String) -> Int64 {
         let digest = SHA256.hash(data: Data(key.utf8))
         let file = digest.map { String(format: "%02x", $0) }.joined()
         let url = diskDirectory.appendingPathComponent(file)
@@ -115,7 +127,7 @@ actor RemoteImageStore {
         return Int64(size)
     }
 
-    nonisolated static func removeCached(forURLString key: String) {
+    nonisolated static func removeCached(forKey key: String) {
         let digest = SHA256.hash(data: Data(key.utf8))
         let file = digest.map { String(format: "%02x", $0) }.joined()
         try? FileManager.default.removeItem(at: diskDirectory.appendingPathComponent(file))

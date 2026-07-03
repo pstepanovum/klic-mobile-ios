@@ -26,6 +26,9 @@ final class SocketService: ObservableObject {
     @Published var lastCallParticipantJoined: CallParticipantEvent?
     @Published var lastCallParticipantLeft: CallParticipantEvent?
     @Published var lastCallEnded: CallEndedEvent?
+    /// Conversation id this user was just removed from (`conversation:removed`, §9.3) —
+    /// the client drops the conversation locally and dismisses the chat if it's open.
+    @Published var lastConversationRemoved: String?
 
     private var myUserId: String?
     /// Per-conversation token used to invalidate a pending typing auto-clear.
@@ -197,6 +200,11 @@ final class SocketService: ObservableObject {
             // .unanswered → iOS shows "Missed" instead of "Unavailable" in the system call log.
             CallKitManager.shared.handleRemoteCallEnded(callId: callId, reason: .unanswered)
             self?.lastCallEnded = CallEndedEvent(callId: callId)
+        }
+        socket.on("conversation:removed") { [weak self] data, _ in
+            guard let dict = data.first as? [String: Any],
+                  let conversationId = dict["conversationId"] as? String else { return }
+            self?.lastConversationRemoved = conversationId
         }
         socket.on("call:end") { [weak self] data, _ in
             guard let dict = data.first as? [String: Any],
