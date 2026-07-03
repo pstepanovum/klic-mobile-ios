@@ -66,7 +66,8 @@ struct MessageComposer: View {
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 11)
-            .background(KlicColor.surfaceRaised, in: RoundedRectangle(cornerRadius: 22))
+            // Fully-rounded capsule pill, matching the Login-page inputs (§9.8).
+            .background(KlicColor.surfaceRaised, in: Capsule())
 
             let canSend = hasPendingAttachments || !draft.trimmingCharacters(in: .whitespaces).isEmpty
             composerActionButton(canSend: canSend)

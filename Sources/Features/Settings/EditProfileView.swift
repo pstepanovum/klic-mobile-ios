@@ -45,8 +45,8 @@ struct EditProfileView: View {
                         .font(KlicFont.body())
                         .foregroundStyle(KlicColor.textPrimary)
                         .tint(KlicColor.primary)
-                        .padding(.horizontal, 16).padding(.vertical, 14)
-                        .background(KlicColor.surfaceRaised, in: RoundedRectangle(cornerRadius: 16))
+                        .padding(.horizontal, 18).padding(.vertical, 14)
+                        .background(KlicColor.surfaceRaised, in: Capsule())
                     if let user = session.currentUser {
                         Text("@\(user.username)")
                             .font(KlicFont.caption())

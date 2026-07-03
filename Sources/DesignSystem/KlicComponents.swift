@@ -90,6 +90,72 @@ extension View {
     }
 }
 
+/// Fully-rounded search bar matching the Login-page inputs (§9.8) — used everywhere
+/// a list is filtered (chats, members, messages) instead of the stock searchable bar.
+struct KlicSearchField: View {
+    let placeholder: String
+    @Binding var text: String
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 15, weight: .medium))
+                .foregroundStyle(KlicColor.textMuted)
+            TextField(placeholder, text: $text)
+                .font(KlicFont.body())
+                .foregroundStyle(KlicColor.textPrimary)
+                .tint(KlicColor.primary)
+                .autocorrectionDisabled()
+                .textInputAutocapitalization(.never)
+            if !text.isEmpty {
+                Button { text = "" } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 16))
+                        .foregroundStyle(KlicColor.textMuted.opacity(0.7))
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 11)
+        .background(KlicColor.surface, in: Capsule())
+    }
+}
+
+/// Username chip with tap-to-copy feedback, shared by Settings and profile pages.
+struct CopyableUsername: View {
+    let username: String
+    @State private var copied = false
+
+    var body: some View {
+        Button {
+            UIPasteboard.general.string = username
+            withAnimation(.easeInOut(duration: 0.15)) { copied = true }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                withAnimation(.easeInOut(duration: 0.15)) { copied = false }
+            }
+        } label: {
+            HStack(spacing: 6) {
+                Text("@\(username)")
+                    .font(KlicFont.caption())
+                    .foregroundStyle(copied ? KlicColor.primary : KlicColor.textMuted)
+                Image(systemName: copied ? "checkmark" : "doc.on.doc")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(copied ? KlicColor.primary : KlicColor.textMuted.opacity(0.45))
+                    .contentTransition(.symbolEffect(.replace))
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 5)
+            .background(
+                copied ? KlicColor.primary.opacity(0.1) : KlicColor.surfaceRaised,
+                in: Capsule()
+            )
+            .animation(.easeInOut(duration: 0.15), value: copied)
+        }
+        .buttonStyle(.plain)
+    }
+}
+
 /// Flat text field on a rounded surface — no border, no outline.
 struct KlicTextField: View {
     let placeholder: String

@@ -113,6 +113,7 @@ struct DataStorageView: View {
     @State private var showResetStats = false
 
     @State private var uploadQuality = UploadQuality.current
+    @State private var showQualitySheet = false
 
     enum UsageTab: String, CaseIterable, Identifiable {
         case all = "All", mobile = "Mobile", wifi = "Wi-Fi"
@@ -141,20 +142,33 @@ struct DataStorageView: View {
         .navigationTitle("Data and Storage")
         .navigationBarTitleDisplayMode(.inline)
         .task { await rescan() }
-        .confirmationDialog("Clear entire cache?", isPresented: $showClearConfirm, titleVisibility: .visible) {
-            Button("Clear Entire Cache", role: .destructive) {
-                Task { await clearAll() }
-            }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("Cached media will be re-downloaded when needed. Your messages are not affected.")
+        .klicSelectionSheet(
+            isPresented: $showClearConfirm,
+            title: "Clear entire cache?",
+            message: "Cached media will be re-downloaded when needed. Your messages are not affected.",
+            options: [KlicSheetOption(id: "clear", label: "Clear Entire Cache", isDestructive: true)]
+        ) { _ in
+            Task { await clearAll() }
         }
-        .confirmationDialog("Reset usage statistics?", isPresented: $showResetStats, titleVisibility: .visible) {
-            Button("Reset Statistics", role: .destructive) {
-                DataUsageTracker.shared.reset()
-                usage = DataUsageTracker.Snapshot(counters: [:])
-            }
-            Button("Cancel", role: .cancel) {}
+        .klicSelectionSheet(
+            isPresented: $showResetStats,
+            title: "Reset usage statistics?",
+            options: [KlicSheetOption(id: "reset", label: "Reset Statistics", isDestructive: true)]
+        ) { _ in
+            DataUsageTracker.shared.reset()
+            usage = DataUsageTracker.Snapshot(counters: [:])
+        }
+        .klicSelectionSheet(
+            isPresented: $showQualitySheet,
+            title: "Upload Quality",
+            options: UploadQuality.allCases.map {
+                KlicSheetOption(id: $0.rawValue, label: $0.label, subtitle: $0.subtitle)
+            },
+            selectedId: uploadQuality.rawValue
+        ) { option in
+            guard let quality = UploadQuality(rawValue: option.id) else { return }
+            uploadQuality = quality
+            UploadQuality.current = quality
         }
     }
 
@@ -203,8 +217,8 @@ struct DataStorageView: View {
                         .font(KlicFont.headline(15))
                         .foregroundStyle(KlicColor.danger)
                         .frame(maxWidth: .infinity)
-                        .padding(.vertical, 12)
-                        .background(KlicColor.danger.opacity(0.1), in: RoundedRectangle(cornerRadius: 12))
+                        .padding(.vertical, 14)
+                        .background(KlicColor.danger.opacity(0.1), in: Capsule())
                 }
                 .buttonStyle(.plain)
                 .disabled(clearing || totalStorage == 0)
@@ -290,8 +304,8 @@ struct DataStorageView: View {
                     .font(KlicFont.headline(15))
                     .foregroundStyle(KlicColor.danger)
                     .frame(maxWidth: .infinity)
-                    .padding(.vertical, 12)
-                    .background(KlicColor.danger.opacity(0.1), in: RoundedRectangle(cornerRadius: 12))
+                    .padding(.vertical, 14)
+                    .background(KlicColor.danger.opacity(0.1), in: Capsule())
             }
             .buttonStyle(.plain)
         }
@@ -305,32 +319,27 @@ struct DataStorageView: View {
     private var uploadQualitySection: some View {
         VStack(alignment: .leading, spacing: 8) {
             sectionHeader("Upload Quality")
-            ForEach(UploadQuality.allCases) { quality in
-                Button {
-                    uploadQuality = quality
-                    UploadQuality.current = quality
-                } label: {
-                    HStack {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(quality.label)
-                                .font(KlicFont.body())
-                                .foregroundStyle(KlicColor.textPrimary)
-                            Text(quality.subtitle)
-                                .font(KlicFont.caption(12))
-                                .foregroundStyle(KlicColor.textMuted)
-                        }
-                        Spacer()
-                        if uploadQuality == quality {
-                            Image(systemName: "checkmark")
-                                .font(.system(size: 15, weight: .semibold))
-                                .foregroundStyle(KlicColor.primary)
-                        }
+            Button {
+                showQualitySheet = true
+            } label: {
+                HStack {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(uploadQuality.label)
+                            .font(KlicFont.body())
+                            .foregroundStyle(KlicColor.textPrimary)
+                        Text(uploadQuality.subtitle)
+                            .font(KlicFont.caption(12))
+                            .foregroundStyle(KlicColor.textMuted)
                     }
-                    .padding(.vertical, 8)
-                    .contentShape(Rectangle())
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(KlicColor.textMuted)
                 }
-                .buttonStyle(.plain)
+                .padding(.vertical, 8)
+                .contentShape(Rectangle())
             }
+            .buttonStyle(.plain)
         }
         .padding(18)
         .background(KlicColor.surface, in: RoundedRectangle(cornerRadius: 20))

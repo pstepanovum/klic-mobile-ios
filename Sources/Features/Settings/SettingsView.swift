@@ -393,39 +393,6 @@ private struct SettingsRow: View {
     }
 }
 
-private struct CopyableUsername: View {
-    let username: String
-    @State private var copied = false
-
-    var body: some View {
-        Button {
-            UIPasteboard.general.string = username
-            withAnimation(.easeInOut(duration: 0.15)) { copied = true }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-                withAnimation(.easeInOut(duration: 0.15)) { copied = false }
-            }
-        } label: {
-            HStack(spacing: 6) {
-                Text("@\(username)")
-                    .font(KlicFont.caption())
-                    .foregroundStyle(copied ? KlicColor.primary : KlicColor.textMuted)
-                Image(systemName: copied ? "checkmark" : "doc.on.doc")
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(copied ? KlicColor.primary : KlicColor.textMuted.opacity(0.45))
-                    .contentTransition(.symbolEffect(.replace))
-            }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 5)
-            .background(
-                copied ? KlicColor.primary.opacity(0.1) : KlicColor.surfaceRaised,
-                in: Capsule()
-            )
-            .animation(.easeInOut(duration: 0.15), value: copied)
-        }
-        .buttonStyle(.plain)
-    }
-}
-
 // MARK: - NightMode subtitles
 
 private extension ThemeManager.NightMode {

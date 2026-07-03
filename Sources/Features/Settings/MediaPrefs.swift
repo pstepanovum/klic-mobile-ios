@@ -1,6 +1,7 @@
 import Foundation
 import CoreGraphics
 import AudioToolbox
+import AVFoundation
 
 // MARK: - Upload quality (§8.3)
 
@@ -119,6 +120,36 @@ struct KlicTone: Identifiable, Equatable {
         AudioServicesPlaySystemSoundWithCompletion(soundId) {
             AudioServicesDisposeSystemSoundID(soundId)
         }
+    }
+}
+
+/// Stoppable tone previews for the tone/ringtone sheets. §9.4: preview playback MUST
+/// stop the moment the picker closes — every sheet's onDismiss calls `stop()`.
+/// Skips previews entirely while a call is live so the AVAudioSession that CallKit /
+/// LiveKit own is never touched mid-call.
+@MainActor
+final class TonePreviewPlayer {
+    static let shared = TonePreviewPlayer()
+    private var player: AVAudioPlayer?
+
+    func preview(_ tone: KlicTone) {
+        stop()
+        guard CallKitManager.shared.activeCall == nil else { return }
+        guard let file = tone.file else {
+            // "Default" = the system's sub-second tri-tone; nothing lingering to stop.
+            AudioServicesPlaySystemSound(1007)
+            return
+        }
+        let base = (file as NSString).deletingPathExtension
+        let ext = (file as NSString).pathExtension
+        guard let url = Bundle.main.url(forResource: base, withExtension: ext.isEmpty ? "caf" : ext) else { return }
+        player = try? AVAudioPlayer(contentsOf: url)
+        player?.play()
+    }
+
+    func stop() {
+        player?.stop()
+        player = nil
     }
 }
 
