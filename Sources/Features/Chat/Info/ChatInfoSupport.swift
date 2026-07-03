@@ -106,20 +106,20 @@ struct ChatInfoCommonRows: View {
             .buttonStyle(.plain)
         }
         .background(KlicColor.surface, in: RoundedRectangle(cornerRadius: 20))
-        .confirmationDialog("Save incoming media to Photos", isPresented: $showSaveDialog, titleVisibility: .visible) {
-            ForEach(ChatLocalPrefs.SaveToPhotosMode.allCases) { mode in
-                Button(mode.label) {
-                    saveMode = mode
-                    ChatLocalPrefs.setSaveToPhotos(mode, conversationId)
-                    if mode == .always {
-                        // Ask for add-only access up front so the first download can save.
-                        PHPhotoLibrary.requestAuthorization(for: .addOnly) { _ in }
-                    }
-                }
+        .klicSelectionSheet(
+            isPresented: $showSaveDialog,
+            title: "Save to Photos",
+            message: "\"Always\" saves incoming photos and downloaded videos from this chat to your photo library.",
+            options: ChatLocalPrefs.SaveToPhotosMode.allCases.map { KlicSheetOption(id: $0.rawValue, label: $0.label) },
+            selectedId: saveMode.rawValue
+        ) { option in
+            guard let mode = ChatLocalPrefs.SaveToPhotosMode(rawValue: option.id) else { return }
+            saveMode = mode
+            ChatLocalPrefs.setSaveToPhotos(mode, conversationId)
+            if mode == .always {
+                // Ask for add-only access up front so the first download can save.
+                PHPhotoLibrary.requestAuthorization(for: .addOnly) { _ in }
             }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("\"Always\" saves incoming photos and downloaded videos from this chat to your photo library.")
         }
     }
 
@@ -187,17 +187,9 @@ struct ChatStorageManageView: View {
                 .background(KlicColor.surface, in: RoundedRectangle(cornerRadius: 20))
 
                 if !loading, totalBytes > 0 {
-                    Button {
+                    PillButton(title: "Clear chat cache", fill: KlicColor.surface, textColor: KlicColor.danger) {
                         clear()
-                    } label: {
-                        Text("Clear chat cache")
-                            .font(KlicFont.headline(15))
-                            .foregroundStyle(KlicColor.danger)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 13)
-                            .background(KlicColor.surface, in: RoundedRectangle(cornerRadius: 16))
                     }
-                    .buttonStyle(.plain)
                 }
             }
             .padding(20)
@@ -229,14 +221,14 @@ struct ChatStorageManageView: View {
         attachments = all
         totalBytes = all.reduce(into: Int64(0)) { total, attachment in
             total += AttachmentFileStore.cachedBytes(attachmentId: attachment.id)
-            total += RemoteImageStore.cachedBytes(forURLString: attachment.url)
+            total += RemoteImageStore.cachedBytes(forKey: RemoteImageStore.attachmentCacheKey(attachment.id))
         }
     }
 
     private func clear() {
         for attachment in attachments {
             AttachmentFileStore.removeCached(attachmentId: attachment.id)
-            RemoteImageStore.removeCached(forURLString: attachment.url)
+            RemoteImageStore.removeCached(forKey: RemoteImageStore.attachmentCacheKey(attachment.id))
         }
         Task { await RemoteImageStore.shared.purgeMemory() }
         totalBytes = 0

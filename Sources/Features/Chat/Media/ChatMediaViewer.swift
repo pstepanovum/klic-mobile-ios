@@ -136,7 +136,7 @@ struct MediaViewer: View {
                 .contentShape(Rectangle())
                 .onTapGesture { playerBox.toggle() }
             } else if let imageURL = URL(string: item.url) {
-                RemoteImage(url: imageURL) { phase in
+                RemoteImage(url: imageURL, cacheKey: RemoteImageStore.attachmentCacheKey(item.attachmentId)) { phase in
                     switch phase {
                     case .success(let image):
                         image.resizable().scaledToFit()

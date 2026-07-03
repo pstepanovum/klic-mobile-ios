@@ -196,7 +196,7 @@ struct CallView: View {
                 Text(call.peerName)
                     .font(KlicFont.title())
                     .foregroundStyle(KlicColor.textPrimary)
-                Text(callKit.statusText)
+                Text(statusLine)
                     .font(KlicFont.caption(13))
                     .foregroundStyle(KlicColor.textMuted)
                     .padding(.horizontal, 12)
@@ -204,6 +204,15 @@ struct CallView: View {
                     .background(KlicColor.surfaceRaised, in: Capsule())
             }
         }
+    }
+
+    /// §9.7: alone in a connected group room = honest "Waiting for others…", never a
+    /// fake ongoing peer.
+    private var statusLine: String {
+        if call.isGroup, callKit.statusText == "Connected", service.participants.isEmpty {
+            return "Waiting for others…"
+        }
+        return callKit.statusText
     }
 
     private var controls: some View {

@@ -8,6 +8,9 @@ import SwiftUI
 /// - Calls: mute (same durations → callsMutedUntil) and Ringtone (LOCAL pref;
 ///   CallKit's actual ring is the single global pick from Settings → Notifications —
 ///   iOS cannot vary the CallKit ringtone per chat).
+///
+/// All pickers use the shared Klic bottom sheet (§9.2); tone previews stop the
+/// moment their sheet closes (§9.4).
 struct ChatNotificationsCard: View {
     let conversationId: String
     let isGroup: Bool
@@ -17,8 +20,10 @@ struct ChatNotificationsCard: View {
     @State private var muteMentions = false
     @State private var alertTone: String?
     @State private var ringtone: String?
-    @State private var showMessageMuteDialog = false
-    @State private var showCallMuteDialog = false
+    @State private var showMessageMuteSheet = false
+    @State private var showCallMuteSheet = false
+    @State private var showAlertToneSheet = false
+    @State private var showRingtoneSheet = false
 
     init(conversationId: String, isGroup: Bool) {
         self.conversationId = conversationId
@@ -33,7 +38,7 @@ struct ChatNotificationsCard: View {
 
             // Messages
             Button {
-                showMessageMuteDialog = true
+                showMessageMuteSheet = true
             } label: {
                 valueRow(icon: "message", title: "Mute messages",
                          value: ChatLocalPrefs.muteSummary(prefs.messagesMutedUntil))
@@ -59,15 +64,8 @@ struct ChatNotificationsCard: View {
 
             Divider().padding(.leading, 64).opacity(0.4)
 
-            NavigationLink {
-                TonePickerView(
-                    title: "Alert tone",
-                    tones: KlicTone.alertTones,
-                    selectedFile: alertTone
-                ) { file in
-                    alertTone = file
-                    ChatLocalPrefs.setAlertTone(file, conversationId)
-                }
+            Button {
+                showAlertToneSheet = true
             } label: {
                 valueRow(icon: "bell", title: "Alert tone",
                          value: KlicTone.alertTones.first(where: { $0.file == alertTone })?.name ?? "Default")
@@ -78,7 +76,7 @@ struct ChatNotificationsCard: View {
 
             // Calls
             Button {
-                showCallMuteDialog = true
+                showCallMuteSheet = true
             } label: {
                 valueRow(icon: "phone", title: "Mute calls",
                          value: ChatLocalPrefs.muteSummary(prefs.callsMutedUntil))
@@ -87,15 +85,8 @@ struct ChatNotificationsCard: View {
 
             Divider().padding(.leading, 64).opacity(0.4)
 
-            NavigationLink {
-                TonePickerView(
-                    title: "Ringtone",
-                    tones: KlicTone.ringtones,
-                    selectedFile: ringtone ?? ChatLocalPrefs.globalRingtone
-                ) { file in
-                    ringtone = file
-                    ChatLocalPrefs.setRingtone(file, conversationId)
-                }
+            Button {
+                showRingtoneSheet = true
             } label: {
                 valueRow(icon: "bell.badge", title: "Ringtone",
                          value: KlicTone.ringtones.first(where: { $0.file == (ringtone ?? ChatLocalPrefs.globalRingtone) })?.name ?? "Klic")
@@ -111,24 +102,74 @@ struct ChatNotificationsCard: View {
         }
         .background(KlicColor.surface, in: RoundedRectangle(cornerRadius: 20))
         .task { await load() }
-        .confirmationDialog("Mute messages", isPresented: $showMessageMuteDialog, titleVisibility: .visible) {
-            muteButtons { iso in Task { await push(messagesMutedUntil: iso) } }
+        .klicSelectionSheet(
+            isPresented: $showMessageMuteSheet,
+            title: "Mute messages",
+            options: Self.muteOptions,
+            selectedId: Self.muteSelectionId(prefs.messagesMutedUntil)
+        ) { option in
+            Task { await push(messagesMutedUntil: Self.muteValue(for: option.id)) }
         }
-        .confirmationDialog("Mute call notifications", isPresented: $showCallMuteDialog, titleVisibility: .visible) {
-            muteButtons { iso in Task { await push(callsMutedUntil: iso) } }
+        .klicSelectionSheet(
+            isPresented: $showCallMuteSheet,
+            title: "Mute call notifications",
+            options: Self.muteOptions,
+            selectedId: Self.muteSelectionId(prefs.callsMutedUntil)
+        ) { option in
+            Task { await push(callsMutedUntil: Self.muteValue(for: option.id)) }
         }
+        .klicSelectionSheet(
+            isPresented: $showAlertToneSheet,
+            title: "Alert tone",
+            options: KlicTone.alertTones.map { KlicSheetOption(id: $0.id, label: $0.name) },
+            selectedId: alertTone ?? "default",
+            dismissOnSelect: false,
+            onDismiss: { TonePreviewPlayer.shared.stop() }
+        ) { option in
+            guard let tone = KlicTone.alertTones.first(where: { $0.id == option.id }) else { return }
+            alertTone = tone.file
+            ChatLocalPrefs.setAlertTone(tone.file, conversationId)
+            TonePreviewPlayer.shared.preview(tone)
+        }
+        .klicSelectionSheet(
+            isPresented: $showRingtoneSheet,
+            title: "Ringtone",
+            options: KlicTone.ringtones.map { KlicSheetOption(id: $0.id, label: $0.name) },
+            selectedId: ringtone ?? ChatLocalPrefs.globalRingtone ?? "default",
+            dismissOnSelect: false,
+            onDismiss: { TonePreviewPlayer.shared.stop() }
+        ) { option in
+            guard let tone = KlicTone.ringtones.first(where: { $0.id == option.id }) else { return }
+            ringtone = tone.file
+            ChatLocalPrefs.setRingtone(tone.file, conversationId)
+            TonePreviewPlayer.shared.preview(tone)
+        }
+    }
+
+    // MARK: Mute options
+
+    private static let muteOptions: [KlicSheetOption] = [
+        KlicSheetOption(id: "8h", label: "For 8 hours"),
+        KlicSheetOption(id: "1w", label: "For 1 week"),
+        KlicSheetOption(id: "always", label: "Always"),
+        KlicSheetOption(id: "off", label: "Unmute"),
+    ]
+
+    private static func muteValue(for id: String) -> String? {
+        switch id {
+        case "8h": return ChatLocalPrefs.isoString(Date().addingTimeInterval(8 * 3600))
+        case "1w": return ChatLocalPrefs.isoString(Date().addingTimeInterval(7 * 24 * 3600))
+        case "always": return ChatLocalPrefs.alwaysMutedISO
+        default: return nil
+        }
+    }
+
+    private static func muteSelectionId(_ iso: String?) -> String? {
+        guard let date = ChatLocalPrefs.parseISO(iso), date > Date() else { return "off" }
+        return date.timeIntervalSinceNow > 365 * 24 * 3600 ? "always" : nil
     }
 
     // MARK: Rows
-
-    @ViewBuilder
-    private func muteButtons(_ apply: @escaping (String?) -> Void) -> some View {
-        Button("For 8 hours") { apply(ChatLocalPrefs.isoString(Date().addingTimeInterval(8 * 3600))) }
-        Button("For 1 week") { apply(ChatLocalPrefs.isoString(Date().addingTimeInterval(7 * 24 * 3600))) }
-        Button("Always") { apply(ChatLocalPrefs.alwaysMutedISO) }
-        Button("Unmute") { apply(nil) }
-        Button("Cancel", role: .cancel) {}
-    }
 
     private func header(_ title: String) -> some View {
         Text(title)

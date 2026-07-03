@@ -105,6 +105,12 @@ actor APIClient {
         try await post("/conversations/\(conversationId)/leave", body: [:])
     }
 
+    /// Admin-only: remove a member from a group (WP-S3, 204). Body-less DELETE — no
+    /// Content-Type header, or Fastify 400s trying to parse an empty JSON body.
+    func removeGroupMember(conversationId: String, userId: String) async throws {
+        let _: EmptyResponse = try await delete("/conversations/\(conversationId)/members/\(userId)")
+    }
+
     func deleteGroup(conversationId: String) async throws -> EmptyResponse {
         try await delete("/conversations/\(conversationId)")
     }
@@ -272,6 +278,28 @@ actor APIClient {
         req.httpMethod = "PUT"
         req.setValue(contentType, forHTTPHeaderField: "Content-Type")
         let (_, resp) = try await session.upload(for: req, from: data)
+        guard let http = resp as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
+            throw APIError.server(message: "Upload failed", status: (resp as? HTTPURLResponse)?.statusCode ?? 0)
+        }
+        DataUsageTracker.shared.record(
+            type: DataUsageTracker.mediaType(forContentType: contentType),
+            sent: data.count, received: 0
+        )
+    }
+
+    /// Step 2 with byte-level progress (§9.1): same contract as `uploadData`, plus a
+    /// 0…1 callback driven by URLSession's didSendBodyData task delegate. The callback
+    /// fires on a URLSession queue — callers hop to the main actor themselves.
+    func uploadData(
+        _ data: Data, to uploadUrl: String, contentType: String,
+        onProgress: @escaping @Sendable (Double) -> Void
+    ) async throws {
+        guard let url = URL(string: uploadUrl) else { throw APIError.noData }
+        var req = URLRequest(url: url)
+        req.httpMethod = "PUT"
+        req.setValue(contentType, forHTTPHeaderField: "Content-Type")
+        let delegate = UploadProgressDelegate(onProgress: onProgress)
+        let (_, resp) = try await session.upload(for: req, from: data, delegate: delegate)
         guard let http = resp as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
             throw APIError.server(message: "Upload failed", status: (resp as? HTTPURLResponse)?.statusCode ?? 0)
         }
@@ -560,3 +588,20 @@ actor APIClient {
 }
 
 struct EmptyResponse: Decodable {}
+
+/// Task delegate that surfaces upload progress as sent-bytes fractions (§9.1).
+private final class UploadProgressDelegate: NSObject, URLSessionTaskDelegate {
+    private let onProgress: @Sendable (Double) -> Void
+
+    init(onProgress: @escaping @Sendable (Double) -> Void) {
+        self.onProgress = onProgress
+    }
+
+    func urlSession(
+        _ session: URLSession, task: URLSessionTask,
+        didSendBodyData bytesSent: Int64, totalBytesSent: Int64, totalBytesExpectedToSend: Int64
+    ) {
+        guard totalBytesExpectedToSend > 0 else { return }
+        onProgress(Double(totalBytesSent) / Double(totalBytesExpectedToSend))
+    }
+}

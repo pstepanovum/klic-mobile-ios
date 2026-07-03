@@ -31,6 +31,22 @@ enum Media {
             width: width, height: height, durationMs: durationMs, waveform: waveform, fileName: fileName)
     }
 
+    /// Upload with real byte progress (§9.1) — drives the optimistic message pill.
+    static func upload(
+        conversationId: String, kind: String, contentType: String, data: Data,
+        width: Int? = nil, height: Int? = nil, durationMs: Int? = nil,
+        waveform: Data? = nil, fileName: String? = nil,
+        onProgress: @escaping @Sendable (Double) -> Void
+    ) async throws -> AttachmentDraft {
+        let ticket = try await APIClient.shared.requestUpload(
+            conversationId: conversationId, kind: kind, contentType: contentType, byteSize: data.count)
+        try await APIClient.shared.uploadData(
+            data, to: ticket.uploadUrl, contentType: contentType, onProgress: onProgress)
+        return AttachmentDraft(
+            key: ticket.key, kind: kind, contentType: contentType, byteSize: data.count,
+            width: width, height: height, durationMs: durationMs, waveform: waveform, fileName: fileName)
+    }
+
     static func encodeImage(_ image: UIImage, maxDimension: CGFloat = 2048, quality: CGFloat = 0.85) -> (Data, Int, Int)? {
         let px = CGSize(width: image.size.width * image.scale, height: image.size.height * image.scale)
         let maxSide = max(px.width, px.height)

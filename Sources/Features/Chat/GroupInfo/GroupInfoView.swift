@@ -2,6 +2,8 @@ import SwiftUI
 import PhotosUI
 import Inject
 
+/// Group Info (§9.3): rounded Klic cards — cover/title, quick actions, members (with
+/// admin remove), media/starred/storage, notifications, danger zone, created footer.
 struct GroupInfoView: View {
     @ObserveInjection var inject
     let conversationId: String
@@ -50,7 +52,6 @@ private struct GroupInfoContent: View {
     @State private var editing = false
     @State private var editTitle = ""
     @State private var editDescription = ""
-    @State private var searchMembers = false
     @State private var memberQuery = ""
     @State private var addSheet = false
     @State private var pickedCover: PhotosPickerItem?
@@ -58,6 +59,10 @@ private struct GroupInfoContent: View {
     @State private var leaving = false
     @State private var error: String?
     @State private var showDeleteDialog = false
+    // Admin remove-member flow (§9.3): action sheet → confirm sheet → DELETE.
+    @State private var memberActionTarget: GroupConversationDetails.Member?
+    @State private var removeConfirmTarget: GroupConversationDetails.Member?
+    @State private var removingMemberIds: Set<String> = []
 
     private var resolvedDetails: GroupConversationDetails? { details ?? initialDetails }
     private var resolvedTitle: String { resolvedDetails?.title?.trimmingCharacters(in: .whitespaces).isEmpty == false ? (resolvedDetails?.title ?? fallbackTitle) : fallbackTitle }
@@ -106,132 +111,38 @@ private struct GroupInfoContent: View {
     }
 
     var body: some View {
-        List {
-            Section {
-                VStack(spacing: 16) {
-                    coverPicker
-                    VStack(spacing: 6) {
-                        Text(resolvedTitle)
-                            .font(KlicFont.headline(22))
-                            .foregroundStyle(KlicColor.textPrimary)
-                            .multilineTextAlignment(.center)
-                        if let description = resolvedDescription {
-                            Text(description)
-                                .font(KlicFont.body(14))
-                                .foregroundStyle(KlicColor.textMuted)
-                                .multilineTextAlignment(.center)
-                        }
-                        Text("\(members.count) members")
-                            .font(KlicFont.caption())
-                            .foregroundStyle(KlicColor.textMuted)
-                    }
-                }
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 8)
-                .listRowBackground(KlicColor.background)
-            }
+        ScrollView {
+            VStack(spacing: 16) {
+                headerSection
+                actionsRow
 
-            Section {
-                HStack(spacing: 12) {
-                    actionButton(title: "Audio", systemName: "phone.fill") {
-                        onStartCall("AUDIO")
-                        dismiss()
-                    }
-                    actionButton(title: "Video", systemName: "video.fill") {
-                        onStartCall("VIDEO")
-                        dismiss()
-                    }
-                    actionButton(title: "Add", systemName: "person.badge.plus.fill", disabled: !isAdmin) {
-                        addSheet = true
-                    }
-                    // Message search over the chat's history (CALLS.md §8.4).
-                    actionButton(title: "Search", systemName: "magnifyingglass") {
-                        onSearchMessages()
-                        dismiss()
-                    }
+                if editing {
+                    editCard
                 }
-                .listRowInsets(EdgeInsets(top: 12, leading: 0, bottom: 12, trailing: 0))
-                .listRowBackground(KlicColor.background)
-            }
 
-            if searchMembers {
-                Section {
-                    KlicTextField(placeholder: "Search members", text: $memberQuery)
-                        .listRowInsets(EdgeInsets(top: 6, leading: 0, bottom: 6, trailing: 0))
-                        .listRowBackground(KlicColor.background)
-                }
-            }
+                membersCard
 
-            // Media / Starred / Manage storage / Save to Photos + Notifications (§8.4)
-            Section {
+                // Media / Starred / Manage storage / Save to Photos + Notifications (§8.4)
                 ChatInfoCommonRows(
                     conversationId: conversationId,
                     members: fallbackMembers.isEmpty
                         ? members.map { ChatProfileTarget(id: $0.id, username: $0.username, displayName: $0.displayName, avatarUrl: $0.avatarUrl) }
                         : fallbackMembers
                 )
-                .listRowInsets(EdgeInsets())
-                .listRowBackground(Color.clear)
-            }
 
-            Section {
                 ChatNotificationsCard(conversationId: conversationId, isGroup: true)
-                    .listRowInsets(EdgeInsets())
-                    .listRowBackground(Color.clear)
-            }
 
-            if editing {
-                Section("Edit group") {
-                    TextField("Group name", text: $editTitle)
-                        .font(KlicFont.body())
-                        .foregroundStyle(KlicColor.textPrimary)
-                    TextField("Description", text: $editDescription, axis: .vertical)
-                        .font(KlicFont.body())
-                        .foregroundStyle(KlicColor.textPrimary)
-                        .lineLimit(3, reservesSpace: true)
-                    Button("Save changes") { Task { await saveEdits() } }
-                        .foregroundStyle(KlicColor.primary)
-                }
-            } else {
-                Section {
-                    NavigationLink("View all members") {
-                        GroupMemberListView(members: filteredMembers, onSelectMember: onSelectMember)
-                    }
-                    .foregroundStyle(KlicColor.textPrimary)
+                dangerZone
 
-                    if isAdmin {
-                        Button("Delete Group", role: .destructive) {
-                            showDeleteDialog = true
-                        }
-                    } else {
-                        Button("Exit Group", role: .destructive) {
-                            Task { await leaveGroup() }
-                        }
-                        .disabled(leaving)
-                    }
-                }
-            }
-
-            if !filteredMembers.isEmpty {
-                Section("Members") {
-                    ForEach(filteredMembers.prefix(6)) { member in
-                        memberRow(member)
-                    }
-                }
-            }
-
-            if let error {
-                Section {
+                if let error {
                     Text(error)
                         .font(KlicFont.caption())
-                        .foregroundStyle(.red)
-                        .listRowBackground(KlicColor.background)
+                        .foregroundStyle(KlicColor.danger)
+                        .multilineTextAlignment(.center)
                 }
-            }
 
-            // Footer: who created the group and when (§8.4).
-            if createdByName != nil || createdAtText != nil {
-                Section {
+                // Footer: who created the group and when (§8.4).
+                if createdByName != nil || createdAtText != nil {
                     VStack(alignment: .center, spacing: 2) {
                         if let createdByName {
                             Text("Created by \(createdByName)")
@@ -243,13 +154,12 @@ private struct GroupInfoContent: View {
                     .font(KlicFont.caption(12))
                     .foregroundStyle(KlicColor.textMuted)
                     .frame(maxWidth: .infinity)
-                    .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 12, trailing: 0))
-                    .listRowBackground(KlicColor.background)
+                    .padding(.bottom, 8)
                 }
             }
+            .padding(20)
+            .adaptiveWidth()
         }
-        .listStyle(.insetGrouped)
-        .scrollContentBackground(.hidden)
         .background(KlicColor.background.ignoresSafeArea())
         .navigationTitle("Group Info")
         .navigationBarTitleDisplayMode(.inline)
@@ -285,15 +195,80 @@ private struct GroupInfoContent: View {
                 pickedCover = nil
             }
         }
-        .confirmationDialog("Delete this group?", isPresented: $showDeleteDialog, titleVisibility: .visible) {
-            Button("Delete Group", role: .destructive) {
-                Task { await deleteGroup() }
+        .klicSelectionSheet(
+            isPresented: $showDeleteDialog,
+            title: "Delete this group?",
+            message: "This removes the group chat and all of its messages for everyone.",
+            options: [KlicSheetOption(id: "delete", label: "Delete Group", isDestructive: true)]
+        ) { _ in
+            Task { await deleteGroup() }
+        }
+        // Member sheet: profile for everyone; admins also get "Remove from group" (§9.3).
+        .klicSelectionSheet(
+            isPresented: Binding(
+                get: { memberActionTarget != nil },
+                set: { if !$0 { memberActionTarget = nil } }
+            ),
+            title: memberActionTarget?.displayName ?? "Member",
+            message: memberActionTarget.map { "@\($0.username)" },
+            options: [
+                KlicSheetOption(id: "profile", label: "View profile"),
+                KlicSheetOption(id: "remove", label: "Remove from group", isDestructive: true),
+            ]
+        ) { option in
+            guard let member = memberActionTarget else { return }
+            memberActionTarget = nil
+            switch option.id {
+            case "profile":
+                openProfile(member)
+            case "remove":
+                // Chain the confirm sheet after this one fully dismisses.
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+                    removeConfirmTarget = member
+                }
+            default:
+                break
             }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("This removes the group chat and all of its messages for everyone.")
+        }
+        .klicSelectionSheet(
+            isPresented: Binding(
+                get: { removeConfirmTarget != nil },
+                set: { if !$0 { removeConfirmTarget = nil } }
+            ),
+            title: "Remove \(removeConfirmTarget?.displayName ?? "member")?",
+            message: "They will no longer see this group or its messages.",
+            options: [KlicSheetOption(id: "remove", label: "Remove from group", isDestructive: true)]
+        ) { _ in
+            guard let member = removeConfirmTarget else { return }
+            removeConfirmTarget = nil
+            Task { await removeMember(member) }
         }
         .enableInjection()
+    }
+
+    // MARK: Header
+
+    private var headerSection: some View {
+        VStack(spacing: 16) {
+            coverPicker
+            VStack(spacing: 6) {
+                Text(resolvedTitle)
+                    .font(KlicFont.headline(22))
+                    .foregroundStyle(KlicColor.textPrimary)
+                    .multilineTextAlignment(.center)
+                if let description = resolvedDescription {
+                    Text(description)
+                        .font(KlicFont.body(14))
+                        .foregroundStyle(KlicColor.textMuted)
+                        .multilineTextAlignment(.center)
+                }
+                Text(members.count == 1 ? "1 member" : "\(members.count) members")
+                    .font(KlicFont.caption())
+                    .foregroundStyle(KlicColor.textMuted)
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.top, 8)
     }
 
     @ViewBuilder
@@ -307,7 +282,7 @@ private struct GroupInfoContent: View {
                         .frame(width: 34, height: 34)
                         .background(KlicColor.primary, in: Circle())
                         .overlay(Circle().stroke(KlicColor.background, lineWidth: 3))
-                        .padding(10)
+                        .padding(6)
                 }
             }
             .buttonStyle(.plain)
@@ -324,6 +299,29 @@ private struct GroupInfoContent: View {
                         .tint(KlicColor.primary)
                 }
             }
+    }
+
+    // MARK: Actions
+
+    private var actionsRow: some View {
+        HStack(spacing: 12) {
+            actionButton(title: "Audio", systemName: "phone.fill") {
+                onStartCall("AUDIO")
+                dismiss()
+            }
+            actionButton(title: "Video", systemName: "video.fill") {
+                onStartCall("VIDEO")
+                dismiss()
+            }
+            actionButton(title: "Add", systemName: "person.badge.plus.fill", disabled: !isAdmin) {
+                addSheet = true
+            }
+            // Message search over the chat's history (CALLS.md §8.4).
+            actionButton(title: "Search", systemName: "magnifyingglass") {
+                onSearchMessages()
+                dismiss()
+            }
+        }
     }
 
     private func actionButton(title: String, systemName: String, disabled: Bool = false, action: @escaping () -> Void) -> some View {
@@ -344,9 +342,101 @@ private struct GroupInfoContent: View {
         .disabled(disabled)
     }
 
+    // MARK: Edit (admin)
+
+    private var editCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Edit group")
+                .font(KlicFont.headline(17))
+                .foregroundStyle(KlicColor.textPrimary)
+            KlicTextField(placeholder: "Group name", text: $editTitle)
+            TextField("Description", text: $editDescription, axis: .vertical)
+                .font(KlicFont.body())
+                .foregroundStyle(KlicColor.textPrimary)
+                .tint(KlicColor.primary)
+                .lineLimit(3, reservesSpace: true)
+                .padding(.horizontal, 18)
+                .padding(.vertical, 12)
+                .background(KlicColor.background, in: RoundedRectangle(cornerRadius: 20))
+            PillButton(title: "Save changes") { Task { await saveEdits() } }
+        }
+        .padding(18)
+        .background(KlicColor.surface, in: RoundedRectangle(cornerRadius: 20))
+    }
+
+    // MARK: Members
+
+    private var membersCard: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text("Members")
+                .font(KlicFont.headline(17))
+                .foregroundStyle(KlicColor.textPrimary)
+                .padding(.horizontal, 18)
+                .padding(.top, 16)
+                .padding(.bottom, 8)
+
+            KlicSearchField(placeholder: "Search members", text: $memberQuery)
+                .padding(.horizontal, 14)
+                .padding(.bottom, 6)
+
+            ForEach(Array(filteredMembers.prefix(6).enumerated()), id: \.element.id) { index, member in
+                memberRow(member)
+                if index < min(filteredMembers.count, 6) - 1 {
+                    Divider().padding(.leading, 74).opacity(0.4)
+                }
+            }
+
+            if filteredMembers.isEmpty {
+                Text("No members match.")
+                    .font(KlicFont.body(14))
+                    .foregroundStyle(KlicColor.textMuted)
+                    .padding(.horizontal, 18)
+                    .padding(.vertical, 12)
+            }
+
+            if filteredMembers.count > 6 {
+                Divider().padding(.leading, 18).opacity(0.4)
+                NavigationLink {
+                    GroupMemberListView(
+                        members: filteredMembers,
+                        canRemove: isAdmin ? { canRemove($0) } : { _ in false },
+                        onSelectMember: onSelectMember,
+                        onRemove: { member in removeConfirmTarget = member }
+                    )
+                } label: {
+                    HStack {
+                        Text("View all members")
+                            .font(KlicFont.body())
+                            .foregroundStyle(KlicColor.primary)
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(KlicColor.textMuted)
+                    }
+                    .padding(.horizontal, 18)
+                    .padding(.vertical, 13)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+            } else {
+                Color.clear.frame(height: 8)
+            }
+        }
+        .background(KlicColor.surface, in: RoundedRectangle(cornerRadius: 20))
+    }
+
+    /// Admins can remove anyone who isn't themselves and isn't the admin (§9.3).
+    private func canRemove(_ member: GroupConversationDetails.Member) -> Bool {
+        isAdmin && !member.isMe && member.id != resolvedDetails?.createdById
+    }
+
     private func memberRow(_ member: GroupConversationDetails.Member) -> some View {
         Button {
-            onSelectMember(ChatProfileTarget(id: member.id, username: member.username, displayName: member.displayName, avatarUrl: member.avatarUrl))
+            if canRemove(member) {
+                memberActionTarget = member
+            } else {
+                openProfile(member)
+            }
         } label: {
             HStack(spacing: 12) {
                 AvatarView(url: member.avatarUrl, name: member.displayName, size: 44)
@@ -360,25 +450,82 @@ private struct GroupInfoContent: View {
                                 .font(KlicFont.caption(11))
                                 .foregroundStyle(KlicColor.textMuted)
                         }
+                        if member.id == resolvedDetails?.createdById {
+                            Text("Admin")
+                                .font(KlicFont.caption(10).weight(.semibold))
+                                .foregroundStyle(KlicColor.primary)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(KlicColor.primary.opacity(0.12), in: Capsule())
+                        }
                     }
                     Text("@\(member.username)")
                         .font(KlicFont.caption())
                         .foregroundStyle(KlicColor.textMuted)
                 }
                 Spacer()
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(KlicColor.textMuted)
+                if removingMemberIds.contains(member.id) {
+                    ProgressView().controlSize(.small)
+                } else {
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(KlicColor.textMuted)
+                }
             }
+            .padding(.horizontal, 18)
+            .padding(.vertical, 9)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .disabled(removingMemberIds.contains(member.id))
     }
+
+    private func openProfile(_ member: GroupConversationDetails.Member) {
+        onSelectMember(ChatProfileTarget(id: member.id, username: member.username, displayName: member.displayName, avatarUrl: member.avatarUrl))
+    }
+
+    // MARK: Danger zone
+
+    private var dangerZone: some View {
+        Group {
+            if isAdmin {
+                PillButton(title: "Delete Group", fill: KlicColor.surface, textColor: KlicColor.danger) {
+                    showDeleteDialog = true
+                }
+            } else {
+                PillButton(title: leaving ? "Leaving…" : "Exit Group", fill: KlicColor.surface, textColor: KlicColor.danger) {
+                    Task { await leaveGroup() }
+                }
+                .disabled(leaving)
+            }
+        }
+    }
+
+    // MARK: Data
 
     private func load() async {
         loading = true
         defer { loading = false }
         if let fetched = try? await APIClient.shared.conversationDetails(id: conversationId) {
             apply(fetched)
+        }
+    }
+
+    /// Optimistic removal (§9.3): the row disappears immediately; the DELETE reconciles
+    /// (restore + error on failure). Body-less DELETE — the client sends no Content-Type.
+    private func removeMember(_ member: GroupConversationDetails.Member) async {
+        guard let current = resolvedDetails else { return }
+        removingMemberIds.insert(member.id)
+        defer { removingMemberIds.remove(member.id) }
+        apply(current.removingMember(member.id))
+        do {
+            try await APIClient.shared.removeGroupMember(conversationId: conversationId, userId: member.id)
+        } catch let e as APIError {
+            apply(current)   // restore the row
+            error = e.userMessage
+        } catch {
+            apply(current)
+            self.error = "Couldn't remove \(member.displayName)."
         }
     }
 
@@ -431,6 +578,7 @@ private struct GroupInfoContent: View {
         defer { leaving = false }
         do {
             _ = try await APIClient.shared.leaveGroup(conversationId: conversationId)
+            ConversationStore.shared.remove(conversationId: conversationId)
             dismiss()
         } catch let e as APIError {
             self.error = e.userMessage
@@ -444,6 +592,7 @@ private struct GroupInfoContent: View {
         defer { leaving = false }
         do {
             _ = try await APIClient.shared.deleteGroup(conversationId: conversationId)
+            ConversationStore.shared.remove(conversationId: conversationId)
             onDeleted()
             dismiss()
         } catch let e as APIError {
@@ -455,6 +604,7 @@ private struct GroupInfoContent: View {
 
     private func apply(_ updated: GroupConversationDetails) {
         details = updated
+        ChatCaches.groupDetails[conversationId] = updated
         onUpdated(updated)
         editTitle = updated.title ?? fallbackTitle
         editDescription = updated.description ?? ""
@@ -462,33 +612,89 @@ private struct GroupInfoContent: View {
     }
 }
 
+private extension GroupConversationDetails {
+    func removingMember(_ memberId: String) -> GroupConversationDetails {
+        GroupConversationDetails(
+            id: id, type: type, title: title, description: description,
+            avatarUrl: avatarUrl, createdById: createdById, createdAt: createdAt,
+            isAdmin: isAdmin, members: members.filter { $0.id != memberId }
+        )
+    }
+}
+
 private struct GroupMemberListView: View {
     let members: [GroupConversationDetails.Member]
+    let canRemove: (GroupConversationDetails.Member) -> Bool
     let onSelectMember: (ChatProfileTarget) -> Void
+    let onRemove: (GroupConversationDetails.Member) -> Void
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var query = ""
+
+    private var filtered: [GroupConversationDetails.Member] {
+        let q = query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !q.isEmpty else { return members }
+        return members.filter {
+            $0.displayName.lowercased().contains(q) || $0.username.lowercased().contains(q)
+        }
+    }
 
     var body: some View {
-        List(members) { member in
-            Button {
-                onSelectMember(ChatProfileTarget(id: member.id, username: member.username, displayName: member.displayName, avatarUrl: member.avatarUrl))
-            } label: {
-                HStack(spacing: 12) {
-                    AvatarView(url: member.avatarUrl, name: member.displayName, size: 44)
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(member.displayName)
-                            .font(KlicFont.medium())
-                            .foregroundStyle(KlicColor.textPrimary)
-                        Text("@\(member.username)")
-                            .font(KlicFont.caption())
-                            .foregroundStyle(KlicColor.textMuted)
+        ScrollView {
+            VStack(spacing: 12) {
+                KlicSearchField(placeholder: "Search members", text: $query)
+
+                VStack(spacing: 0) {
+                    ForEach(Array(filtered.enumerated()), id: \.element.id) { index, member in
+                        Button {
+                            onSelectMember(ChatProfileTarget(id: member.id, username: member.username, displayName: member.displayName, avatarUrl: member.avatarUrl))
+                        } label: {
+                            HStack(spacing: 12) {
+                                AvatarView(url: member.avatarUrl, name: member.displayName, size: 44)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(member.displayName)
+                                        .font(KlicFont.medium())
+                                        .foregroundStyle(KlicColor.textPrimary)
+                                    Text("@\(member.username)")
+                                        .font(KlicFont.caption())
+                                        .foregroundStyle(KlicColor.textMuted)
+                                }
+                                Spacer()
+                                if canRemove(member) {
+                                    Button {
+                                        // Confirm sheet lives on the parent page — pop
+                                        // back exactly one level, then present (§9.4).
+                                        dismiss()
+                                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) {
+                                            onRemove(member)
+                                        }
+                                    } label: {
+                                        Text("Remove")
+                                            .font(KlicFont.medium(13))
+                                            .foregroundStyle(KlicColor.danger)
+                                            .padding(.horizontal, 12)
+                                            .padding(.vertical, 6)
+                                            .background(KlicColor.danger.opacity(0.1), in: Capsule())
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                            }
+                            .padding(.horizontal, 18)
+                            .padding(.vertical, 9)
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        if index < filtered.count - 1 {
+                            Divider().padding(.leading, 74).opacity(0.4)
+                        }
                     }
-                    Spacer()
                 }
+                .padding(.vertical, 8)
+                .background(KlicColor.surface, in: RoundedRectangle(cornerRadius: 20))
             }
-            .buttonStyle(.plain)
-            .listRowBackground(KlicColor.surface)
+            .padding(20)
+            .adaptiveWidth()
         }
-        .listStyle(.insetGrouped)
-        .scrollContentBackground(.hidden)
         .background(KlicColor.background.ignoresSafeArea())
         .navigationTitle("Members")
         .navigationBarTitleDisplayMode(.inline)

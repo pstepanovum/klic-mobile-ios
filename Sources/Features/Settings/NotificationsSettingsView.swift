@@ -8,6 +8,7 @@ struct NotificationsSettingsView: View {
     @State private var loaded = false
     @State private var saving = false
     @State private var showResetConfirm = false
+    @State private var showRingtoneSheet = false
     @State private var ringtone = ChatLocalPrefs.globalRingtone
 
     var body: some View {
@@ -15,7 +16,10 @@ struct NotificationsSettingsView: View {
             VStack(spacing: 16) {
                 togglesCard
                 ringtoneCard
-                resetCard
+
+                PillButton(title: "Reset notification settings", fill: KlicColor.surface, textColor: KlicColor.danger) {
+                    showResetConfirm = true
+                }
 
                 Text("Message, group, call and friend-request pushes are filtered server-side by these switches. Alert tones are per-device; the sound of a delivered push notification stays the system default.")
                     .font(KlicFont.caption(12))
@@ -37,15 +41,27 @@ struct NotificationsSettingsView: View {
             }
             loaded = true
         }
-        .confirmationDialog(
-            "Reset notification settings?",
+        .klicSelectionSheet(
             isPresented: $showResetConfirm,
-            titleVisibility: .visible
-        ) {
-            Button("Reset", role: .destructive) { Task { await reset() } }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("Turns every notification back on and restores the default tones.")
+            title: "Reset notification settings?",
+            message: "Turns every notification back on and restores the default tones.",
+            options: [KlicSheetOption(id: "reset", label: "Reset", isDestructive: true)]
+        ) { _ in
+            Task { await reset() }
+        }
+        .klicSelectionSheet(
+            isPresented: $showRingtoneSheet,
+            title: "Ringtone",
+            options: KlicTone.ringtones.map { KlicSheetOption(id: $0.id, label: $0.name) },
+            selectedId: ringtone ?? "default",
+            dismissOnSelect: false,
+            onDismiss: { TonePreviewPlayer.shared.stop() }
+        ) { option in
+            guard let tone = KlicTone.ringtones.first(where: { $0.id == option.id }) else { return }
+            ringtone = tone.file
+            ChatLocalPrefs.globalRingtone = tone.file
+            CallKitManager.shared.updateRingtone()
+            TonePreviewPlayer.shared.preview(tone)
         }
     }
 
@@ -64,16 +80,8 @@ struct NotificationsSettingsView: View {
 
     private var ringtoneCard: some View {
         VStack(spacing: 0) {
-            NavigationLink {
-                TonePickerView(
-                    title: "Ringtone",
-                    tones: KlicTone.ringtones,
-                    selectedFile: ringtone
-                ) { file in
-                    ringtone = file
-                    ChatLocalPrefs.globalRingtone = file
-                    CallKitManager.shared.updateRingtone()
-                }
+            Button {
+                showRingtoneSheet = true
             } label: {
                 HStack(spacing: 14) {
                     Image(systemName: "bell.badge")
@@ -95,23 +103,6 @@ struct NotificationsSettingsView: View {
                 .padding(.horizontal, 18)
                 .padding(.vertical, 14)
                 .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-        }
-        .background(KlicColor.surface, in: RoundedRectangle(cornerRadius: 20))
-    }
-
-    private var resetCard: some View {
-        VStack(spacing: 0) {
-            Button {
-                showResetConfirm = true
-            } label: {
-                Text("Reset notification settings")
-                    .font(KlicFont.body())
-                    .foregroundStyle(KlicColor.danger)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 14)
-                    .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
         }
@@ -172,64 +163,5 @@ struct NotificationsSettingsView: View {
         ChatLocalPrefs.resetAllTones()
         ringtone = ChatLocalPrefs.globalRingtone
         CallKitManager.shared.updateRingtone()
-    }
-}
-
-// MARK: - Tone picker (shared with the per-chat pages)
-
-/// Picks one of the bundled tones; plays a preview on tap.
-struct TonePickerView: View {
-    let title: String
-    let tones: [KlicTone]
-    let selectedFile: String?
-    let onSelect: (String?) -> Void
-
-    @State private var selection: String?
-
-    init(title: String, tones: [KlicTone], selectedFile: String?, onSelect: @escaping (String?) -> Void) {
-        self.title = title
-        self.tones = tones
-        self.selectedFile = selectedFile
-        self.onSelect = onSelect
-        _selection = State(initialValue: selectedFile)
-    }
-
-    var body: some View {
-        ScrollView {
-            VStack(spacing: 0) {
-                ForEach(Array(tones.enumerated()), id: \.element.id) { index, tone in
-                    Button {
-                        selection = tone.file
-                        onSelect(tone.file)
-                        tone.preview()
-                    } label: {
-                        HStack {
-                            Text(tone.name)
-                                .font(KlicFont.body())
-                                .foregroundStyle(KlicColor.textPrimary)
-                            Spacer()
-                            if selection == tone.file {
-                                Image(systemName: "checkmark")
-                                    .font(.system(size: 15, weight: .semibold))
-                                    .foregroundStyle(KlicColor.primary)
-                            }
-                        }
-                        .padding(.horizontal, 20)
-                        .padding(.vertical, 14)
-                        .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    if index < tones.count - 1 {
-                        Divider().padding(.leading, 20).opacity(0.4)
-                    }
-                }
-            }
-            .background(KlicColor.surface, in: RoundedRectangle(cornerRadius: 20))
-            .padding(20)
-            .adaptiveWidth()
-        }
-        .background(KlicColor.background.ignoresSafeArea())
-        .navigationTitle(title)
-        .navigationBarTitleDisplayMode(.inline)
     }
 }

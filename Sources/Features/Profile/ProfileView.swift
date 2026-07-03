@@ -1,8 +1,10 @@
 import SwiftUI
 import Inject
 
-/// A friend's profile: large avatar (or initials), name, @username, live presence,
-/// and Audio / Video call buttons. Presence/last-seen honor the privacy setting.
+/// A friend's profile (§9.6): the same info sections as the user's own Profile page
+/// (large avatar, display name, copyable @username chip, presence), Audio / Video /
+/// Message actions, "Groups in common" from the cached conversations list, and — when
+/// reached from a chat — the shared chat-info sections.
 struct ProfileView: View {
     @ObserveInjection var inject
     let userId: String
@@ -19,24 +21,32 @@ struct ProfileView: View {
     var chatMembers: [ChatProfileTarget] = []
 
     @ObservedObject private var socket = SocketService.shared
+    @ObservedObject private var store = ConversationStore.shared
     @Environment(\.dismiss) private var dismiss
     @State private var profile: UserProfile?
+    @State private var openedGroup: Conversation?
 
     private var resolvedAvatar: String? { profile?.avatarUrl ?? avatarUrl }
+
+    /// GROUP conversations from the cached list that include this friend (§9.6).
+    private var groupsInCommon: [Conversation] {
+        store.conversations.filter { convo in
+            convo.type == "GROUP" && convo.members.contains(where: { $0.id == userId })
+        }
+    }
 
     var body: some View {
         ScrollView {
             VStack(spacing: 18) {
-                AvatarView(url: resolvedAvatar, name: displayName, size: 132)
+                // Info header — mirrors the user's own Profile page styling.
+                AvatarView(url: resolvedAvatar, name: displayName, size: 120)
                     .padding(.top, 24)
 
-                VStack(spacing: 6) {
+                VStack(spacing: 8) {
                     Text(displayName)
                         .font(KlicFont.headline(24))
                         .foregroundStyle(KlicColor.textPrimary)
-                    Text("@\(username)")
-                        .font(KlicFont.body())
-                        .foregroundStyle(KlicColor.textMuted)
+                    CopyableUsername(username: username)
                     if let presence = presenceText {
                         Text(presence)
                             .font(KlicFont.caption())
@@ -68,6 +78,10 @@ struct ProfileView: View {
 
                     ChatNotificationsCard(conversationId: conversationId, isGroup: false)
                 }
+
+                if !groupsInCommon.isEmpty {
+                    groupsInCommonCard
+                }
             }
             .frame(maxWidth: 520)
             .frame(maxWidth: .infinity)
@@ -76,9 +90,82 @@ struct ProfileView: View {
         .background(KlicColor.background.ignoresSafeArea())
         .navigationTitle("Profile")
         .navigationBarTitleDisplayMode(.inline)
-        .task { profile = try? await APIClient.shared.userProfile(id: userId) }
+        .navigationDestination(item: $openedGroup) { group in
+            ChatView(conversation: group)
+        }
+        .task {
+            // §9.9: cached profile paints instantly; the fetch reconciles.
+            if profile == nil { profile = ChatCaches.profiles[userId] }
+            if let fetched = try? await APIClient.shared.userProfile(id: userId) {
+                profile = fetched
+                ChatCaches.profiles[userId] = fetched
+            }
+            // Groups in common come from the conversations cache — warm it if needed.
+            if store.conversations.isEmpty { await store.refresh() }
+        }
         .enableInjection()
     }
+
+    // MARK: Groups in common (§9.6)
+
+    private var groupsInCommonCard: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text(groupsInCommon.count == 1 ? "1 group in common" : "\(groupsInCommon.count) groups in common")
+                .font(KlicFont.headline(17))
+                .foregroundStyle(KlicColor.textPrimary)
+                .padding(.horizontal, 18)
+                .padding(.top, 16)
+                .padding(.bottom, 6)
+
+            ForEach(Array(groupsInCommon.enumerated()), id: \.element.id) { index, group in
+                Button {
+                    openedGroup = group
+                } label: {
+                    HStack(spacing: 12) {
+                        AvatarView(url: group.avatarUrl, name: groupTitle(group), size: 44)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(groupTitle(group))
+                                .font(KlicFont.medium())
+                                .foregroundStyle(KlicColor.textPrimary)
+                                .lineLimit(1)
+                            Text(memberCountText(group))
+                                .font(KlicFont.caption())
+                                .foregroundStyle(KlicColor.textMuted)
+                        }
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(KlicColor.textMuted)
+                    }
+                    .padding(.horizontal, 18)
+                    .padding(.vertical, 10)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                if index < groupsInCommon.count - 1 {
+                    Divider().padding(.leading, 74).opacity(0.4)
+                }
+            }
+            Color.clear.frame(height: 8)
+        }
+        .background(KlicColor.surface, in: RoundedRectangle(cornerRadius: 20))
+    }
+
+    private func groupTitle(_ group: Conversation) -> String {
+        if let title = group.title?.trimmingCharacters(in: .whitespaces), !title.isEmpty {
+            return title
+        }
+        let members = group.members.map(\.displayName).joined(separator: ", ")
+        return members.isEmpty ? "Group" : members
+    }
+
+    private func memberCountText(_ group: Conversation) -> String {
+        // The list payload's members exclude the current user — count them back in.
+        let count = group.members.count + 1
+        return count == 1 ? "1 member" : "\(count) members"
+    }
+
+    // MARK: Presence
 
     private var isOnline: Bool { socket.presence[userId]?.online == true }
 
