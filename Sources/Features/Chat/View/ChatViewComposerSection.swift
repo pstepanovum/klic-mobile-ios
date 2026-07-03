@@ -34,11 +34,13 @@ extension ChatView {
             onCancelRecording: { recorder.cancel() },
             onSendVoice: { Task { await stopAndSendVoice() } }
         )
-        // ONE Klic attachment sheet with Gallery | Files tabs (§10.11).
+        // ONE Klic attachment sheet with Gallery | Files tabs (§10.11/§11.2).
         .sheet(isPresented: $showAttachMenu) {
             KlicAttachmentSheet(
                 onSendAssets: { assets in
-                    Task { await stageAssets(assets) }
+                    // §11.2: bulk selection sends one message per item, in order,
+                    // through the upload-pill pipeline.
+                    Task { await sendAssetsAsMessages(assets) }
                 },
                 onOpenSystemPicker: { pendingAttach = .photos; deferAttachAction() },
                 onOpenCamera: { pendingAttach = .camera; deferAttachAction() },
@@ -87,7 +89,8 @@ extension ChatView {
             switch action {
             case .photos: showPhotos = true
             case .camera:
-                cameraMode = .photo
+                // §11.2: the attachment sheet's camera captures photo AND video.
+                cameraMode = .photoOrVideo
                 showCamera = true
             case .file: showFileImporter = true
             case .scan: showDocScanner = true

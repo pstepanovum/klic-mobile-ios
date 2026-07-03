@@ -23,19 +23,46 @@ extension ChatView {
     /// Live-Photo assets are flagged so the pre-send flow can show the LIVE pill (§10.9).
     func stageAssets(_ assets: [PHAsset]) async {
         for asset in assets {
-            if asset.mediaType == .video {
-                if let url = await Self.exportVideoURL(asset) {
-                    await stageVideo(url)
-                }
-            } else if asset.mediaType == .image {
-                if let image = await Self.requestFullImage(asset) {
-                    await stageImage(image)
-                    if asset.mediaSubtypes.contains(.photoLive), let last = pendingMedia.indices.last {
-                        pendingMedia[last].isLivePhoto = true
-                    }
-                }
+            if let draft = await makeAssetDraft(asset) {
+                pendingMedia.append(draft)
             }
         }
+    }
+
+    /// §11.2 bulk send from the attachment sheet's "Send N" pill: every selected
+    /// asset becomes its OWN message, sent through the upload-pill pipeline in the
+    /// exact pick order (pills appear immediately; uploads run sequentially so the
+    /// messages land in order).
+    @MainActor
+    func sendAssetsAsMessages(_ assets: [PHAsset]) async {
+        var uploadIds: [UUID] = []
+        for asset in assets {
+            guard let draft = await makeAssetDraft(asset) else { continue }
+            let upload = OutgoingUpload(items: [draft], caption: "", replyToId: nil)
+            outgoingUploads.append(upload)
+            uploadIds.append(upload.id)
+        }
+        guard !uploadIds.isEmpty else { return }
+        scrollToBottom()
+        for id in uploadIds {
+            await performUpload(id)
+        }
+    }
+
+    /// One PHAsset → a ready-to-send draft (image or exported video).
+    @MainActor
+    private func makeAssetDraft(_ asset: PHAsset) async -> PendingMediaDraft? {
+        if asset.mediaType == .video {
+            guard let url = await Self.exportVideoURL(asset) else { return nil }
+            return await makeVideoDraft(url)
+        }
+        if asset.mediaType == .image {
+            guard let image = await Self.requestFullImage(asset) else { return nil }
+            var draft = makeImageDraft(image)
+            if asset.mediaSubtypes.contains(.photoLive) { draft?.isLivePhoto = true }
+            return draft
+        }
+        return nil
     }
 
     private static func requestFullImage(_ asset: PHAsset) async -> UIImage? {
@@ -75,26 +102,38 @@ extension ChatView {
 
     @MainActor
     func stageImage(_ image: UIImage) async {
-        // Upload quality (§8.3): HD keeps more pixels + lighter compression.
-        let quality = UploadQuality.current
-        guard let (data, w, h) = Media.encodeImage(
-            image, maxDimension: quality.imageMaxDimension, quality: quality.imageJpegQuality
-        ) else { return }
-        pendingMedia.append(
-            PendingMediaDraft(
-                kind: "IMAGE",
-                contentType: "image/jpeg",
-                data: data,
-                previewImage: image,
-                width: w,
-                height: h
-            )
-        )
+        if let draft = makeImageDraft(image) {
+            pendingMedia.append(draft)
+        }
     }
 
     @MainActor
     func stageVideo(_ url: URL) async {
-        guard let data = try? Data(contentsOf: url) else { return }
+        if let draft = await makeVideoDraft(url) {
+            pendingMedia.append(draft)
+        }
+    }
+
+    @MainActor
+    func makeImageDraft(_ image: UIImage) -> PendingMediaDraft? {
+        // Upload quality (§8.3): HD keeps more pixels + lighter compression.
+        let quality = UploadQuality.current
+        guard let (data, w, h) = Media.encodeImage(
+            image, maxDimension: quality.imageMaxDimension, quality: quality.imageJpegQuality
+        ) else { return nil }
+        return PendingMediaDraft(
+            kind: "IMAGE",
+            contentType: "image/jpeg",
+            data: data,
+            previewImage: image,
+            width: w,
+            height: h
+        )
+    }
+
+    @MainActor
+    func makeVideoDraft(_ url: URL) async -> PendingMediaDraft? {
+        guard let data = try? Data(contentsOf: url) else { return nil }
         let asset = AVURLAsset(url: url)
         var durationMs = 0
         if let duration = try? await asset.load(.duration) {
@@ -107,18 +146,16 @@ extension ChatView {
             width = Int(abs(naturalSize.width))
             height = Int(abs(naturalSize.height))
         }
-        guard let previewImage = videoThumbnail(for: asset) else { return }
-        pendingMedia.append(
-            PendingMediaDraft(
-                kind: "VIDEO",
-                contentType: Media.mime(for: url, fallback: "video/quicktime"),
-                data: data,
-                previewImage: previewImage,
-                width: width,
-                height: height,
-                durationMs: durationMs,
-                fileName: url.lastPathComponent
-            )
+        guard let previewImage = videoThumbnail(for: asset) else { return nil }
+        return PendingMediaDraft(
+            kind: "VIDEO",
+            contentType: Media.mime(for: url, fallback: "video/quicktime"),
+            data: data,
+            previewImage: previewImage,
+            width: width,
+            height: height,
+            durationMs: durationMs,
+            fileName: url.lastPathComponent
         )
     }
 
