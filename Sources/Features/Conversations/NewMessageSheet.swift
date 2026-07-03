@@ -359,6 +359,8 @@ private struct NewGroupDetailsView: View {
     @State private var groupName = ""
     @State private var pickedItem: PhotosPickerItem?
     @State private var groupImage: UIImage?
+    /// §11.5: raw pick → adjust step (rounded-square mask) → groupImage.
+    @State private var adjustingImage: UIImage?
     @State private var showPhotoOptions = false
     @State private var showCamera = false
     @State private var showPhotoPicker = false
@@ -417,7 +419,17 @@ private struct NewGroupDetailsView: View {
                 guard let item,
                       let data = try? await item.loadTransferable(type: Data.self),
                       let img = UIImage(data: data) else { return }
-                groupImage = img
+                adjustingImage = img
+                pickedItem = nil
+            }
+        }
+        // §11.5: adjust inside a rounded-square mask before the cover is used.
+        .fullScreenCover(item: Binding(
+            get: { adjustingImage.map(GroupCoverAdjustBox.init) },
+            set: { adjustingImage = $0?.image }
+        )) { box in
+            KlicImageAdjustSheet(image: box.image, mask: .roundedSquare) { cropped in
+                groupImage = cropped
             }
         }
         .enableInjection()
@@ -533,4 +545,10 @@ private struct CameraPickerView: UIViewControllerRepresentable {
             parent.dismiss()
         }
     }
+}
+
+/// Identifiable wrapper so the §11.5 adjust step can present from an optional UIImage.
+private struct GroupCoverAdjustBox: Identifiable {
+    let image: UIImage
+    var id: ObjectIdentifier { ObjectIdentifier(image) }
 }

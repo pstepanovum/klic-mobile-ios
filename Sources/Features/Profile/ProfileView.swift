@@ -57,6 +57,15 @@ struct ProfileView: View {
                         .font(KlicFont.headline(24))
                         .foregroundStyle(KlicColor.textPrimary)
                     CopyableUsername(username: username)
+                    // §11.5: the friend's About line, when they share it with us.
+                    if let aboutText = profile?.about?.trimmingCharacters(in: .whitespacesAndNewlines),
+                       !aboutText.isEmpty {
+                        Text(aboutText)
+                            .font(KlicFont.body(14))
+                            .foregroundStyle(KlicColor.textMuted)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal, 16)
+                    }
                     if let presence = presenceText {
                         Text(presence)
                             .font(KlicFont.caption())
@@ -89,6 +98,11 @@ struct ProfileView: View {
                     .padding(.top, 12)
 
                     ChatNotificationsCard(conversationId: chatId, isGroup: false)
+                }
+
+                // §11.5: the friend's shared links (subject to their visibility).
+                if let shared = profile?.links, !shared.isEmpty {
+                    linksCard(shared)
                 }
 
                 if !groupsInCommon.isEmpty {
@@ -148,6 +162,49 @@ struct ProfileView: View {
             Task { await blockUser() }
         }
         .enableInjection()
+    }
+
+    // MARK: Links (§11.5)
+
+    private func linksCard(_ shared: [String]) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text("Links")
+                .font(KlicFont.headline(17))
+                .foregroundStyle(KlicColor.textPrimary)
+                .padding(.horizontal, 18)
+                .padding(.top, 16)
+                .padding(.bottom, 6)
+
+            ForEach(Array(shared.enumerated()), id: \.offset) { index, link in
+                Button {
+                    if let url = URL(string: link) { LinkOpener.open(url) }
+                } label: {
+                    HStack(spacing: 12) {
+                        Image(systemName: "link")
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundStyle(KlicColor.primary)
+                        Text(link)
+                            .font(KlicFont.body(14))
+                            .foregroundStyle(KlicColor.textPrimary)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                        Spacer()
+                        Image(systemName: "arrow.up.right")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(KlicColor.textMuted)
+                    }
+                    .padding(.horizontal, 18)
+                    .padding(.vertical, 11)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                if index < shared.count - 1 {
+                    Divider().padding(.leading, 44).opacity(0.4)
+                }
+            }
+            Color.clear.frame(height: 8)
+        }
+        .background(KlicColor.surface, in: RoundedRectangle(cornerRadius: 20))
     }
 
     // MARK: Groups in common (§9.6)
