@@ -33,6 +33,8 @@ struct ProfileView: View {
     @State private var showBlockConfirm = false
     @State private var blocking = false
     @State private var blockError: String?
+    // Report flow (§12.1).
+    @State private var reportTarget: ReportTarget?
 
     private var effectiveConversationId: String? { conversationId ?? resolvedConversationId }
 
@@ -121,6 +123,15 @@ struct ProfileView: View {
                 .disabled(blocking)
                 .padding(.top, 8)
 
+                // Report (§12.1): category → details → submit, with a block shortcut.
+                PillButton(
+                    title: String(localized: "Report User"),
+                    fill: KlicColor.surface,
+                    textColor: KlicColor.danger
+                ) {
+                    reportTarget = .user(id: userId, username: username, displayName: displayName)
+                }
+
                 if let blockError {
                     Text(blockError)
                         .font(KlicFont.caption())
@@ -161,6 +172,7 @@ struct ProfileView: View {
         ) { _ in
             Task { await blockUser() }
         }
+        .reportSheet(target: $reportTarget)
         .enableInjection()
     }
 

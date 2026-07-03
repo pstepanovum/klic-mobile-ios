@@ -86,6 +86,7 @@ struct StarIndicator: View {
 /// a caption the grid stands alone with a dark translucent time/ticks pill overlaid
 /// bottom-right on the media.
 private struct MediaMessageCard: View {
+    @ObservedObject private var chatTheme = ChatThemeStore.shared
     let media: [Attachment]
     let caption: String
     let isMine: Bool
@@ -147,7 +148,7 @@ private struct MediaMessageCard: View {
             }
             .frame(width: mediaWidth)
             .background(
-                isMine ? KlicColor.primary : KlicColor.surfaceRaised,
+                isMine ? chatTheme.bubbleColor : KlicColor.surfaceRaised,
                 in: RoundedRectangle(cornerRadius: cardRadius)
             )
         }
@@ -385,6 +386,7 @@ private struct MediaTile: View {
 // MARK: - Voice
 
 private struct VoiceAttachmentView: View {
+    @ObservedObject private var chatTheme = ChatThemeStore.shared
     let attachment: Attachment
     let isMine: Bool
     var time: String? = nil
@@ -439,7 +441,7 @@ private struct VoiceAttachmentView: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
-        .background(isMine ? KlicColor.primary : KlicColor.surfaceRaised, in: RoundedRectangle(cornerRadius: 18))
+        .background(isMine ? chatTheme.bubbleColor : KlicColor.surfaceRaised, in: RoundedRectangle(cornerRadius: 18))
         .onAppear {
             // Auto-download matrix (§8.3): pre-cache voice notes when allowed on this network.
             if AutoDownloadPrefs.allowedNow(.audio), !AttachmentFileStore.shared.isCached(attachment) {
@@ -468,6 +470,7 @@ private struct VoiceAttachmentView: View {
 /// fall back to a share sheet with the LOCAL file only — the presigned https URL is
 /// never handed to a browser or another app.
 private struct FileAttachmentView: View {
+    @ObservedObject private var chatTheme = ChatThemeStore.shared
     let attachment: Attachment
     let isMine: Bool
     var time: String? = nil
@@ -571,7 +574,7 @@ private struct FileAttachmentView: View {
             .padding(.bottom, 9)
         }
         .frame(width: 240)
-        .background(isMine ? KlicColor.primary : KlicColor.surfaceRaised, in: RoundedRectangle(cornerRadius: 18))
+        .background(isMine ? chatTheme.bubbleColor : KlicColor.surfaceRaised, in: RoundedRectangle(cornerRadius: 18))
     }
 
     private func pdfPreviewHeight(_ image: UIImage) -> CGFloat {
@@ -619,7 +622,7 @@ private struct FileAttachmentView: View {
             }
             .padding(12)
             .frame(maxWidth: 240, alignment: .leading)
-            .background(isMine ? KlicColor.primary : KlicColor.surfaceRaised, in: RoundedRectangle(cornerRadius: 16))
+            .background(isMine ? chatTheme.bubbleColor : KlicColor.surfaceRaised, in: RoundedRectangle(cornerRadius: 16))
     }
 
     /// Render (or reuse) the PDF's first page, cached by attachment id (§10.10).

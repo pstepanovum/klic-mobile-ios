@@ -5,6 +5,8 @@ struct SettingsView: View {
     @ObserveInjection var inject
     @EnvironmentObject var session: AppSession
     @EnvironmentObject var themeManager: ThemeManager
+    /// §12.1: Settings → "Report a problem" opens the target-less report flow.
+    @State private var reportTarget: ReportTarget?
 
     var body: some View {
         NavigationStack {
@@ -83,6 +85,14 @@ struct SettingsView: View {
                 SettingsRow(icon: "sun.max", title: String(localized: "Appearance"))
             }
             .buttonStyle(.plain)
+
+            Divider().padding(.leading, 64).opacity(0.4)
+
+            // Chat theme (§12.3): pattern, gradient, bubble color — all chats.
+            NavigationLink { ChatThemeView() } label: {
+                SettingsRow(icon: "paintbrush", title: String(localized: "Chat theme"))
+            }
+            .buttonStyle(.plain)
         }
         .background(KlicColor.surface, in: RoundedRectangle(cornerRadius: 20))
     }
@@ -150,8 +160,17 @@ struct SettingsView: View {
                 SettingsRow(icon: "globe", title: String(localized: "Language"))
             }
             .buttonStyle(.plain)
+
+            Divider().padding(.leading, 64).opacity(0.4)
+
+            // Report a problem (§12.1) — the same report flow, with no target.
+            Button { reportTarget = .problem } label: {
+                SettingsRow(icon: "exclamationmark.bubble", title: String(localized: "Report a problem"))
+            }
+            .buttonStyle(.plain)
         }
         .background(KlicColor.surface, in: RoundedRectangle(cornerRadius: 20))
+        .reportSheet(target: $reportTarget)
     }
 }
 
@@ -164,24 +183,28 @@ private struct AppearanceView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 16) {
-                // Chat Themes — placeholder, not yet implemented
+                // Chat theme (§12.3)
                 VStack(spacing: 0) {
-                    HStack(spacing: 14) {
-                        Image(systemName: "paintbrush")
-                            .font(.system(size: 16, weight: .medium))
-                            .foregroundStyle(KlicColor.primary)
-                            .frame(width: 32, height: 32)
-                            .background(KlicColor.primary.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
-                        Text("Chat Themes")
-                            .font(KlicFont.body())
-                            .foregroundStyle(KlicColor.textMuted)
-                        Spacer()
-                        Image(systemName: "chevron.right")
-                            .font(.system(size: 13, weight: .semibold))
-                            .foregroundStyle(KlicColor.textMuted.opacity(0.4))
+                    NavigationLink { ChatThemeView() } label: {
+                        HStack(spacing: 14) {
+                            Image(systemName: "paintbrush")
+                                .font(.system(size: 16, weight: .medium))
+                                .foregroundStyle(KlicColor.primary)
+                                .frame(width: 32, height: 32)
+                                .background(KlicColor.primary.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
+                            Text("Chat theme")
+                                .font(KlicFont.body())
+                                .foregroundStyle(KlicColor.textPrimary)
+                            Spacer()
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundStyle(KlicColor.textMuted)
+                        }
+                        .padding(.horizontal, 18)
+                        .padding(.vertical, 14)
+                        .contentShape(Rectangle())
                     }
-                    .padding(.horizontal, 18)
-                    .padding(.vertical, 14)
+                    .buttonStyle(.plain)
                 }
                 .background(KlicColor.surface, in: RoundedRectangle(cornerRadius: 20))
 

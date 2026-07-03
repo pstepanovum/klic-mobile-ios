@@ -67,6 +67,8 @@ private struct GroupInfoContent: View {
     @State private var memberActionTarget: GroupConversationDetails.Member?
     @State private var removeConfirmTarget: GroupConversationDetails.Member?
     @State private var removingMemberIds: Set<String> = []
+    // Report a member (§12.1).
+    @State private var reportTarget: ReportTarget?
 
     private var resolvedDetails: GroupConversationDetails? { details ?? initialDetails }
     private var resolvedTitle: String { resolvedDetails?.title?.trimmingCharacters(in: .whitespaces).isEmpty == false ? (resolvedDetails?.title ?? fallbackTitle) : fallbackTitle }
@@ -224,7 +226,8 @@ private struct GroupInfoContent: View {
         ) { _ in
             Task { await deleteGroup() }
         }
-        // Member sheet: profile for everyone; admins also get "Remove from group" (§9.3).
+        // Member sheet: profile + report for everyone (§12.1); admins also get
+        // "Remove from group" (§9.3).
         .klicSelectionSheet(
             isPresented: Binding(
                 get: { memberActionTarget != nil },
@@ -232,16 +235,18 @@ private struct GroupInfoContent: View {
             ),
             title: memberActionTarget?.displayName ?? "Member",
             message: memberActionTarget.map { "@\($0.username)" },
-            options: [
-                KlicSheetOption(id: "profile", label: String(localized: "View profile")),
-                KlicSheetOption(id: "remove", label: String(localized: "Remove from group"), isDestructive: true),
-            ]
+            options: memberActionOptions
         ) { option in
             guard let member = memberActionTarget else { return }
             memberActionTarget = nil
             switch option.id {
             case "profile":
                 openProfile(member)
+            case "report":
+                // Chain the report sheet after this one fully dismisses.
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+                    reportTarget = .user(id: member.id, username: member.username, displayName: member.displayName)
+                }
             case "remove":
                 // Chain the confirm sheet after this one fully dismisses.
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
@@ -251,6 +256,7 @@ private struct GroupInfoContent: View {
                 break
             }
         }
+        .reportSheet(target: $reportTarget)
         .klicSelectionSheet(
             isPresented: Binding(
                 get: { removeConfirmTarget != nil },
@@ -451,12 +457,25 @@ private struct GroupInfoContent: View {
         isAdmin && !member.isMe && member.id != resolvedDetails?.createdById
     }
 
+    /// The member action sheet's options: profile + report for any other member
+    /// (§12.1), plus the admin-only remove (§9.3).
+    private var memberActionOptions: [KlicSheetOption] {
+        var options = [
+            KlicSheetOption(id: "profile", label: String(localized: "View profile")),
+            KlicSheetOption(id: "report", label: String(localized: "Report")),
+        ]
+        if let member = memberActionTarget, canRemove(member) {
+            options.append(KlicSheetOption(id: "remove", label: String(localized: "Remove from group"), isDestructive: true))
+        }
+        return options
+    }
+
     private func memberRow(_ member: GroupConversationDetails.Member) -> some View {
         Button {
-            if canRemove(member) {
-                memberActionTarget = member
-            } else {
+            if member.isMe {
                 openProfile(member)
+            } else {
+                memberActionTarget = member
             }
         } label: {
             HStack(spacing: 12) {

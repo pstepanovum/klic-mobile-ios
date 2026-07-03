@@ -4,6 +4,9 @@ import SwiftUI
 /// button. The row itself has no background — the controls float on the chat; only the
 /// individual controls (pill, buttons) carry their own fill.
 struct MessageComposer: View {
+    // §12.3: the send/record buttons follow the chat theme's bubble accent.
+    @ObservedObject var chatTheme = ChatThemeStore.shared
+
     enum CaptureMode {
         case audio
         case video
@@ -83,7 +86,7 @@ struct MessageComposer: View {
                     .font(.system(size: 18, weight: .semibold))
                     .foregroundStyle(KlicColor.onPrimary)
                     .frame(width: 44, height: 44)
-                    .background(KlicColor.primary, in: Circle())
+                    .background(chatTheme.bubbleColor, in: Circle())
             }
             .disabled(uploading)
         } else {
@@ -114,7 +117,7 @@ struct MessageComposer: View {
                     .font(.system(size: 18, weight: .semibold))
                     .foregroundStyle(KlicColor.onPrimary)
                     .frame(width: 44, height: 44)
-                    .background(KlicColor.primary, in: Circle())
+                    .background(chatTheme.bubbleColor, in: Circle())
             }
         }
     }
@@ -126,6 +129,7 @@ struct MessageComposer: View {
 }
 
 private struct CaptureRecordButton: View {
+    @ObservedObject private var chatTheme = ChatThemeStore.shared
     let iconName: String
     let onTap: () -> Void
     let onHoldStart: () -> Void
@@ -138,7 +142,7 @@ private struct CaptureRecordButton: View {
             .font(.system(size: 18, weight: .semibold))
             .foregroundStyle(KlicColor.onPrimary)
             .frame(width: 44, height: 44)
-            .background(KlicColor.primary, in: Circle())
+            .background(chatTheme.bubbleColor, in: Circle())
             .scaleEffect(isHolding ? 1.08 : 1)
             .contentShape(Circle())
             .simultaneousGesture(
