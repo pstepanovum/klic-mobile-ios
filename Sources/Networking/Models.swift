@@ -18,6 +18,45 @@ struct User: Codable, Identifiable, Hashable {
     var statusVisibility: String?
     var silenceUnknownCallers: Bool?
     var readReceipts: Bool?
+    // §12.2 email linking (additive on GET /me; absent on older servers).
+    var email: String?
+    var emailVerified: Bool?
+}
+
+/// POST /reports response (§12.1).
+struct CreatedReport: Decodable {
+    let id: String
+}
+
+/// §12.1 report categories — raw values match the server enum exactly.
+enum ReportCategory: String, CaseIterable, Identifiable {
+    case spam = "SPAM"
+    case harassment = "HARASSMENT"
+    case hateSpeech = "HATE_SPEECH"
+    case violence = "VIOLENCE"
+    case sexualContent = "SEXUAL_CONTENT"
+    case childSafety = "CHILD_SAFETY"
+    case scamFraud = "SCAM_FRAUD"
+    case impersonation = "IMPERSONATION"
+    case illegalActivity = "ILLEGAL_ACTIVITY"
+    case other = "OTHER"
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .spam:            return String(localized: "Spam")
+        case .harassment:      return String(localized: "Harassment or bullying")
+        case .hateSpeech:      return String(localized: "Hate speech")
+        case .violence:        return String(localized: "Violence or threats")
+        case .sexualContent:   return String(localized: "Sexual content")
+        case .childSafety:     return String(localized: "Child safety")
+        case .scamFraud:       return String(localized: "Scam or fraud")
+        case .impersonation:   return String(localized: "Impersonation")
+        case .illegalActivity: return String(localized: "Illegal activity")
+        case .other:           return String(localized: "Something else")
+        }
+    }
 }
 
 /// A friend's profile (GET /users/:id). `lastSeenAt`/`online` are nil when hidden by privacy.
