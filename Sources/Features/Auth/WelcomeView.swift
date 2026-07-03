@@ -14,7 +14,7 @@ struct WelcomeView: View {
     /// pinned to a flat point value.
     private static let ornamentReferenceDimension: CGFloat = 844
     private static let ornamentShiftX: CGFloat = 200
-    private static let ornamentShiftY: CGFloat = -150
+    private static let ornamentShiftY: CGFloat = -80
     /// Fixed render size Lottie draws the mask at before it's blown up via
     /// `.scaleEffect`. Growing the ornament by pumping the LottieView's own
     /// `.frame()` doesn't work — lottie-ios's SwiftUI wrapper silently stops
