@@ -11,8 +11,8 @@ signaling, and to LiveKit for audio/video media.
 
 ```bash
 brew install xcodegen
-xcodegen generate          # creates Klic.xcodeproj from project.yml (resolves SPM deps)
-open Klic.xcodeproj
+xcodegen generate          # creates Klic.xcodeproj, then runs `pod install`
+open Klic.xcworkspace      # CocoaPods workspace required for LibSignalClient
 ```
 
 By default the app points at the **live server** `https://api.89.34.230.2.sslip.io` (TLS), with
