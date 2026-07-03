@@ -68,19 +68,15 @@
         <string>INStartVideoCallIntent</string>
     </array>
 
+    <!-- Portrait-only: the app's layout (auth flow included) is authored for a
+         fixed portrait canvas and deliberately doesn't reflow for rotation. -->
     <key>UISupportedInterfaceOrientations</key>
     <array>
         <string>UIInterfaceOrientationPortrait</string>
-        <string>UIInterfaceOrientationPortraitUpsideDown</string>
-        <string>UIInterfaceOrientationLandscapeLeft</string>
-        <string>UIInterfaceOrientationLandscapeRight</string>
     </array>
     <key>UISupportedInterfaceOrientations~ipad</key>
     <array>
         <string>UIInterfaceOrientationPortrait</string>
-        <string>UIInterfaceOrientationPortraitUpsideDown</string>
-        <string>UIInterfaceOrientationLandscapeLeft</string>
-        <string>UIInterfaceOrientationLandscapeRight</string>
     </array>
 
     <!-- Custom fonts (curated TikTok Sans subset) -->
