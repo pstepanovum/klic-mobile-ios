@@ -112,6 +112,9 @@ struct EditProfileView: View {
                     }
                 }
 
+                // Email + Google verification (§12.2).
+                AccountEmailCard()
+
                 aboutCard
                 linksCard
 

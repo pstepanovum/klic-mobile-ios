@@ -27,6 +27,13 @@
         <string>ru</string>
         <string>zh-Hans</string>
     </array>
+    <!-- Google sign-in for email linking (§12.2). The iOS OAuth client id does not
+         exist yet — the app degrades gracefully while this stays empty. Once the
+         Firebase iOS app (bundle com.klic.mobile.app) exists, put its client id here
+         AND add the reversed client id (com.googleusercontent.apps.…) as a
+         CFBundleURLTypes URL scheme. -->
+    <key>GIDClientID</key>
+    <string></string>
     <key>UIApplicationSceneManifest</key>
     <dict>
         <key>UIApplicationSupportsMultipleScenes</key>

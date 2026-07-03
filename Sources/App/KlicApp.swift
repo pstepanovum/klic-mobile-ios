@@ -1,6 +1,7 @@
 import SwiftUI
 import UserNotifications
 import Intents
+import GoogleSignIn
 
 @main
 struct KlicApp: App {
@@ -44,6 +45,10 @@ struct KlicApp: App {
                 }
                 .onContinueUserActivity("INStartVideoCallIntent") { activity in
                     CallIntents.startCall(from: activity)
+                }
+                // Google sign-in callback for email linking (§12.2).
+                .onOpenURL { url in
+                    _ = GIDSignIn.sharedInstance.handle(url)
                 }
         }
     }
