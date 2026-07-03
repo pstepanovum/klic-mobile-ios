@@ -296,13 +296,23 @@ actor APIClient {
 
     // MARK: Profile
 
-    /// Update the current user's profile. `username` is immutable server-side.
+    /// The current user's own profile (selfUser — includes §11.5 about/links and the
+    /// §11.6 privacy fields on newer servers).
+    func me() async throws -> User { try await get("/me") }
+
+    /// Update the current user's profile (PATCH /me).
     func updateProfile(displayName: String? = nil, showLastSeen: Bool? = nil, avatarKey: String?? = nil) async throws -> User {
         var body: [String: Any] = [:]
         if let displayName { body["displayName"] = displayName }
         if let showLastSeen { body["showLastSeen"] = showLastSeen }
         if let avatarKey { body["avatarKey"] = avatarKey ?? NSNull() }  // nil-wrapped clears it
         return try await patch("/me", body: body)
+    }
+
+    /// Generic PATCH /me for the §11.4–§11.6 fields (username, about, links,
+    /// visibility enums, silenceUnknownCallers, readReceipts). Returns selfUser.
+    func updateMe(_ fields: [String: Any]) async throws -> User {
+        try await patch("/me", body: fields)
     }
 
     /// Presign a PUT for a new avatar; upload the bytes via `uploadData`, then PATCH /me with the key.
