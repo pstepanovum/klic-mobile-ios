@@ -17,7 +17,7 @@ struct NotificationsSettingsView: View {
                 togglesCard
                 ringtoneCard
 
-                PillButton(title: "Reset notification settings", fill: KlicColor.surface, textColor: KlicColor.danger) {
+                PillButton(title: String(localized: "Reset notification settings"), fill: KlicColor.surface, textColor: KlicColor.danger) {
                     showResetConfirm = true
                 }
 
@@ -43,15 +43,15 @@ struct NotificationsSettingsView: View {
         }
         .klicSelectionSheet(
             isPresented: $showResetConfirm,
-            title: "Reset notification settings?",
-            message: "Turns every notification back on and restores the default tones.",
-            options: [KlicSheetOption(id: "reset", label: "Reset", isDestructive: true)]
+            title: String(localized: "Reset notification settings?"),
+            message: String(localized: "Turns every notification back on and restores the default tones."),
+            options: [KlicSheetOption(id: "reset", label: String(localized: "Reset"), isDestructive: true)]
         ) { _ in
             Task { await reset() }
         }
         .klicSelectionSheet(
             isPresented: $showRingtoneSheet,
-            title: "Ringtone",
+            title: String(localized: "Ringtone"),
             options: KlicTone.ringtones.map { KlicSheetOption(id: $0.id, label: $0.name) },
             selectedId: ringtone ?? "default",
             dismissOnSelect: false,

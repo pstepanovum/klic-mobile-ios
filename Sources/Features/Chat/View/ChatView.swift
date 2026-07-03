@@ -44,6 +44,8 @@ struct ChatView: View {
     @State var activeCallInfo: ActiveCallInfo?
     @ObservedObject var callKit = CallKitManager.shared
     @State var pendingMedia: [PendingMediaDraft] = []
+    /// The staged item currently open in the pre-send media editor (§10.9).
+    @State var editingDraft: PendingMediaDraft?
     /// Optimistic in-flight sends rendered as progress pills at the list's tail (§9.1).
     @State var outgoingUploads: [OutgoingUpload] = []
     @State var selectedMediaAttachmentId: String?
@@ -53,8 +55,10 @@ struct ChatView: View {
     @State var showMessageSearch = false
     @State var pendingSearchJump: String?
 
-    enum AttachAction { case photos, camera, file }
+    enum AttachAction { case photos, camera, file, scan }
     @State var pendingAttach: AttachAction?
+    /// VisionKit document camera (§10.11).
+    @State var showDocScanner = false
 
     var isDirect: Bool { conversation.type == "DIRECT" }
     var title: String {
@@ -105,7 +109,9 @@ struct ChatView: View {
                     reactions: message.reactions,
                     isMine: message.senderId == myId,
                     durationMs: attachment.durationMs,
-                    thumbnailURL: attachment.isImage ? attachment.url : nil
+                    thumbnailURL: attachment.isImage ? attachment.url : nil,
+                    starred: message.starred == true,
+                    attachment: attachment
                 )
             }
         }
@@ -129,12 +135,15 @@ struct ChatView: View {
                             items: pendingMedia,
                             onRemove: { id in
                                 pendingMedia.removeAll { $0.id == id }
+                            },
+                            onEdit: { id in
+                                editingDraft = pendingMedia.first { $0.id == id }
                             }
                         )
                     }
                     if let target = replyingTo {
                         ReplyComposerBar(
-                            authorName: target.senderId == myId ? "yourself" : title,
+                            authorName: target.senderId == myId ? String(localized: "yourself") : title,
                             preview: previewText(for: target),
                             onCancel: { withAnimation { replyingTo = nil } }
                         )
@@ -210,7 +219,7 @@ struct ChatView: View {
         }
         .klicSelectionSheet(
             isPresented: deleteDialogBinding,
-            title: "Delete message",
+            title: String(localized: "Delete message"),
             options: deleteOptions,
             onDismiss: { dismissMenu() }
         ) { option in
@@ -221,6 +230,10 @@ struct ChatView: View {
         }
         .task {
             hiddenIds = Self.loadHidden(conversation.id)
+            // Restore this chat's saved composer draft (§10.4).
+            if draft.isEmpty {
+                draft = ChatDrafts.load(conversation.id)
+            }
             await load()
             if !isDirect {
                 await loadGroupDetails()
@@ -230,7 +243,11 @@ struct ChatView: View {
             initialLoadDone = true
         }
         .onAppear { isComposerFocused = true }
-        .onDisappear { emitTyping(false) }
+        .onDisappear {
+            emitTyping(false)
+            // Persist unsent text as this chat's draft (§10.4).
+            ChatDrafts.save(conversation.id, text: draft)
+        }
         .onChange(of: draft) { _, value in emitTyping(!value.trimmingCharacters(in: .whitespaces).isEmpty) }
         // Keep the cached first page fresh so re-opening this chat paints instantly (§9.9).
         .onChange(of: messages) { _, value in
@@ -314,6 +331,14 @@ struct ChatView: View {
                 onInvite: { Task { await sendInvite(to: member) } }
             )
         }
+        // Pre-send media editor (§10.9).
+        .fullScreenCover(item: $editingDraft) { target in
+            MediaEditorView(draft: target, caption: $draft) { updated in
+                if let idx = pendingMedia.firstIndex(where: { $0.id == target.id }) {
+                    pendingMedia[idx] = updated
+                }
+            }
+        }
         .fullScreenCover(isPresented: mediaViewerPresented) {
             if let selectedMediaAttachmentId {
                 MediaViewer(
@@ -331,6 +356,15 @@ struct ChatView: View {
                     onDeleteEveryone: { messageId in
                         guard let message = messages.first(where: { $0.id == messageId }) else { return }
                         Task { await deleteEveryone(message) }
+                    },
+                    onToggleStar: { messageId in
+                        guard let message = messages.first(where: { $0.id == messageId }) else { return }
+                        Task { await toggleStar(message) }
+                    },
+                    onReply: { messageId in
+                        guard let message = messages.first(where: { $0.id == messageId }) else { return }
+                        replyingTo = message
+                        isComposerFocused = true
                     }
                 )
             }
@@ -343,9 +377,9 @@ struct ChatView: View {
     }
 
     private var deleteOptions: [KlicSheetOption] {
-        var options = [KlicSheetOption(id: "me", label: "Delete for me", isDestructive: true)]
+        var options = [KlicSheetOption(id: "me", label: String(localized: "Delete for me"), isDestructive: true)]
         if deleteTarget?.senderId == myId {
-            options.append(KlicSheetOption(id: "everyone", label: "Delete for everyone", isDestructive: true))
+            options.append(KlicSheetOption(id: "everyone", label: String(localized: "Delete for everyone"), isDestructive: true))
         }
         return options
     }
@@ -385,7 +419,7 @@ private struct JoinCallBanner: View {
                 Text("Ongoing call")
                     .font(KlicFont.headline(14))
                     .foregroundStyle(KlicColor.onPrimary)
-                Text(info.joinedCount == 1 ? "1 person in the call" : "\(info.joinedCount) people in the call")
+                Text(info.joinedCount == 1 ? String(localized: "1 person in the call") : String(localized: "\(info.joinedCount) people in the call"))
                     .font(KlicFont.caption(12))
                     .foregroundStyle(KlicColor.onPrimary.opacity(0.85))
             }

@@ -15,6 +15,12 @@ struct ChatMediaGalleryItem: Identifiable, Hashable {
     let isMine: Bool
     let durationMs: Int?
     let thumbnailURL: String?
+    /// Whether *I* starred the containing message (§10.9 star toggle/indicator).
+    var starred: Bool = false
+    /// Live-Photo motion metadata — known only for locally-picked assets (§10.9).
+    var isLivePhoto: Bool = false
+    /// The full attachment payload, needed for Forward's re-upload (§10.9).
+    var attachment: Attachment? = nil
 }
 
 enum Media {
@@ -63,6 +69,29 @@ enum Media {
 
     static func mime(for url: URL, fallback: String) -> String {
         UTType(filenameExtension: url.pathExtension)?.preferredMIMEType ?? fallback
+    }
+
+    /// Forward an existing attachment to other chats (§10.9): download the bytes once
+    /// (or reuse the cached file), then upload + send per target conversation.
+    static func forwardAttachment(_ attachment: Attachment, to conversationIds: [String]) async throws {
+        let local = try await AttachmentFileStore.shared.download(attachment)
+        let data = try Data(contentsOf: local)
+        for conversationId in conversationIds {
+            let draft = try await upload(
+                conversationId: conversationId,
+                kind: attachment.kind,
+                contentType: attachment.contentType,
+                data: data,
+                width: attachment.width,
+                height: attachment.height,
+                durationMs: attachment.durationMs,
+                fileName: attachment.fileName
+            )
+            _ = try await APIClient.shared.sendMessage(
+                conversationId: conversationId, body: nil, attachments: [draft], replyToId: nil
+            )
+            await MainActor.run { FrequentContacts.recordSend(conversationId: conversationId) }
+        }
     }
 }
 

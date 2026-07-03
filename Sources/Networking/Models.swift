@@ -27,8 +27,8 @@ struct AuthResponse: Codable {
 struct Conversation: Codable, Identifiable, Hashable {
     let id: String
     let type: String
-    let title: String?
-    let description: String?
+    var title: String?
+    var description: String?
     var avatarUrl: String?
     let createdById: String?
     let members: [Member]
@@ -313,6 +313,23 @@ struct ConversationAttachment: Codable, Identifiable, Hashable {
             width: width, height: height, durationMs: durationMs, waveform: nil, fileName: fileName
         )
     }
+}
+
+// MARK: - Privacy & Security (§10.4)
+
+/// One row from GET /blocks.
+struct BlockedUser: Codable, Identifiable {
+    let user: User
+    let blockedAt: String
+    var id: String { user.id }
+}
+
+/// One passkey from GET /me/passkeys.
+struct PasskeyCredentialInfo: Codable, Identifiable {
+    let id: String
+    var label: String?
+    var createdAt: String?
+    var lastUsedAt: String?
 }
 
 // MARK: - Uploads

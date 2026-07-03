@@ -6,6 +6,7 @@ struct RootView: View {
     @ObserveInjection var inject
     @EnvironmentObject var session: AppSession
     @StateObject private var callKit = CallKitManager.shared
+    @StateObject private var appLock = AppLockManager.shared
     @State private var didGetStarted = false
 
     /// Ask for mic + camera the moment the user is signed in — never mid-call. Asking when LiveKit
@@ -68,6 +69,15 @@ struct RootView: View {
                 MinimizedCallOverlay(call: call)
                     .transition(.scale(scale: 0.85).combined(with: .opacity))
                     .zIndex(1)
+            }
+
+            // App lock overlay (§10.4). Sits above the tabs but BELOW the call
+            // fullScreenCover — incoming CallKit call UI bypasses the lock (UI-only;
+            // call plumbing untouched).
+            if appLock.isLocked, session.isAuthenticated {
+                LockScreenView()
+                    .transition(.opacity)
+                    .zIndex(2)
             }
         }
         .animation(.spring(response: 0.3), value: callKit.callMinimized)

@@ -29,7 +29,8 @@ extension ChatView {
                 .padding(.leading, 4)
                 .padding(.trailing, 12)
                 .padding(.vertical, 4)
-                .background(.ultraThinMaterial, in: Capsule())
+                // Fixed theme surface (§10.8) — the pill must never adapt to the
+                // content scrolling behind it, in light or dark.
                 .background(KlicColor.surface, in: Capsule())
             }
             .buttonStyle(.plain)
@@ -73,7 +74,7 @@ extension ChatView {
                 .padding(.leading, 4)
                 .padding(.trailing, 12)
                 .padding(.vertical, 4)
-                .background(.ultraThinMaterial, in: Capsule())
+                // Fixed theme surface (§10.8) — never adapts to scrolled content.
                 .background(KlicColor.surface, in: Capsule())
             }
             .buttonStyle(.plain)
@@ -88,15 +89,15 @@ extension ChatView {
 
     var headerSubtitle: String? {
         if !isDirect {
-            return "\(memberCount) members"
+            return String(localized: "\(memberCount) members")
         }
         guard let id = conversation.members.first?.id else { return nil }
-        if socket.presence[id]?.online == true { return "Online" }
+        if socket.presence[id]?.online == true { return String(localized: "Online") }
         guard let date = socket.presence[id]?.lastSeen else { return nil }
         let cal = Calendar.current
         let f = DateFormatter()
-        if cal.isDateInToday(date) { f.dateFormat = "HH:mm"; return "last seen \(f.string(from: date))" }
-        if cal.isDateInYesterday(date) { return "last seen yesterday" }
-        f.dateFormat = "MMM d"; return "last seen \(f.string(from: date))"
+        if cal.isDateInToday(date) { f.dateFormat = "HH:mm"; return String(localized: "last seen \(f.string(from: date))") }
+        if cal.isDateInYesterday(date) { return String(localized: "last seen yesterday") }
+        f.dateFormat = "MMM d"; return String(localized: "last seen \(f.string(from: date))")
     }
 }

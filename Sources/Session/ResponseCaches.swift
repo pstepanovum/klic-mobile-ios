@@ -66,6 +66,15 @@ final class ConversationStore: ObservableObject {
         conversations.insert(convo, at: 0)
     }
 
+    /// Reflect a group's saved edits (title / description / cover) into the cached
+    /// list row so the Chats tab updates in place (§10.1).
+    func applyGroupDetails(_ details: GroupConversationDetails) {
+        guard let idx = conversations.firstIndex(where: { $0.id == details.id }) else { return }
+        conversations[idx].title = details.title
+        conversations[idx].description = details.description
+        conversations[idx].avatarUrl = details.avatarUrl
+    }
+
     /// Opening a chat clears its badge locally (the server clears it via message:read).
     func clearUnread(conversationId: String) {
         guard let idx = conversations.firstIndex(where: { $0.id == conversationId }) else { return }

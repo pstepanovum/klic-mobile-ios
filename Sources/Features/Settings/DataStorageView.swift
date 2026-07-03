@@ -144,23 +144,23 @@ struct DataStorageView: View {
         .task { await rescan() }
         .klicSelectionSheet(
             isPresented: $showClearConfirm,
-            title: "Clear entire cache?",
-            message: "Cached media will be re-downloaded when needed. Your messages are not affected.",
-            options: [KlicSheetOption(id: "clear", label: "Clear Entire Cache", isDestructive: true)]
+            title: String(localized: "Clear entire cache?"),
+            message: String(localized: "Cached media will be re-downloaded when needed. Your messages are not affected."),
+            options: [KlicSheetOption(id: "clear", label: String(localized: "Clear Entire Cache"), isDestructive: true)]
         ) { _ in
             Task { await clearAll() }
         }
         .klicSelectionSheet(
             isPresented: $showResetStats,
-            title: "Reset usage statistics?",
-            options: [KlicSheetOption(id: "reset", label: "Reset Statistics", isDestructive: true)]
+            title: String(localized: "Reset usage statistics?"),
+            options: [KlicSheetOption(id: "reset", label: String(localized: "Reset Statistics"), isDestructive: true)]
         ) { _ in
             DataUsageTracker.shared.reset()
             usage = DataUsageTracker.Snapshot(counters: [:])
         }
         .klicSelectionSheet(
             isPresented: $showQualitySheet,
-            title: "Upload Quality",
+            title: String(localized: "Upload Quality"),
             options: UploadQuality.allCases.map {
                 KlicSheetOption(id: $0.rawValue, label: $0.label, subtitle: $0.subtitle)
             },
@@ -213,7 +213,7 @@ struct DataStorageView: View {
                 Button {
                     showClearConfirm = true
                 } label: {
-                    Text(clearing ? "Clearing…" : "Clear Entire Cache")
+                    Text(clearing ? String(localized: "Clearing…") : String(localized: "Clear Entire Cache"))
                         .font(KlicFont.headline(15))
                         .foregroundStyle(KlicColor.danger)
                         .frame(maxWidth: .infinity)

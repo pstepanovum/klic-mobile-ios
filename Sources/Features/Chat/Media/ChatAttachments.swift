@@ -1,5 +1,6 @@
 import SwiftUI
 import QuickLook
+import PDFKit
 
 struct MessageAttachmentsView: View {
     let attachments: [Attachment]
@@ -484,8 +485,101 @@ private struct FileAttachmentView: View {
 
     private var downloadProgress: Double? { store.progress[attachment.id] }
 
+    /// §10.10: PDFs render their first page as the bubble preview when available.
+    @State private var pdfThumbnail: UIImage?
+
+    private var isPdf: Bool {
+        attachment.contentType == "application/pdf"
+            || (attachment.fileName ?? "").lowercased().hasSuffix(".pdf")
+    }
+
     var body: some View {
         Button(action: open) {
+            if let pdfThumbnail {
+                pdfCard(pdfThumbnail)
+            } else {
+                plainPill
+            }
+        }
+        .disabled(downloadProgress != nil)
+        .onAppear {
+            // Auto-download matrix (§8.3): pre-cache documents when allowed on this network.
+            if AutoDownloadPrefs.allowedNow(.documents), !store.isCached(attachment) {
+                Task { _ = try? await AttachmentFileStore.shared.download(attachment) }
+            }
+            if isPdf, pdfThumbnail == nil {
+                Task { await loadPdfThumbnail() }
+            }
+        }
+        .fullScreenCover(item: $previewFile) { file in
+            QuickLookPreview(url: file.url)
+                .ignoresSafeArea()
+        }
+        .sheet(item: $shareFile) { file in
+            ShareSheet(activityItems: [file.url])
+        }
+    }
+
+    /// Image-style pill for PDFs: first page on top, doc badge, filename + size footer.
+    private func pdfCard(_ thumbnail: UIImage) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Image(uiImage: thumbnail)
+                .resizable()
+                .scaledToFill()
+                .frame(width: 232, height: pdfPreviewHeight(thumbnail))
+                .clipShape(RoundedRectangle(cornerRadius: 14))
+                .overlay(alignment: .topLeading) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "doc.fill")
+                            .font(.system(size: 10, weight: .semibold))
+                        Text("PDF")
+                            .font(KlicFont.caption(10).weight(.semibold))
+                    }
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 7)
+                    .padding(.vertical, 3)
+                    .background(.black.opacity(0.55), in: Capsule())
+                    .padding(6)
+                }
+                .padding(4)
+
+            HStack(spacing: 8) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(attachment.fileName ?? "File")
+                        .font(KlicFont.body(14))
+                        .lineLimit(1)
+                        .foregroundStyle(isMine ? KlicColor.onPrimary : KlicColor.textPrimary)
+                    Text(ByteCountFormatter.string(fromByteCount: Int64(attachment.byteSize), countStyle: .file))
+                        .font(KlicFont.caption(11))
+                        .foregroundStyle(isMine ? KlicColor.onPrimary.opacity(0.8) : KlicColor.textMuted)
+                }
+                Spacer(minLength: 0)
+                if let time {
+                    HStack(spacing: 3) {
+                        if starred { StarIndicator(onPrimary: isMine) }
+                        Text(time)
+                            .font(KlicFont.caption(11))
+                            .foregroundStyle(isMine ? KlicColor.onPrimary.opacity(0.65) : KlicColor.textMuted)
+                        if isMine, let status {
+                            MessageTicks(status: status, onPrimary: isMine)
+                        }
+                    }
+                }
+            }
+            .padding(.horizontal, 10)
+            .padding(.top, 4)
+            .padding(.bottom, 9)
+        }
+        .frame(width: 240)
+        .background(isMine ? KlicColor.primary : KlicColor.surfaceRaised, in: RoundedRectangle(cornerRadius: 18))
+    }
+
+    private func pdfPreviewHeight(_ image: UIImage) -> CGFloat {
+        guard image.size.width > 0 else { return 160 }
+        return min(max(232 * image.size.height / image.size.width, 120), 300)
+    }
+
+    private var plainPill: some View {
             VStack(alignment: .trailing, spacing: 4) {
                 HStack(spacing: 10) {
                     ZStack {
@@ -526,26 +620,42 @@ private struct FileAttachmentView: View {
             .padding(12)
             .frame(maxWidth: 240, alignment: .leading)
             .background(isMine ? KlicColor.primary : KlicColor.surfaceRaised, in: RoundedRectangle(cornerRadius: 16))
+    }
+
+    /// Render (or reuse) the PDF's first page, cached by attachment id (§10.10).
+    /// Renders from the cached file when present; otherwise only downloads when the
+    /// auto-download matrix allows documents on this network. Any failure falls back
+    /// to the plain pill.
+    private func loadPdfThumbnail() async {
+        let key = "pdfthumb:\(attachment.id)"
+        if let cached = await RemoteImageStore.shared.renderedImage(forKey: key) {
+            pdfThumbnail = cached
+            return
         }
-        .disabled(downloadProgress != nil)
-        .onAppear {
-            // Auto-download matrix (§8.3): pre-cache documents when allowed on this network.
-            if AutoDownloadPrefs.allowedNow(.documents), !store.isCached(attachment) {
-                Task { _ = try? await AttachmentFileStore.shared.download(attachment) }
-            }
+        var local = AttachmentFileStore.shared.cachedURL(for: attachment)
+        if local == nil, AutoDownloadPrefs.allowedNow(.documents) {
+            local = try? await AttachmentFileStore.shared.download(attachment)
         }
-        .fullScreenCover(item: $previewFile) { file in
-            QuickLookPreview(url: file.url)
-                .ignoresSafeArea()
-        }
-        .sheet(item: $shareFile) { file in
-            ShareSheet(activityItems: [file.url])
-        }
+        guard let local, let rendered = Self.renderPdfFirstPage(local) else { return }
+        await RemoteImageStore.shared.storeRendered(rendered, forKey: key)
+        pdfThumbnail = rendered
+    }
+
+    private static func renderPdfFirstPage(_ url: URL) -> UIImage? {
+        guard let document = PDFDocument(url: url), let page = document.page(at: 0) else { return nil }
+        let bounds = page.bounds(for: .mediaBox)
+        guard bounds.width > 0, bounds.height > 0 else { return nil }
+        let targetWidth: CGFloat = 464   // 2x the 232pt slot
+        let size = CGSize(width: targetWidth, height: targetWidth * bounds.height / bounds.width)
+        return page.thumbnail(of: size, for: .mediaBox)
     }
 
     private func open() {
         Task {
             guard let local = try? await AttachmentFileStore.shared.download(attachment) else { return }
+            if isPdf, pdfThumbnail == nil {
+                await loadPdfThumbnail()
+            }
             if QLPreviewController.canPreview(local as NSURL) {
                 previewFile = LocalFile(url: local)
             } else {

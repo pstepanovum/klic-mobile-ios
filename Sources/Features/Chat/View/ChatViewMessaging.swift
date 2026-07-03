@@ -140,6 +140,7 @@ extension ChatView {
         if let msg = try? await APIClient.shared.send(conversationId: conversation.id, body: body, replyToId: replyId) {
             upsert(msg)
             scrollToBottom()
+            FrequentContacts.recordSend(conversationId: conversation.id)   // §10.4
         }
     }
 

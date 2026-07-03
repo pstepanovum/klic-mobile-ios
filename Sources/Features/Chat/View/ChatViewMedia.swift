@@ -1,5 +1,6 @@
 import SwiftUI
 import PhotosUI
+import Photos
 import AVFoundation
 
 /// Staging (preview-before-send) and uploading of photo/video/voice/file attachments.
@@ -14,6 +15,60 @@ extension ChatView {
             } else if let data = try? await item.loadTransferable(type: Data.self),
                       let image = UIImage(data: data) {
                 await stageImage(image)
+            }
+        }
+    }
+
+    /// Stage PHAssets picked from the attachment sheet's gallery grid (§10.11).
+    /// Live-Photo assets are flagged so the pre-send flow can show the LIVE pill (§10.9).
+    func stageAssets(_ assets: [PHAsset]) async {
+        for asset in assets {
+            if asset.mediaType == .video {
+                if let url = await Self.exportVideoURL(asset) {
+                    await stageVideo(url)
+                }
+            } else if asset.mediaType == .image {
+                if let image = await Self.requestFullImage(asset) {
+                    await stageImage(image)
+                    if asset.mediaSubtypes.contains(.photoLive), let last = pendingMedia.indices.last {
+                        pendingMedia[last].isLivePhoto = true
+                    }
+                }
+            }
+        }
+    }
+
+    private static func requestFullImage(_ asset: PHAsset) async -> UIImage? {
+        await withCheckedContinuation { continuation in
+            let options = PHImageRequestOptions()
+            options.deliveryMode = .highQualityFormat   // single callback
+            options.isNetworkAccessAllowed = true
+            PHImageManager.default().requestImage(
+                for: asset,
+                targetSize: PHImageManagerMaximumSize,
+                contentMode: .aspectFit,
+                options: options
+            ) { image, _ in
+                continuation.resume(returning: image)
+            }
+        }
+    }
+
+    private static func exportVideoURL(_ asset: PHAsset) async -> URL? {
+        await withCheckedContinuation { continuation in
+            let options = PHVideoRequestOptions()
+            options.deliveryMode = .automatic
+            options.isNetworkAccessAllowed = true
+            PHImageManager.default().requestAVAsset(forVideo: asset, options: options) { avAsset, _, _ in
+                guard let urlAsset = avAsset as? AVURLAsset else {
+                    continuation.resume(returning: nil)
+                    return
+                }
+                let ext = urlAsset.url.pathExtension.isEmpty ? "mov" : urlAsset.url.pathExtension
+                let copy = FileManager.default.temporaryDirectory
+                    .appendingPathComponent("vid-\(UUID().uuidString).\(ext)")
+                try? FileManager.default.copyItem(at: urlAsset.url, to: copy)
+                continuation.resume(returning: FileManager.default.fileExists(atPath: copy.path) ? copy : nil)
             }
         }
     }
@@ -176,6 +231,7 @@ extension ChatView {
             // and the bottom-anchored list keeps its scroll position.
             outgoingUploads.removeAll { $0.id == id }
             upsert(msg)
+            FrequentContacts.recordSend(conversationId: conversation.id)   // §10.4
             if atBottom { scrollToBottom(animated: false) }
         } catch {
             if let idx = outgoingUploads.firstIndex(where: { $0.id == id }) {

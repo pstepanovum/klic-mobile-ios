@@ -13,6 +13,9 @@ struct PendingMediaDraft: Identifiable, Equatable {
     var durationMs: Int?
     var waveform: Data?
     var fileName: String?
+    /// Live-Photo motion metadata — known only for assets picked via the gallery
+    /// grid (§10.9/§10.11); drives the "LIVE" pill in the pre-send flow.
+    var isLivePhoto: Bool = false
 }
 
 /// One optimistic in-flight attachment send (§9.1). Rendered as a message pill at the
@@ -33,6 +36,8 @@ struct OutgoingUpload: Identifiable {
 struct PendingMediaComposerBar: View {
     let items: [PendingMediaDraft]
     let onRemove: (UUID) -> Void
+    /// Opens the pre-send media editor (§10.9) for this staged item.
+    var onEdit: (UUID) -> Void = { _ in }
 
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
@@ -71,6 +76,34 @@ struct PendingMediaComposerBar: View {
                                 .background(.black.opacity(0.6), in: Circle())
                                 .padding(8)
                                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
+                        }
+
+                        if item.isLivePhoto {
+                            HStack(spacing: 2) {
+                                Image(systemName: "livephoto")
+                                    .font(.system(size: 8, weight: .semibold))
+                                Text("LIVE")
+                                    .font(KlicFont.caption(8).weight(.bold))
+                            }
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 5)
+                            .padding(.vertical, 2)
+                            .background(.black.opacity(0.55), in: Capsule())
+                            .padding(6)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                        }
+
+                        // Edit (pencil) → pre-send media editor (§10.9).
+                        if item.kind == "IMAGE" || item.kind == "VIDEO" {
+                            Button { onEdit(item.id) } label: {
+                                Image(systemName: "pencil")
+                                    .font(.system(size: 12, weight: .semibold))
+                                    .foregroundStyle(.white)
+                                    .frame(width: 24, height: 24)
+                                    .background(.black.opacity(0.6), in: Circle())
+                            }
+                            .padding(6)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
                         }
 
                         Button { onRemove(item.id) } label: {

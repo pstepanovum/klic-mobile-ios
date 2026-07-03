@@ -160,7 +160,7 @@ struct VideoEmbedSheet: View {
 
             Button {
                 dismiss()
-                openURL(originalURL)
+                LinkOpener.open(originalURL)   // honors "Open links in" (§10.4)
             } label: {
                 Text("Open in \(embed.platform)")
                     .font(KlicFont.body(14))

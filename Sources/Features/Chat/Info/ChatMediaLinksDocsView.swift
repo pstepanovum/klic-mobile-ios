@@ -111,7 +111,8 @@ struct ChatMediaLinksDocsView: View {
                 reactions: [],
                 isMine: false,
                 durationMs: attachment.durationMs,
-                thumbnailURL: attachment.kind == "IMAGE" ? attachment.url : nil
+                thumbnailURL: attachment.kind == "IMAGE" ? attachment.url : nil,
+                attachment: attachment.asAttachment
             )
         }
     }

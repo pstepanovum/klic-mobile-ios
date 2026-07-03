@@ -84,10 +84,10 @@ struct MessageActionsOverlay: View {
 
     private var actionsCard: some View {
         VStack(spacing: 0) {
-            ActionRow(title: "Reply", systemImage: "arrowshape.turn.up.left") { onReply(); onDismiss() }
+            ActionRow(title: String(localized: "Reply"), systemImage: "arrowshape.turn.up.left") { onReply(); onDismiss() }
             if hasBody {
                 Divider().overlay(KlicColor.surfaceRaised)
-                ActionRow(title: "Copy", systemImage: "doc.on.doc") { onCopy(); onDismiss() }
+                ActionRow(title: String(localized: "Copy"), systemImage: "doc.on.doc") { onCopy(); onDismiss() }
             }
             Divider().overlay(KlicColor.surfaceRaised)
             ActionRow(
@@ -95,7 +95,7 @@ struct MessageActionsOverlay: View {
                 systemImage: message.starred == true ? "star.slash" : "star"
             ) { onToggleStar(); onDismiss() }
             Divider().overlay(KlicColor.surfaceRaised)
-            ActionRow(title: "Delete", systemImage: "trash", destructive: true) { onDelete() }
+            ActionRow(title: String(localized: "Delete"), systemImage: "trash", destructive: true) { onDelete() }
         }
         .background(KlicColor.surface, in: RoundedRectangle(cornerRadius: 16))
         .frame(maxWidth: 260)

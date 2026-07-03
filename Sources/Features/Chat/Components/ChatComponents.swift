@@ -1,53 +1,6 @@
 import SwiftUI
 import UIKit
 
-// MARK: - Attach sheet
-
-struct AttachSheet: View {
-    let onPhotos: () -> Void
-    let onCamera: () -> Void
-    let onFile:   () -> Void
-
-    var body: some View {
-        HStack(spacing: 20) {
-            AttachTile(icon: "photo.on.rectangle.fill", label: "Photos",
-                       color: Color(red: 0.23, green: 0.51, blue: 0.96), action: onPhotos)
-            AttachTile(icon: "camera.fill", label: "Camera",
-                       color: Color(red: 0.13, green: 0.77, blue: 0.34), action: onCamera)
-            AttachTile(icon: "doc.fill", label: "File",
-                       color: Color(red: 0.97, green: 0.57, blue: 0.20), action: onFile)
-        }
-        .padding(.horizontal, 28)
-        .padding(.top, 24)
-        .padding(.bottom, 16)
-        .frame(maxWidth: .infinity)
-    }
-}
-
-private struct AttachTile: View {
-    let icon: String
-    let label: String
-    let color: Color
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            VStack(spacing: 10) {
-                Image(systemName: icon)
-                    .font(.system(size: 28, weight: .medium))
-                    .foregroundStyle(.white)
-                    .frame(width: 68, height: 68)
-                    .background(color, in: RoundedRectangle(cornerRadius: 20))
-                Text(label)
-                    .font(KlicFont.caption(13))
-                    .foregroundStyle(KlicColor.textPrimary)
-            }
-            .frame(maxWidth: .infinity)
-        }
-        .buttonStyle(.plain)
-    }
-}
-
 // MARK: - Message bubble
 
 struct MessageBubble: View {
@@ -174,7 +127,19 @@ struct MessageBubble: View {
                             .foregroundStyle(KlicColor.primary.opacity(0.95))
                     }
 
-                    if isBareLink, let url = detectedURL {
+                    if let emojiCount = emojiOnlyCount {
+                        // §10.3: 1–3 emoji-only messages render WhatsApp-style — no
+                        // bubble background, large glyphs (1 biggest, 2–3 smaller),
+                        // time/ticks in the usual inline overlay position.
+                        if let reply = message.replyTo, message.attachments.isEmpty {
+                            ReplyQuoteView(reply: reply, authorName: replyAuthorName)
+                        }
+                        HStack(alignment: .bottom, spacing: 6) {
+                            Text(message.body.trimmingCharacters(in: .whitespacesAndNewlines))
+                                .font(.system(size: Self.bigEmojiSize(emojiCount)))
+                            inlineTimeStatus(onPrimary: false)
+                        }
+                    } else if isBareLink, let url = detectedURL {
                         // A message that's only a link — show the rich card alone, no chat bubble,
                         // matching how Messages presents standalone URLs.
                         LinkPreviewCard(url: url)
@@ -257,6 +222,23 @@ struct MessageBubble: View {
         }
     }
 
+    /// §10.3: the number of grapheme clusters when the body is 1–3 emoji and nothing
+    /// else. Swift's `Character` counts ZWJ sequences and skin tones as one cluster.
+    private var emojiOnlyCount: Int? {
+        let trimmed = message.body.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, trimmed.count <= 3 else { return nil }
+        for character in trimmed where !character.isEmojiCluster { return nil }
+        return trimmed.count
+    }
+
+    private static func bigEmojiSize(_ count: Int) -> CGFloat {
+        switch count {
+        case 1: return 68
+        case 2: return 54
+        default: return 46
+        }
+    }
+
     private var detectedURL: URL? {
         guard let detector = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.link.rawValue) else { return nil }
         let text = message.body
@@ -278,6 +260,20 @@ struct MessageBubble: View {
         let f = DateFormatter()
         f.dateFormat = "h:mm a"
         return f.string(from: date)
+    }
+}
+
+private extension Character {
+    /// True for emoji grapheme clusters, including ZWJ sequences, flags, keycaps and
+    /// skin-tone modifiers (§10.3). Plain digits/symbols with a text presentation
+    /// default (e.g. "1", "#") don't count unless combined into an emoji cluster.
+    var isEmojiCluster: Bool {
+        guard let first = unicodeScalars.first else { return false }
+        if unicodeScalars.count > 1 {
+            return first.properties.isEmoji
+        }
+        return first.properties.isEmojiPresentation
+            || (first.properties.isEmoji && first.value > 0x238C)
     }
 }
 
@@ -304,8 +300,8 @@ struct DateSeparator: View {
         df2.formatOptions = [.withInternetDateTime]
         guard let date = df.date(from: dateString) ?? df2.date(from: dateString) else { return dateString }
         let f = DateFormatter()
-        if Calendar.current.isDateInToday(date)     { return "Today" }
-        if Calendar.current.isDateInYesterday(date) { return "Yesterday" }
+        if Calendar.current.isDateInToday(date)     { return String(localized: "Today") }
+        if Calendar.current.isDateInYesterday(date) { return String(localized: "Yesterday") }
         f.dateFormat = "MMMM d"
         return f.string(from: date)
     }

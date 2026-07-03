@@ -31,7 +31,7 @@ struct ConversationsView: View {
             ScrollView {
                 LazyVStack(spacing: 4) {
                     // Capsule search bar matching the Login inputs (§9.8).
-                    KlicSearchField(placeholder: "Search chats", text: $searchText)
+                    KlicSearchField(placeholder: String(localized: "Search chats"), text: $searchText)
                         .padding(.bottom, 6)
                     ForEach(filtered) { convo in
                         NavigationLink(value: convo) {

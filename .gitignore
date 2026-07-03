@@ -18,3 +18,7 @@ SPM/
 
 # CocoaPods (workspace + Podfile.lock are committed; pods are fetched)
 Pods/
+
+# Translation API key (workspace-level; must NEVER be committed — repo is public)
+.translate.env
+*.env

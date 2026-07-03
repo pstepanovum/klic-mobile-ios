@@ -10,5 +10,12 @@
     <array>
         <string>group.com.klic.mobile.app</string>
     </array>
+    <!-- Passkeys (§10.4): the API serves /.well-known/apple-app-site-association with
+         webcredentials for this app id. AltStore re-signing may strip this — the
+         passkey UI degrades with a readable error in that case. -->
+    <key>com.apple.developer.associated-domains</key>
+    <array>
+        <string>webcredentials:api.89.34.230.2.sslip.io</string>
+    </array>
 </dict>
 </plist>

@@ -24,7 +24,7 @@ struct SettingsView: View {
                     // Privacy — own card, navigates to full page
                     privacySection
 
-                    PillButton(title: "Log out", fill: KlicColor.surfaceRaised, textColor: KlicColor.textMuted) {
+                    PillButton(title: String(localized: "Log out"), fill: KlicColor.surfaceRaised, textColor: KlicColor.textMuted) {
                         session.logout()
                     }
                     VStack(spacing: 6) {
@@ -73,14 +73,14 @@ struct SettingsView: View {
     private var mainSection: some View {
         VStack(spacing: 0) {
             NavigationLink { EditProfileView() } label: {
-                SettingsRow(icon: "person", title: "My Profile")
+                SettingsRow(icon: "person", title: String(localized: "My Profile"))
             }
             .buttonStyle(.plain)
 
             Divider().padding(.leading, 64).opacity(0.4)
 
             NavigationLink { AppearanceView() } label: {
-                SettingsRow(icon: "sun.max", title: "Appearance")
+                SettingsRow(icon: "sun.max", title: String(localized: "Appearance"))
             }
             .buttonStyle(.plain)
         }
@@ -92,14 +92,22 @@ struct SettingsView: View {
     private var dataSection: some View {
         VStack(spacing: 0) {
             NavigationLink { NotificationsSettingsView() } label: {
-                SettingsRow(icon: "bell", title: "Notifications")
+                SettingsRow(icon: "bell", title: String(localized: "Notifications"))
             }
             .buttonStyle(.plain)
 
             Divider().padding(.leading, 64).opacity(0.4)
 
             NavigationLink { DataStorageView() } label: {
-                SettingsRow(icon: "externaldrive", title: "Data and Storage")
+                SettingsRow(icon: "externaldrive", title: String(localized: "Data and Storage"))
+            }
+            .buttonStyle(.plain)
+
+            Divider().padding(.leading, 64).opacity(0.4)
+
+            // Recent Calls (§10.6) — the SAME list the Call tab shows.
+            NavigationLink { RecentCallsView() } label: {
+                SettingsRow(icon: "phone.arrow.up.right", title: String(localized: "Recent Calls"))
             }
             .buttonStyle(.plain)
         }
@@ -111,7 +119,7 @@ struct SettingsView: View {
     private var updatesSection: some View {
         VStack(spacing: 0) {
             NavigationLink { AppUpdateInfoView(version: appVersion) } label: {
-                SettingsRow(icon: "arrow.down.circle", title: "Updates")
+                SettingsRow(icon: "arrow.down.circle", title: String(localized: "Updates"))
             }
             .buttonStyle(.plain)
         }
@@ -122,8 +130,24 @@ struct SettingsView: View {
 
     private var privacySection: some View {
         VStack(spacing: 0) {
-            NavigationLink { PrivacyView() } label: {
-                SettingsRow(icon: "lock", title: "Privacy")
+            NavigationLink { PrivacySecurityView() } label: {
+                SettingsRow(icon: "lock", title: String(localized: "Privacy and Security"))
+            }
+            .buttonStyle(.plain)
+
+            Divider().padding(.leading, 64).opacity(0.4)
+
+            // My QR code + scanner (§10.7).
+            NavigationLink { QRCodeView() } label: {
+                SettingsRow(icon: "qrcode", title: String(localized: "QR Code"))
+            }
+            .buttonStyle(.plain)
+
+            Divider().padding(.leading, 64).opacity(0.4)
+
+            // Language (§10.5).
+            NavigationLink { LanguageSettingsView() } label: {
+                SettingsRow(icon: "globe", title: String(localized: "Language"))
             }
             .buttonStyle(.plain)
         }
@@ -277,11 +301,11 @@ private struct AppUpdateInfoView: View {
 
                 // Info rows
                 VStack(spacing: 0) {
-                    infoRow(label: "Version", value: version)
+                    infoRow(label: String(localized: "Version"), value: version)
                     Divider().padding(.leading, 20).opacity(0.4)
-                    infoRow(label: "Platform", value: "iOS")
+                    infoRow(label: String(localized: "Platform"), value: "iOS")
                     Divider().padding(.leading, 20).opacity(0.4)
-                    infoRow(label: "Distribution", value: "TestFlight")
+                    infoRow(label: String(localized: "Distribution"), value: "TestFlight")
                 }
                 .background(KlicColor.surface, in: RoundedRectangle(cornerRadius: 20))
 
@@ -311,58 +335,6 @@ private struct AppUpdateInfoView: View {
         }
         .padding(.horizontal, 20)
         .padding(.vertical, 14)
-    }
-}
-
-// MARK: - Privacy page
-
-private struct PrivacyView: View {
-    @EnvironmentObject var session: AppSession
-    @State private var showLastSeen = true
-    @State private var saving = false
-
-    var body: some View {
-        ScrollView {
-            VStack(spacing: 16) {
-                VStack(spacing: 0) {
-                    Toggle(isOn: $showLastSeen) {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("Last seen")
-                                .font(KlicFont.body())
-                                .foregroundStyle(KlicColor.textPrimary)
-                            Text("If turned off, you won't see anyone else's last seen.")
-                                .font(KlicFont.caption(12))
-                                .foregroundStyle(KlicColor.textMuted)
-                        }
-                    }
-                    .tint(KlicColor.primary)
-                    .disabled(saving)
-                    .padding(.horizontal, 18)
-                    .padding(.vertical, 14)
-                    .onChange(of: showLastSeen) { _, newValue in
-                        guard newValue != (session.currentUser?.showLastSeen ?? true) else { return }
-                        Task { await save(newValue) }
-                    }
-                }
-                .background(KlicColor.surface, in: RoundedRectangle(cornerRadius: 20))
-            }
-            .padding(20)
-            .adaptiveWidth()
-        }
-        .background(KlicColor.background.ignoresSafeArea())
-        .navigationTitle("Privacy")
-        .navigationBarTitleDisplayMode(.inline)
-        .onAppear { showLastSeen = session.currentUser?.showLastSeen ?? true }
-    }
-
-    private func save(_ value: Bool) async {
-        saving = true
-        defer { saving = false }
-        if let user = try? await APIClient.shared.updateProfile(showLastSeen: value) {
-            session.updateCurrentUser(user)
-        } else {
-            showLastSeen = session.currentUser?.showLastSeen ?? true
-        }
     }
 }
 
@@ -398,10 +370,10 @@ private struct SettingsRow: View {
 private extension ThemeManager.NightMode {
     var subtitle: String? {
         switch self {
-        case .system:    return "Follows your iOS appearance setting"
-        case .disabled:  return "Always light"
-        case .scheduled: return "Set custom day / night hours"
-        case .automatic: return "Based on ambient light"
+        case .system:    return String(localized: "Follows your iOS appearance setting")
+        case .disabled:  return String(localized: "Always light")
+        case .scheduled: return String(localized: "Set custom day / night hours")
+        case .automatic: return String(localized: "Based on ambient light")
         }
     }
 }

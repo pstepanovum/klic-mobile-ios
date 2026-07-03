@@ -11,6 +11,7 @@ struct AuthView: View {
     @State private var displayName = ""
     @State private var agreedToPrivacy = false
     @State private var showPrivacyPolicy = false
+    @State private var passkeyBusy = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -21,17 +22,17 @@ struct AuthView: View {
                 .scaledToFit()
                 .frame(width: 88)
 
-            Text(isRegistering ? "Create your account" : "Welcome back")
+            Text(isRegistering ? String(localized: "Create your account") : String(localized: "Welcome back"))
                 .font(KlicFont.body())
                 .foregroundStyle(KlicColor.textMuted)
                 .padding(.top, 10)
 
             VStack(spacing: 12) {
-                KlicTextField(placeholder: "Username", text: $username)
+                KlicTextField(placeholder: String(localized: "Username"), text: $username)
                 if isRegistering {
-                    KlicTextField(placeholder: "Display name", text: $displayName)
+                    KlicTextField(placeholder: String(localized: "Display name"), text: $displayName)
                 }
-                KlicTextField(placeholder: "Password", text: $password, isSecure: true)
+                KlicTextField(placeholder: String(localized: "Password"), text: $password, isSecure: true)
 
                 if isRegistering && !password.isEmpty {
                     strengthBar
@@ -59,6 +60,28 @@ struct AuthView: View {
             .padding(.top, 20)
             .opacity(isRegistering && !agreedToPrivacy ? 0.4 : 1)
             .disabled(isRegistering && !agreedToPrivacy)
+
+            // Passkey sign-in (§10.4). Degrades to a readable error when the platform
+            // refuses (e.g. AltStore builds without the associated-domains entitlement).
+            if !isRegistering {
+                Button {
+                    Task { await signInWithPasskey() }
+                } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: "person.badge.key.fill")
+                            .font(.system(size: 15, weight: .medium))
+                        Text(passkeyBusy ? String(localized: "Waiting for passkey…") : String(localized: "Sign in with a passkey"))
+                            .font(KlicFont.headline(15))
+                    }
+                    .foregroundStyle(KlicColor.textPrimary)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 15)
+                    .background(KlicColor.surface, in: Capsule())
+                }
+                .buttonStyle(.plain)
+                .disabled(passkeyBusy)
+                .padding(.top, 10)
+            }
 
             Button(isRegistering ? "I already have an account" : "Create an account") {
                 withAnimation(.easeInOut(duration: 0.2)) {
@@ -91,6 +114,23 @@ struct AuthView: View {
             PrivacyPolicyView()
         }
         .enableInjection()
+    }
+
+    // MARK: Passkey sign-in (§10.4)
+
+    private func signInWithPasskey() async {
+        passkeyBusy = true
+        defer { passkeyBusy = false }
+        do {
+            let response = try await PasskeyService.shared.signInWithPasskey()
+            session.signIn(with: response)
+        } catch is CancellationError {
+            // User dismissed the system sheet.
+        } catch let e as APIError {
+            session.errorMessage = e.userMessage
+        } catch {
+            session.errorMessage = (error as NSError).localizedDescription
+        }
     }
 
     // MARK: Password strength
