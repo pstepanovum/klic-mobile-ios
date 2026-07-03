@@ -1,53 +1,6 @@
 import SwiftUI
 import UIKit
 
-// MARK: - Attach sheet
-
-struct AttachSheet: View {
-    let onPhotos: () -> Void
-    let onCamera: () -> Void
-    let onFile:   () -> Void
-
-    var body: some View {
-        HStack(spacing: 20) {
-            AttachTile(icon: "photo.on.rectangle.fill", label: "Photos",
-                       color: Color(red: 0.23, green: 0.51, blue: 0.96), action: onPhotos)
-            AttachTile(icon: "camera.fill", label: "Camera",
-                       color: Color(red: 0.13, green: 0.77, blue: 0.34), action: onCamera)
-            AttachTile(icon: "doc.fill", label: "File",
-                       color: Color(red: 0.97, green: 0.57, blue: 0.20), action: onFile)
-        }
-        .padding(.horizontal, 28)
-        .padding(.top, 24)
-        .padding(.bottom, 16)
-        .frame(maxWidth: .infinity)
-    }
-}
-
-private struct AttachTile: View {
-    let icon: String
-    let label: String
-    let color: Color
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            VStack(spacing: 10) {
-                Image(systemName: icon)
-                    .font(.system(size: 28, weight: .medium))
-                    .foregroundStyle(.white)
-                    .frame(width: 68, height: 68)
-                    .background(color, in: RoundedRectangle(cornerRadius: 20))
-                Text(label)
-                    .font(KlicFont.caption(13))
-                    .foregroundStyle(KlicColor.textPrimary)
-            }
-            .frame(maxWidth: .infinity)
-        }
-        .buttonStyle(.plain)
-    }
-}
-
 // MARK: - Message bubble
 
 struct MessageBubble: View {

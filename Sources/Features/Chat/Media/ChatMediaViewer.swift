@@ -1,5 +1,8 @@
 import SwiftUI
 
+/// Full-screen media viewer (§10.9): strict kind-based rendering (images never get a
+/// Play overlay), single-tap immersive mode, working Klic-styled footer actions
+/// (Share / Forward / Star / Reply / Delete), and a LIVE / duration pill top-left.
 struct MediaViewer: View {
     let items: [ChatMediaGalleryItem]
     let selectedAttachmentId: String
@@ -7,6 +10,8 @@ struct MediaViewer: View {
     let onReact: (String, String) -> Void
     let onDeleteForMe: (String) -> Void
     let onDeleteEveryone: (String) -> Void
+    var onToggleStar: (String) -> Void = { _ in }
+    var onReply: (String) -> Void = { _ in }
 
     @State private var currentAttachmentId: String
     @State private var scale: CGFloat = 1
@@ -18,9 +23,13 @@ struct MediaViewer: View {
     @State private var duration: Double = 0
     @State private var playbackRate: Float = 1
     @State private var showShareSheet = false
-    @State private var showShareDialog = false
     @State private var showDeleteDialog = false
+    @State private var showForwardPicker = false
     @State private var activityItems: [Any] = []
+    @State private var preparingShare = false
+    /// §10.9: single tap hides the top bar + footer (and video controls).
+    @State private var immersive = false
+    @State private var forwardToast: String?
 
     @StateObject private var playerBox = MediaPlayerBox()
 
@@ -30,7 +39,9 @@ struct MediaViewer: View {
         onClose: @escaping () -> Void,
         onReact: @escaping (String, String) -> Void,
         onDeleteForMe: @escaping (String) -> Void,
-        onDeleteEveryone: @escaping (String) -> Void
+        onDeleteEveryone: @escaping (String) -> Void,
+        onToggleStar: @escaping (String) -> Void = { _ in },
+        onReply: @escaping (String) -> Void = { _ in }
     ) {
         self.items = items
         self.selectedAttachmentId = selectedAttachmentId
@@ -38,6 +49,8 @@ struct MediaViewer: View {
         self.onReact = onReact
         self.onDeleteForMe = onDeleteForMe
         self.onDeleteEveryone = onDeleteEveryone
+        self.onToggleStar = onToggleStar
+        self.onReply = onReply
         _currentAttachmentId = State(initialValue: selectedAttachmentId)
     }
 
@@ -53,37 +66,73 @@ struct MediaViewer: View {
 
             if let item = currentItem {
                 VStack(spacing: 0) {
-                    MediaViewerTopBar(
-                        senderName: item.senderName,
-                        timestamp: viewerTimestamp(item.createdAt),
-                        onBack: onClose
-                    )
-
-                    if item.isVideo {
-                        MediaViewerVideoControls(
-                            currentTime: $currentTime,
-                            duration: duration,
-                            playbackRate: $playbackRate,
-                            onSeek: { playerBox.seek(to: $0) },
-                            onRateChange: { playerBox.setRate($0) },
-                            onPictureInPicture: { playerBox.startPictureInPicture() }
+                    if !immersive {
+                        MediaViewerTopBar(
+                            senderName: item.senderName,
+                            timestamp: viewerTimestamp(item.createdAt),
+                            onBack: onClose
                         )
+
+                        // LIVE / duration pill under the back button (§10.9). Live-Photo
+                        // metadata is only known for locally-picked assets — hidden otherwise.
+                        if let badge = mediaBadge(item) {
+                            HStack {
+                                badge
+                                Spacer()
+                            }
+                            .padding(.horizontal, 12)
+                            .padding(.top, 6)
+                        }
+
+                        // Strictly keyed on the attachment kind — images never get video UI.
+                        if item.isVideo {
+                            MediaViewerVideoControls(
+                                currentTime: $currentTime,
+                                duration: duration,
+                                playbackRate: $playbackRate,
+                                onSeek: { playerBox.seek(to: $0) },
+                                onRateChange: { playerBox.setRate($0) },
+                                onPictureInPicture: { playerBox.startPictureInPicture() }
+                            )
+                        }
                     }
 
                     mediaStage(item)
 
-                    MediaViewerBottomPanel(
-                        item: item,
-                        items: items,
-                        currentAttachmentId: currentAttachmentId,
-                        isPlaying: playerBox.isPlaying,
-                        onReact: onReact,
-                        onSelectItem: { currentAttachmentId = $0 },
-                        onShare: { showShareDialog = true },
-                        onPlayPause: { if item.isVideo { playerBox.toggle() } },
-                        onDelete: { showDeleteDialog = true }
-                    )
+                    if !immersive {
+                        MediaViewerBottomPanel(
+                            item: item,
+                            items: items,
+                            currentAttachmentId: currentAttachmentId,
+                            isPlaying: playerBox.isPlaying,
+                            preparingShare: preparingShare,
+                            onReact: onReact,
+                            onSelectItem: { currentAttachmentId = $0 },
+                            onShare: { Task { await prepareShare() } },
+                            onForward: { showForwardPicker = true },
+                            onToggleStar: { onToggleStar(item.messageId) },
+                            onReply: {
+                                onReply(item.messageId)
+                                onClose()
+                            },
+                            onPlayPause: { if item.isVideo { playerBox.toggle() } },
+                            onDelete: { showDeleteDialog = true }
+                        )
+                    }
                 }
+                .animation(.easeInOut(duration: 0.2), value: immersive)
+            }
+
+            if let forwardToast {
+                Text(forwardToast)
+                    .font(KlicFont.medium(13))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
+                    .background(.black.opacity(0.75), in: Capsule())
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+                    .padding(.bottom, 110)
+                    .transition(.opacity)
             }
         }
         .onAppear { syncPlayerForCurrentItem() }
@@ -96,32 +145,70 @@ struct MediaViewer: View {
             if currentItem == nil, let first = items.first {
                 currentAttachmentId = first.attachmentId
             }
-            syncPlayerForCurrentItem()
         }
-        .confirmationDialog("Share media", isPresented: $showShareDialog, titleVisibility: .visible) {
-            Button("Save") { saveCurrentMedia() }
-            Button("Share") { prepareNativeShare() }
-            Button("Forward") { }
-            Button("Cancel", role: .cancel) { }
-        }
-        .confirmationDialog("Delete message?", isPresented: $showDeleteDialog, titleVisibility: .visible) {
-            if let item = currentItem {
-                Button("Delete for me", role: .destructive) {
-                    onDeleteForMe(item.messageId)
-                    onClose()
-                }
-                if item.isMine {
-                    Button("Delete for everyone", role: .destructive) {
-                        onDeleteEveryone(item.messageId)
-                        onClose()
-                    }
-                }
+        .klicSelectionSheet(
+            isPresented: $showDeleteDialog,
+            title: String(localized: "Delete message"),
+            options: deleteOptions
+        ) { option in
+            guard let item = currentItem else { return }
+            if option.id == "me" {
+                onDeleteForMe(item.messageId)
+                onClose()
+            } else if option.id == "everyone" {
+                onDeleteEveryone(item.messageId)
+                onClose()
             }
-            Button("Cancel", role: .cancel) { }
         }
         .sheet(isPresented: $showShareSheet) {
             ShareSheet(activityItems: activityItems)
         }
+        .sheet(isPresented: $showForwardPicker) {
+            ForwardPickerSheet { conversationIds in
+                Task { await forward(to: conversationIds) }
+            }
+        }
+    }
+
+    private var deleteOptions: [KlicSheetOption] {
+        var options = [KlicSheetOption(id: "me", label: String(localized: "Delete for me"), isDestructive: true)]
+        if currentItem?.isMine == true {
+            options.append(KlicSheetOption(id: "everyone", label: String(localized: "Delete for everyone"), isDestructive: true))
+        }
+        return options
+    }
+
+    private func mediaBadge(_ item: ChatMediaGalleryItem) -> AnyView? {
+        if item.isVideo, let ms = item.durationMs, ms > 0 {
+            return AnyView(
+                Text(Self.durationText(ms))
+                    .font(KlicFont.caption(11).weight(.semibold))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 3)
+                    .background(.black.opacity(0.55), in: Capsule())
+            )
+        }
+        if !item.isVideo, item.isLivePhoto {
+            return AnyView(
+                HStack(spacing: 4) {
+                    Image(systemName: "livephoto")
+                        .font(.system(size: 10, weight: .semibold))
+                    Text("LIVE")
+                        .font(KlicFont.caption(10).weight(.bold))
+                }
+                .foregroundStyle(.white)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 3)
+                .background(.black.opacity(0.55), in: Capsule())
+            )
+        }
+        return nil
+    }
+
+    static func durationText(_ milliseconds: Int) -> String {
+        let seconds = milliseconds / 1000
+        return String(format: "%d:%02d", seconds / 60, seconds % 60)
     }
 
     @ViewBuilder
@@ -134,7 +221,8 @@ struct MediaViewer: View {
                 )
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .contentShape(Rectangle())
-                .onTapGesture { playerBox.toggle() }
+                // Single tap toggles immersive; controls come back on tap (§10.9).
+                .onTapGesture { withAnimation(.easeInOut(duration: 0.2)) { immersive.toggle() } }
             } else if let imageURL = URL(string: item.url) {
                 RemoteImage(url: imageURL, cacheKey: RemoteImageStore.attachmentCacheKey(item.attachmentId)) { phase in
                     switch phase {
@@ -150,11 +238,14 @@ struct MediaViewer: View {
                 .offset(x: offset.width, y: offset.height + dragDismiss)
                 .gesture(magnification)
                 .simultaneousGesture(dragGesture)
+                // Double-tap zoom unchanged; single tap toggles immersive (§10.9).
                 .onTapGesture(count: 2) { withAnimation(.spring(response: 0.3)) { toggleZoom() } }
+                .onTapGesture { withAnimation(.easeInOut(duration: 0.2)) { immersive.toggle() } }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
 
-            if item.isVideo {
+            // Center play/pause — VIDEO ONLY, and hidden while immersive.
+            if item.isVideo, !immersive {
                 Button { playerBox.toggle() } label: {
                     Image(systemName: playerBox.isPlaying ? "pause.fill" : "play.fill")
                         .font(.system(size: 28, weight: .semibold))
@@ -255,25 +346,37 @@ struct MediaViewer: View {
         }
     }
 
-    private func saveCurrentMedia() {
-        guard let item = currentItem, let url = URL(string: item.url) else { return }
-        Task {
-            guard let (data, _) = try? await URLSession.shared.data(from: url) else { return }
-            await MainActor.run {
-                if item.isVideo {
-                    let fileURL = FileManager.default.temporaryDirectory.appendingPathComponent("\(item.attachmentId).mp4")
-                    try? data.write(to: fileURL, options: .atomic)
-                    UISaveVideoAtPathToSavedPhotosAlbum(fileURL.path, nil, nil, nil)
-                } else if let image = UIImage(data: data) {
-                    UIImageWriteToSavedPhotosAlbum(image, nil, nil, nil)
-                }
-            }
+    /// Share the media FILE (downloaded locally) via the system share sheet (§10.9).
+    private func prepareShare() async {
+        guard let item = currentItem else { return }
+        preparingShare = true
+        defer { preparingShare = false }
+        if let attachment = item.attachment,
+           let local = try? await AttachmentFileStore.shared.download(attachment) {
+            activityItems = [local]
+            showShareSheet = true
+            return
         }
+        // Fallback: raw bytes into a temp file named by kind.
+        guard let url = URL(string: item.url),
+              let (data, _) = try? await URLSession.shared.data(from: url) else { return }
+        let ext = item.isVideo ? "mp4" : "jpg"
+        let file = FileManager.default.temporaryDirectory.appendingPathComponent("\(item.attachmentId).\(ext)")
+        try? data.write(to: file, options: .atomic)
+        activityItems = [file]
+        showShareSheet = true
     }
 
-    private func prepareNativeShare() {
-        guard let item = currentItem, let url = URL(string: item.url) else { return }
-        activityItems = [url]
-        showShareSheet = true
+    private func forward(to conversationIds: [String]) async {
+        guard let attachment = currentItem?.attachment, !conversationIds.isEmpty else { return }
+        do {
+            try await Media.forwardAttachment(attachment, to: conversationIds)
+            withAnimation { forwardToast = String(localized: "Forwarded") }
+        } catch {
+            withAnimation { forwardToast = String(localized: "Couldn't forward the media.") }
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+            withAnimation { forwardToast = nil }
+        }
     }
 }

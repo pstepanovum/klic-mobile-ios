@@ -125,9 +125,13 @@ struct MediaViewerBottomPanel: View {
     let items: [ChatMediaGalleryItem]
     let currentAttachmentId: String
     let isPlaying: Bool
+    var preparingShare: Bool = false
     let onReact: (String, String) -> Void
     let onSelectItem: (String) -> Void
     let onShare: () -> Void
+    var onForward: () -> Void = {}
+    var onToggleStar: () -> Void = {}
+    var onReply: () -> Void = {}
     let onPlayPause: () -> Void
     let onDelete: () -> Void
 
@@ -186,11 +190,27 @@ struct MediaViewerBottomPanel: View {
             )
 
             HStack {
-                actionButton("square.and.arrow.up", title: "Share", action: onShare)
-                actionButton("arrowshape.turn.up.right", title: "Forward", action: {})
-                actionButton(isPlaying ? "pause.fill" : "play.fill", title: "Play", action: onPlayPause)
-                actionButton("star", title: "Star", action: {})
-                actionButton("trash", title: "Delete", destructive: true, action: onDelete)
+                actionButton(
+                    preparingShare ? "hourglass" : "square.and.arrow.up",
+                    title: String(localized: "Share"), action: onShare
+                )
+                actionButton("arrowshape.turn.up.right", title: String(localized: "Forward"), action: onForward)
+                // Play/pause only exists for videos — images NEVER get a Play action (§10.9).
+                if item.isVideo {
+                    actionButton(
+                        isPlaying ? "pause.fill" : "play.fill",
+                        title: isPlaying ? String(localized: "Pause") : String(localized: "Play"),
+                        action: onPlayPause
+                    )
+                }
+                actionButton(
+                    item.starred ? "star.fill" : "star",
+                    title: item.starred ? String(localized: "Starred") : String(localized: "Star"),
+                    highlighted: item.starred,
+                    action: onToggleStar
+                )
+                actionButton("arrowshape.turn.up.left", title: String(localized: "Reply"), action: onReply)
+                actionButton("trash", title: String(localized: "Delete"), destructive: true, action: onDelete)
             }
         }
         .padding(.horizontal, 16)
@@ -204,7 +224,10 @@ struct MediaViewerBottomPanel: View {
         return reactions.map(\.emoji).joined(separator: " ")
     }
 
-    private func actionButton(_ icon: String, title: String, destructive: Bool = false, action: @escaping () -> Void) -> some View {
+    private func actionButton(
+        _ icon: String, title: String, destructive: Bool = false,
+        highlighted: Bool = false, action: @escaping () -> Void
+    ) -> some View {
         Button(action: action) {
             VStack(spacing: 5) {
                 Image(systemName: icon)
@@ -212,7 +235,7 @@ struct MediaViewerBottomPanel: View {
                 Text(title)
                     .font(KlicFont.caption(11))
             }
-            .foregroundStyle(destructive ? KlicColor.danger : .white)
+            .foregroundStyle(destructive ? KlicColor.danger : (highlighted ? Color.yellow : .white))
             .frame(maxWidth: .infinity)
         }
         .buttonStyle(.plain)

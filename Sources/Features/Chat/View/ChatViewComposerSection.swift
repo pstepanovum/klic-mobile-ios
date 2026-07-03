@@ -34,29 +34,23 @@ extension ChatView {
             onCancelRecording: { recorder.cancel() },
             onSendVoice: { Task { await stopAndSendVoice() } }
         )
+        // ONE Klic attachment sheet with Gallery | Files tabs (§10.11).
         .sheet(isPresented: $showAttachMenu) {
-            AttachSheet(
-                onPhotos: { pendingAttach = .photos; showAttachMenu = false },
-                onCamera: { pendingAttach = .camera; showAttachMenu = false },
-                onFile:   { pendingAttach = .file;   showAttachMenu = false }
+            KlicAttachmentSheet(
+                onSendAssets: { assets in
+                    Task { await stageAssets(assets) }
+                },
+                onOpenSystemPicker: { pendingAttach = .photos; deferAttachAction() },
+                onOpenCamera: { pendingAttach = .camera; deferAttachAction() },
+                onSelectFiles: { pendingAttach = .file; deferAttachAction() },
+                onScanDocument: { pendingAttach = .scan; deferAttachAction() }
             )
-            .presentationDetents([.height(210)])
-            .presentationDragIndicator(.visible)
-            .presentationBackground(KlicColor.surface)
         }
-        .onChange(of: showAttachMenu) { _, showing in
-            if !showing, let action = pendingAttach {
-                pendingAttach = nil
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
-                    switch action {
-                    case .photos: showPhotos = true
-                    case .camera:
-                        cameraMode = .photo
-                        showCamera = true
-                    case .file:   showFileImporter = true
-                    }
-                }
+        .fullScreenCover(isPresented: $showDocScanner) {
+            DocumentScannerView { pdfURL in
+                Task { await sendFile(pdfURL) }
             }
+            .ignoresSafeArea()
         }
         .photosPicker(
             isPresented: $showPhotos,
@@ -80,12 +74,33 @@ extension ChatView {
             if case .success(let urls) = result, let url = urls.first { Task { await sendFile(url) } }
         }
         .sheet(isPresented: $showStickers) {
-            StickerPicker { id in
-                showStickers = false
-                Task { await sendSticker(id) }
-            }
-            .presentationDetents([.medium, .large])
-            .presentationDragIndicator(.visible)
+            stickersSheetContent
         }
+    }
+
+    /// The picker/camera/importer covers can't present while the attach sheet is still
+    /// up — run the chosen action right after it dismisses.
+    private func deferAttachAction() {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+            guard let action = pendingAttach else { return }
+            pendingAttach = nil
+            switch action {
+            case .photos: showPhotos = true
+            case .camera:
+                cameraMode = .photo
+                showCamera = true
+            case .file: showFileImporter = true
+            case .scan: showDocScanner = true
+            }
+        }
+    }
+
+    @ViewBuilder private var stickersSheetContent: some View {
+        StickerPicker { id in
+            showStickers = false
+            Task { await sendSticker(id) }
+        }
+        .presentationDetents([.medium, .large])
+        .presentationDragIndicator(.visible)
     }
 }

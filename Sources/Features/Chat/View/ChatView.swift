@@ -44,6 +44,8 @@ struct ChatView: View {
     @State var activeCallInfo: ActiveCallInfo?
     @ObservedObject var callKit = CallKitManager.shared
     @State var pendingMedia: [PendingMediaDraft] = []
+    /// The staged item currently open in the pre-send media editor (§10.9).
+    @State var editingDraft: PendingMediaDraft?
     /// Optimistic in-flight sends rendered as progress pills at the list's tail (§9.1).
     @State var outgoingUploads: [OutgoingUpload] = []
     @State var selectedMediaAttachmentId: String?
@@ -53,8 +55,10 @@ struct ChatView: View {
     @State var showMessageSearch = false
     @State var pendingSearchJump: String?
 
-    enum AttachAction { case photos, camera, file }
+    enum AttachAction { case photos, camera, file, scan }
     @State var pendingAttach: AttachAction?
+    /// VisionKit document camera (§10.11).
+    @State var showDocScanner = false
 
     var isDirect: Bool { conversation.type == "DIRECT" }
     var title: String {
@@ -105,7 +109,9 @@ struct ChatView: View {
                     reactions: message.reactions,
                     isMine: message.senderId == myId,
                     durationMs: attachment.durationMs,
-                    thumbnailURL: attachment.isImage ? attachment.url : nil
+                    thumbnailURL: attachment.isImage ? attachment.url : nil,
+                    starred: message.starred == true,
+                    attachment: attachment
                 )
             }
         }
@@ -129,6 +135,9 @@ struct ChatView: View {
                             items: pendingMedia,
                             onRemove: { id in
                                 pendingMedia.removeAll { $0.id == id }
+                            },
+                            onEdit: { id in
+                                editingDraft = pendingMedia.first { $0.id == id }
                             }
                         )
                     }
@@ -322,6 +331,14 @@ struct ChatView: View {
                 onInvite: { Task { await sendInvite(to: member) } }
             )
         }
+        // Pre-send media editor (§10.9).
+        .fullScreenCover(item: $editingDraft) { target in
+            MediaEditorView(draft: target, caption: $draft) { updated in
+                if let idx = pendingMedia.firstIndex(where: { $0.id == target.id }) {
+                    pendingMedia[idx] = updated
+                }
+            }
+        }
         .fullScreenCover(isPresented: mediaViewerPresented) {
             if let selectedMediaAttachmentId {
                 MediaViewer(
@@ -339,6 +356,15 @@ struct ChatView: View {
                     onDeleteEveryone: { messageId in
                         guard let message = messages.first(where: { $0.id == messageId }) else { return }
                         Task { await deleteEveryone(message) }
+                    },
+                    onToggleStar: { messageId in
+                        guard let message = messages.first(where: { $0.id == messageId }) else { return }
+                        Task { await toggleStar(message) }
+                    },
+                    onReply: { messageId in
+                        guard let message = messages.first(where: { $0.id == messageId }) else { return }
+                        replyingTo = message
+                        isComposerFocused = true
                     }
                 )
             }
