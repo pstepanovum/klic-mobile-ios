@@ -14,10 +14,10 @@ struct LoginView: View {
     @State private var passkeyBusy = false
 
     var body: some View {
-        AuthScaffold(artworkName: "AuthLoginArt", tipFraction: 0.40) {
+        AuthScaffold(artworkName: "AuthLoginArt", tipFraction: 0.47) {
             VStack(spacing: 0) {
                 Text("Login")
-                    .font(KlicFont.expandedBold(30))
+                    .font(KlicFont.expandedMedium(30))
                     .foregroundStyle(AuthStyle.titleColor(colorScheme))
 
                 Text("Welcome back — sign in to keep chatting.")
@@ -29,12 +29,12 @@ struct LoginView: View {
                 VStack(spacing: 12) {
                     AuthTextField(
                         prefix: "@",
-                        placeholder: String(localized: "username"),
+                        placeholder: String(localized: "Username"),
                         text: $username,
                         contentType: .username
                     )
                     AuthTextField(
-                        placeholder: String(localized: "password"),
+                        placeholder: String(localized: "Password"),
                         text: $password,
                         isSecure: true,
                         contentType: .password
@@ -63,7 +63,7 @@ struct LoginView: View {
                         Text(passkeyBusy ? String(localized: "Waiting for passkey…") : String(localized: "Sign in with a passkey"))
                             .font(KlicFont.medium(14))
                     }
-                    .foregroundStyle(KlicColor.textMuted)
+                    .foregroundStyle(AuthStyle.smallText)
                 }
                 .buttonStyle(.plain)
                 .disabled(passkeyBusy)
@@ -82,7 +82,7 @@ struct LoginView: View {
                 } label: {
                     Text("Create an account")
                         .font(KlicFont.medium(14))
-                        .foregroundStyle(KlicColor.textMuted)
+                        .foregroundStyle(AuthStyle.smallText)
                         .underline()
                 }
                 .padding(.top, 18)

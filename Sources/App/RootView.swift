@@ -58,8 +58,10 @@ struct RootView: View {
                     .onAppear { requestCallPermissions() }
                 } else if didGetStarted {
                     AuthView()
+                        .transition(.identity)
                 } else {
-                    WelcomeView { withAnimation { didGetStarted = true } }
+                    WelcomeView { didGetStarted = true }
+                        .transition(.identity)
                 }
             }
             // §11.3: while locked, the app content itself is fully blurred (the lock

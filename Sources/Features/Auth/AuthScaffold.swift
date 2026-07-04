@@ -13,6 +13,9 @@ struct AuthScaffold<Content: View>: View {
 
     let artworkName: String
     var tipFraction: CGFloat
+    /// Baseline circle radius, tuned against `referenceWidth`. Left as a stored
+    /// property (rather than computed from geometry) so call sites can still
+    /// override it, but the body always scales it by the actual canvas width.
     var radius: CGFloat = AuthStyle.circleRadius
     @ViewBuilder var content: () -> Content
 
@@ -20,6 +23,28 @@ struct AuthScaffold<Content: View>: View {
 
     var body: some View {
         GeometryReader { geo in
+            let widthScale = geo.size.width / AuthStyle.referenceWidth
+            let scaledRadius = radius * widthScale
+            let artSide = Self.artSide(for: geo.size)
+            // The form below isn't scrollable, so on short canvases (landscape
+            // iPad/iPhone) the dome is flattened toward the top to guarantee
+            // enough room for it, rather than letting it run under the fold.
+            let effectiveTipFraction = geo.size.height < 700 ? tipFraction * 0.6 : tipFraction
+            // Keyboard avoidance: SwiftUI reports an open keyboard as extra bottom
+            // safe-area inset rather than resizing the frame (the GeometryReader is
+            // deliberately NOT told to ignore that region below). Rise the sheet,
+            // art and content by that amount so the fields never end up hidden
+            // under the keyboard instead of just sitting still.
+            let keyboardShift = max(0, geo.safeAreaInsets.bottom - 34)
+            let tipY = max(60, geo.size.height * effectiveTipFraction - keyboardShift)
+            let topInset = tipY + 44
+            // Space available for the form between the circle's tip and the
+            // bottom edge. On a compact iPhone this is barely more than the
+            // form's own height, so centering it here is a no-op; on a much
+            // taller canvas (iPad) it keeps the form from reading as glued to
+            // the top of a mostly-empty sheet.
+            let contentRegionHeight = max(geo.size.height - topInset - 24, 0)
+
             ZStack(alignment: .top) {
                 KlicColor.background
                     .ignoresSafeArea()
@@ -27,26 +52,47 @@ struct AuthScaffold<Content: View>: View {
                 Image(artworkName)
                     .resizable()
                     .scaledToFit()
-                    .frame(width: min(geo.size.width * 0.7, 300))
-                    .position(x: geo.size.width / 2, y: geo.size.height * tipFraction * 0.5)
-                    .opacity(colorScheme == .dark ? 0.85 : 1)
+                    .frame(width: artSide)
+                    .position(x: geo.size.width / 2, y: tipY * 0.5)
                     .allowsHitTesting(false)
 
                 Circle()
                     .fill(AuthStyle.circleFill(colorScheme))
-                    .frame(width: radius * 2, height: radius * 2)
-                    .position(x: geo.size.width / 2, y: geo.size.height * tipFraction + radius)
+                    .frame(width: scaledRadius * 2, height: scaledRadius * 2)
+                    .position(x: geo.size.width / 2, y: tipY + scaledRadius)
                     .allowsHitTesting(false)
 
                 VStack(spacing: 0) {
                     content()
-                    Spacer(minLength: 24)
                 }
+                .frame(maxWidth: AuthStyle.contentMaxWidth)
                 .frame(maxWidth: .infinity)
-                .padding(.top, geo.size.height * tipFraction + 44)
+                .frame(height: contentRegionHeight, alignment: .center)
+                .padding(.top, topInset)
             }
             .frame(width: geo.size.width, height: geo.size.height)
+            .clipped()
+            .animation(.easeOut(duration: 0.25), value: keyboardShift)
         }
+        // Container safe area (status bar + home indicator) is ignored on both
+        // edges so the art/circle/background bleed fully to the screen edges —
+        // the KEYBOARD safe-area region is deliberately left alone (a bare
+        // `.ignoresSafeArea()` would swallow that too and break the keyboard
+        // avoidance above).
+        .ignoresSafeArea(.container, edges: .all)
+        .toolbar(.hidden, for: .navigationBar)
+        .toolbarBackground(.hidden, for: .navigationBar)
         .enableInjection()
+    }
+
+    /// Background artwork size: ~4x its previous footprint on a compact iPhone
+    /// canvas (a bold bleeding illustration, matching the Welcome ornament's
+    /// oversized-background language). On iPad's much bigger canvas the ratio
+    /// is tripled again so the art keeps filling the generous empty space
+    /// instead of reading as a small accent floating in a sea of background.
+    private static func artSide(for size: CGSize) -> CGFloat {
+        let shortSide = min(size.width, size.height)
+        let ratio: CGFloat = shortSide < 600 ? 2.8 : 3.9
+        return shortSide * ratio
     }
 }
