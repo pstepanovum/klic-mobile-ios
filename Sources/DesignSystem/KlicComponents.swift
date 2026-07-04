@@ -51,6 +51,8 @@ struct KlicCheckbox: View {
     @Binding var isChecked: Bool
     let onPrivacyTap: () -> Void
 
+    @Environment(\.colorScheme) private var colorScheme
+
     var body: some View {
         HStack(alignment: .center, spacing: 10) {
             Button {
@@ -58,12 +60,7 @@ struct KlicCheckbox: View {
             } label: {
                 ZStack {
                     RoundedRectangle(cornerRadius: 6)
-                        .fill(isChecked ? KlicColor.primary : Color.clear)
-                    RoundedRectangle(cornerRadius: 6)
-                        .strokeBorder(
-                            isChecked ? KlicColor.primary : KlicColor.textMuted.opacity(0.45),
-                            lineWidth: 1.5
-                        )
+                        .fill(isChecked ? KlicColor.primary : (colorScheme == .dark ? Color(hex: 0x202020) : Color(hex: 0xF2F2F2)))
                     if isChecked {
                         Image(systemName: "checkmark")
                             .font(.system(size: 11, weight: .bold))
@@ -78,10 +75,11 @@ struct KlicCheckbox: View {
             HStack(spacing: 3) {
                 Text("I agree to the")
                     .font(KlicFont.caption(13))
-                    .foregroundStyle(KlicColor.textMuted)
+                    .foregroundStyle(AuthStyle.smallText)
                 Button("Privacy Policy") { onPrivacyTap() }
                     .font(KlicFont.caption(13))
-                    .foregroundStyle(KlicColor.primary)
+                    .foregroundStyle(AuthStyle.smallText)
+                    .underline()
             }
 
             Spacer()

@@ -44,20 +44,27 @@ struct AuthTextField: View {
                 Button {
                     revealSecure.toggle()
                 } label: {
-                    Image(systemName: revealSecure ? "eye.slash.fill" : "eye.fill")
-                        .font(.system(size: 14))
-                        .foregroundStyle(AuthStyle.fieldHint)
+                    Image(revealSecure ? "IconEyeClosed" : "IconEyeOpen")
+                        .renderingMode(.original)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 20, height: 20)
                 }
                 .buttonStyle(.plain)
             }
         }
         .padding(.horizontal, 18)
-        .frame(height: 44)
+        // Matches PillButton's rendered height (16pt vertical padding around
+        // its ~17pt Expanded-Medium label) so inputs and the CTA read as the
+        // same pill height in a stack.
+        .frame(height: 52)
         .background(AuthStyle.fieldFill(colorScheme), in: Capsule())
         .enableInjection()
     }
 
     private var placeholderText: Text {
-        Text(placeholder).foregroundColor(AuthStyle.fieldHint)
+        Text(placeholder)
+            .font(KlicFont.body(14))
+            .foregroundColor(AuthStyle.fieldHint)
     }
 }

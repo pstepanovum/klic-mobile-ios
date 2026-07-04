@@ -8,8 +8,17 @@ enum AuthStyle {
     static let ctaRed = Color(hex: 0xD90429)
     /// Placeholder / hint text inside the capsule inputs — same value in both themes.
     static let fieldHint = Color(hex: 0xC7C7C7)
+    /// Small secondary/link text (passkey row, "Create an account", "I already have
+    /// an account", the privacy-policy agreement line) — same value in both themes.
+    static let smallText = Color(hex: 0xB2B2B2)
     /// Radius of the big rounded "sheet" the content sits on.
     static let circleRadius: CGFloat = 546
+    /// Cap on the auth content column's width so form fields/buttons stay a
+    /// readable line length instead of stretching edge-to-edge on iPad.
+    static let contentMaxWidth: CGFloat = 500
+    /// iPhone width the circle radius / background-art constants were tuned
+    /// against; AuthScaffold scales those values by (canvas width / this).
+    static let referenceWidth: CGFloat = 390
 
     static func fieldFill(_ colorScheme: ColorScheme) -> Color {
         colorScheme == .dark ? Color(hex: 0x202020) : Color(hex: 0xF2F2F2)
