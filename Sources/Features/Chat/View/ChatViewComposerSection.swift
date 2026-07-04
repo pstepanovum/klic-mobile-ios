@@ -9,9 +9,9 @@ extension ChatView {
             draft: $draft,
             focused: $isComposerFocused,
             recorder: recorder,
+            recSession: recSession,
             uploading: uploading,
             hasPendingAttachments: !pendingMedia.isEmpty,
-            captureMode: $captureMode,
             // §15.1: the reply preview renders INSIDE the input container.
             replyPreview: replyingTo.map {
                 ComposerReplyPreview(
@@ -19,29 +19,29 @@ extension ChatView {
                     preview: previewText(for: $0)
                 )
             },
+            // §16.4: edit mode — banner + checkmark; wins over the reply banner.
+            editPreview: editingMessage.map { ComposerEditPreview(original: $0.body) },
+            editShakeTrigger: editShakeTrigger,
             onCancelReply: { withAnimation { replyingTo = nil } },
+            onCancelEdit: { exitEdit() },
             onAttach: { showAttachMenu = true },
             onStickers: { showStickers = true },
-            onSend: { Task { await sendComposerPayload() } },
+            onSend: {
+                if editingMessage != nil {
+                    Task { await applyEdit() }
+                } else {
+                    Task { await sendComposerPayload() }
+                }
+            },
+            // §16.2: TAP toggles audio ↔ video (mode persists per app session).
             onToggleCaptureMode: {
-                captureMode = captureMode == .audio ? .video : .audio
+                recSession.setMode(recSession.mode == .audio ? .video : .audio)
             },
-            onHoldStart: {
-                switch captureMode {
-                case .audio:
-                    recorder.start()
-                case .video:
-                    cameraMode = .video
-                    showCamera = true
-                }
-            },
-            onHoldEnd: {
-                if captureMode == .audio {
-                    Task { await stopAndSendVoice() }
-                }
-            },
-            onCancelRecording: { recorder.cancel() },
-            onSendVoice: { Task { await stopAndSendVoice() } }
+            onHoldStart: { holdStart() },
+            onHoldDrag: { holdDrag($0) },
+            onHoldEnd: { translation, velocity in holdEnd(translation, velocity) },
+            onCancelRecording: { cancelRecording() },
+            onSendRecording: { finishAndSendRecording() }
         )
         // ONE Klic attachment sheet with Gallery | Files tabs (§10.11/§11.2).
         // §14.2 crash fix: the follow-up cover (camera/picker/importer/scanner) is

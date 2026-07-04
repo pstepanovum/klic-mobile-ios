@@ -191,10 +191,11 @@ private func lastMessageText(_ m: Message?) -> String {
     if m.isSticker { return "Sticker" }
     if !m.body.isEmpty { return m.body }
     switch m.attachments.first?.kind {
-    case "IMAGE": return "Photo"
-    case "VIDEO": return "Video"
-    case "VOICE": return "Voice message"
-    case .some:   return "File"
-    default:      return "Say hi"
+    case "IMAGE":      return "Photo"
+    case "VIDEO":      return "Video"
+    case "VOICE":      return "Voice message"
+    case "VIDEO_NOTE": return "Video message"
+    case .some:        return "File"
+    default:           return "Say hi"
     }
 }
