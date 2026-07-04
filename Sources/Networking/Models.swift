@@ -23,6 +23,39 @@ struct User: Codable, Identifiable, Hashable {
     var emailVerified: Bool?
 }
 
+/// One GET /me/starred item (§14.4): the message plus the server's enrichment — the
+/// sender's public shape and a conversation context stub ({id, type, title}; the title
+/// is the group name or the DM peer's display name). Both are optional so older
+/// servers still decode; the saved-messages page then falls back to local caches.
+struct StarredMessageItem: Decodable, Identifiable {
+    var message: Message
+    var sender: User?
+    var conversation: Context?
+
+    var id: String { message.id }
+
+    struct Context: Decodable, Hashable {
+        let id: String
+        let type: String
+        var title: String?
+    }
+
+    init(message: Message, sender: User?, conversation: Context?) {
+        self.message = message
+        self.sender = sender
+        self.conversation = conversation
+    }
+
+    init(from decoder: Decoder) throws {
+        message = try Message(from: decoder)
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        sender = try? c.decode(User.self, forKey: .sender)
+        conversation = try? c.decode(Context.self, forKey: .conversation)
+    }
+
+    private enum CodingKeys: String, CodingKey { case sender, conversation }
+}
+
 /// POST /reports response (§12.1).
 struct CreatedReport: Decodable {
     let id: String
@@ -94,6 +127,16 @@ struct AuthResponse: Codable {
     let user: User
 }
 
+/// Shared group chat theme (§14.3) — the server wire shape (admin-set, rendered by
+/// every member). Field names match the server's zod schema exactly.
+struct GroupThemePayload: Codable, Hashable {
+    let pattern: Int
+    let patternOpacity: Double
+    var gradientId: String?
+    var gradientIntensity: Double?
+    var bubbleColorId: String?
+}
+
 struct Conversation: Codable, Identifiable, Hashable {
     let id: String
     let type: String
@@ -104,6 +147,8 @@ struct Conversation: Codable, Identifiable, Hashable {
     let members: [Member]
     var lastMessage: Message?
     var unreadCount: Int?   // present on the conversations list; absent elsewhere
+    /// §14.3: the group's shared theme (absent on DMs / older servers).
+    var theme: GroupThemePayload?
 
     struct Member: Codable, Hashable {
         let id: String; let username: String; let displayName: String
@@ -121,6 +166,8 @@ struct GroupConversationDetails: Codable, Identifiable, Hashable {
     var createdAt: String?      // exposed by newer servers — drives the "Created" footer
     let isAdmin: Bool
     let members: [Member]
+    /// §14.3: the group's shared theme (absent on DMs / older servers).
+    var theme: GroupThemePayload?
 
     struct Member: Codable, Identifiable, Hashable {
         let id: String

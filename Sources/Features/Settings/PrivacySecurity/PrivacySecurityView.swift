@@ -162,7 +162,7 @@ struct PrivacySecurityView: View {
                 .background(KlicColor.surface, in: RoundedRectangle(cornerRadius: 20))
             }
             .padding(20)
-            .adaptiveWidth()
+            .frame(maxWidth: .infinity)
         }
         .background(KlicColor.background.ignoresSafeArea())
         .navigationTitle("Privacy and Security")
@@ -475,7 +475,7 @@ struct BlockedUsersView: View {
                 }
             }
             .padding(20)
-            .adaptiveWidth()
+            .frame(maxWidth: .infinity)
         }
         .background(KlicColor.background.ignoresSafeArea())
         .navigationTitle("Blocked Users")

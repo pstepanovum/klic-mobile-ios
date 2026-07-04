@@ -43,7 +43,7 @@ struct ConversationsView: View {
                 }
                 .padding(.horizontal, 16)
                 .padding(.top, 8)
-                .adaptiveWidth()
+                .frame(maxWidth: .infinity)
             }
             .background(KlicColor.background.ignoresSafeArea())
             .navigationTitle("Chats")

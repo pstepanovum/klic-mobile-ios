@@ -106,6 +106,8 @@ extension ChatView {
         if let fetched = try? await APIClient.shared.conversationDetails(id: conversation.id) {
             groupDetails = fetched
             ChatCaches.groupDetails[conversation.id] = fetched
+            // §14.3: keep the shared theme current for precedence resolution.
+            ChatThemeStore.shared.setGroupTheme(fetched.theme, for: conversation.id)
         }
     }
 }

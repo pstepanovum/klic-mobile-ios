@@ -31,7 +31,7 @@ struct FriendsView: View {
                     .padding(.bottom, 8)
                     .padding(.horizontal, 16)
                 }
-                .adaptiveWidth()
+                .frame(maxWidth: .infinity)
             }
             .background(KlicColor.background.ignoresSafeArea())
             .navigationTitle("Friends")

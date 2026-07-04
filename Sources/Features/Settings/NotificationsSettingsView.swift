@@ -28,7 +28,7 @@ struct NotificationsSettingsView: View {
                     .padding(.horizontal, 8)
             }
             .padding(20)
-            .adaptiveWidth()
+            .frame(maxWidth: .infinity)
         }
         .background(KlicColor.background.ignoresSafeArea())
         .navigationTitle("Notifications")

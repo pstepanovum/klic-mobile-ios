@@ -403,7 +403,7 @@ private struct NewGroupDetailsView: View {
                 .disabled(groupName.trimmingCharacters(in: .whitespaces).isEmpty || isCreating)
             }
             .padding(20)
-            .adaptiveWidth()
+            .frame(maxWidth: .infinity)
         }
         .background(KlicColor.background.ignoresSafeArea())
         .navigationTitle("New Group")
@@ -489,7 +489,7 @@ private struct NewContactView: View {
                 Spacer()
             }
             .padding(24)
-            .adaptiveWidth()
+            .frame(maxWidth: .infinity)
         }
         .background(KlicColor.background.ignoresSafeArea())
         .navigationTitle("New Contact")

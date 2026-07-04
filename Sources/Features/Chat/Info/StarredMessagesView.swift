@@ -81,11 +81,12 @@ struct StarredMessagesView: View {
             return
         }
         loaded = true
+        let fetched = page.items.map(\.message)
         if seededFromCache {
-            messages = page.items   // fresh first page supersedes the cached copy
+            messages = fetched   // fresh first page supersedes the cached copy
             seededFromCache = false
         } else {
-            messages += page.items.filter { item in !messages.contains(where: { $0.id == item.id }) }
+            messages += fetched.filter { item in !messages.contains(where: { $0.id == item.id }) }
         }
         nextCursor = page.nextCursor
         ChatCaches.starred[conversationId] = messages

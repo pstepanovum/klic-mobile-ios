@@ -125,7 +125,6 @@ struct EditProfileView: View {
                 PillButton(title: saving ? String(localized: "Saving…") : String(localized: "Save")) { Task { await save() } }
                     .disabled(saving || !canSave)
             }
-            .frame(maxWidth: 520)
             .frame(maxWidth: .infinity)
             .padding(20)
         }

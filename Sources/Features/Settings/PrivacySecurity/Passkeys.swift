@@ -224,7 +224,7 @@ struct PasskeysView: View {
                     .padding(.horizontal, 8)
             }
             .padding(20)
-            .adaptiveWidth()
+            .frame(maxWidth: .infinity)
         }
         .background(KlicColor.background.ignoresSafeArea())
         .navigationTitle("Passkeys")

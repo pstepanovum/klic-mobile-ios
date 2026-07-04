@@ -193,7 +193,7 @@ struct ChatStorageManageView: View {
                 }
             }
             .padding(20)
-            .adaptiveWidth()
+            .frame(maxWidth: .infinity)
         }
         .background(KlicColor.background.ignoresSafeArea())
         .navigationTitle("Manage storage")

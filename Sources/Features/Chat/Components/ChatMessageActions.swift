@@ -67,7 +67,7 @@ struct MessageActionsOverlay: View {
             .lineLimit(6)
             .padding(.horizontal, 14)
             .padding(.vertical, 10)
-            .background(isMine ? chatTheme.bubbleColor : KlicColor.surfaceRaised, in: RoundedRectangle(cornerRadius: 18))
+            .background(isMine ? chatTheme.bubbleColor(for: message.conversationId) : KlicColor.surfaceRaised, in: RoundedRectangle(cornerRadius: 18))
             .frame(maxWidth: 300, alignment: isMine ? .trailing : .leading)
     }
 
@@ -136,7 +136,66 @@ private struct ActionRow: View {
     }
 }
 
-// MARK: - Reaction pills (under a bubble)
+// MARK: - Reactions INSIDE the bubble (§14.5)
+
+/// Small reaction chips rendered at a bubble's bottom edge, INSIDE its background.
+/// The chip fill is a subtle contrast against whichever surface hosts it: the user's
+/// own accent-colored bubble, the neutral peer bubble, or a media edge (scrim-backed).
+/// The user's own reaction gets a slightly stronger chip. Tap behavior unchanged.
+struct InlineReactionChips: View {
+    let reactions: [Reaction]
+    /// Hosted on the user's own accent-colored bubble.
+    var onPrimary: Bool = false
+    /// Hosted on a media edge (photo/bento/video) — scrim-backed chips.
+    var onMedia: Bool = false
+    let onTap: (String) -> Void
+
+    var body: some View {
+        HStack(spacing: 4) {
+            ForEach(reactions, id: \.emoji) { reaction in
+                Button { onTap(reaction.emoji) } label: {
+                    HStack(spacing: 3) {
+                        Text(reaction.emoji).font(.system(size: 12))
+                        if reaction.count > 1 {
+                            Text("\(reaction.count)")
+                                .font(KlicFont.caption(10).weight(.semibold))
+                                .foregroundStyle(countColor)
+                        }
+                    }
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 3)
+                    .background(fill(reaction), in: Capsule())
+                    .overlay {
+                        if reaction.mine {
+                            Capsule().strokeBorder(stroke, lineWidth: 1)
+                        }
+                    }
+                }
+                .buttonStyle(.plain)
+            }
+        }
+    }
+
+    private func fill(_ reaction: Reaction) -> Color {
+        if onMedia { return .black.opacity(reaction.mine ? 0.62 : 0.45) }
+        if onPrimary { return .white.opacity(reaction.mine ? 0.38 : 0.22) }
+        return reaction.mine ? KlicColor.primary.opacity(0.16) : KlicColor.textPrimary.opacity(0.08)
+    }
+
+    private var stroke: Color {
+        if onMedia { return .white.opacity(0.85) }
+        if onPrimary { return .white.opacity(0.9) }
+        return KlicColor.primary.opacity(0.75)
+    }
+
+    private var countColor: Color {
+        if onMedia { return .white }
+        if onPrimary { return KlicColor.onPrimary }
+        return KlicColor.textPrimary.opacity(0.75)
+    }
+}
+
+// MARK: - Reaction pills (under a bubble-less message)
 
 struct ReactionPills: View {
     let reactions: [Reaction]

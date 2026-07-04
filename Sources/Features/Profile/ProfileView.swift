@@ -35,8 +35,18 @@ struct ProfileView: View {
     @State private var blockError: String?
     // Report flow (§12.1).
     @State private var reportTarget: ReportTarget?
+    // §14.3: friendship state — drives the "Add friend" button on non-friend profiles.
+    @State private var friendshipKnown = false
+    @State private var isFriend = false
+    @State private var friendRequestSent = false
+    @State private var sendingFriendRequest = false
+    @State private var friendError: String?
 
     private var effectiveConversationId: String? { conversationId ?? resolvedConversationId }
+
+    private var showsAddFriend: Bool {
+        friendshipKnown && !isFriend && userId != AccessToken.subject(of: TokenStore.accessToken)
+    }
 
     private var resolvedAvatar: String? { profile?.avatarUrl ?? avatarUrl }
 
@@ -90,6 +100,28 @@ struct ProfileView: View {
                 // Chat-info sections — both entry points (chat header AND friends
                 // list) land on the same full component (§10.2). From the friends
                 // list the DM id is resolved lazily in .task.
+                // §14.3: "Add friend" for non-friend profiles (group members with no
+                // shared context) — sends the normal request.
+                if showsAddFriend {
+                    PillButton(
+                        title: friendRequestSent
+                            ? String(localized: "Friend request sent")
+                            : String(localized: "Add friend"),
+                        fill: friendRequestSent ? KlicColor.surfaceRaised : KlicColor.primary,
+                        textColor: friendRequestSent ? KlicColor.textMuted : KlicColor.onPrimary
+                    ) {
+                        Task { await addFriend() }
+                    }
+                    .disabled(friendRequestSent || sendingFriendRequest)
+                    .padding(.top, 4)
+                    if let friendError {
+                        Text(friendError)
+                            .font(KlicFont.caption())
+                            .foregroundStyle(KlicColor.danger)
+                            .multilineTextAlignment(.center)
+                    }
+                }
+
                 if let chatId = effectiveConversationId {
                     ChatInfoCommonRows(
                         conversationId: chatId,
@@ -98,6 +130,9 @@ struct ProfileView: View {
                             : chatMembers
                     )
                     .padding(.top, 12)
+
+                    // §14.3: per-DM local chat theme + encryption info.
+                    ChatThemeEncryptionRows(conversationId: chatId, isGroup: false)
 
                     ChatNotificationsCard(conversationId: chatId, isGroup: false)
                 }
@@ -139,7 +174,6 @@ struct ProfileView: View {
                         .multilineTextAlignment(.center)
                 }
             }
-            .frame(maxWidth: 520)
             .frame(maxWidth: .infinity)
             .padding(20)
         }
@@ -158,6 +192,15 @@ struct ProfileView: View {
             }
             // Groups in common come from the conversations cache — warm it if needed.
             if store.conversations.isEmpty { await store.refresh() }
+            // §14.3: resolve friendship for the "Add friend" affordance.
+            if !friendshipKnown {
+                let friends = ChatCaches.friends.isEmpty
+                    ? ((try? await APIClient.shared.friends()) ?? [])
+                    : ChatCaches.friends
+                if !friends.isEmpty { ChatCaches.friends = friends }
+                isFriend = friends.contains { $0.id == userId }
+                friendshipKnown = true
+            }
             // §10.2: no conversation context → resolve the DM (POST returns the
             // existing conversation) so the full sections render here too.
             if conversationId == nil, resolvedConversationId == nil {
@@ -276,6 +319,22 @@ struct ProfileView: View {
         // The list payload's members exclude the current user — count them back in.
         let count = group.members.count + 1
         return count == 1 ? String(localized: "1 member") : String(localized: "\(count) members")
+    }
+
+    // MARK: Add friend (§14.3)
+
+    private func addFriend() async {
+        sendingFriendRequest = true
+        defer { sendingFriendRequest = false }
+        friendError = nil
+        do {
+            _ = try await APIClient.shared.sendFriendRequest(userId: userId)
+            friendRequestSent = true
+        } catch let e as APIError {
+            friendError = e.userMessage
+        } catch {
+            friendError = String(localized: "Couldn't send the friend request right now.")
+        }
     }
 
     // MARK: Block (§10.4)

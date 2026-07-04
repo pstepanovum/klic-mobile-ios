@@ -1,8 +1,78 @@
 import SwiftUI
 
-/// Local-only chat theme (CALLS.md §12.3): background pattern + opacity, an optional
-/// subtle two-stop gradient, and the own-bubble accent color. Applies to ALL
-/// conversations; persisted in UserDefaults — no server involvement.
+/// One complete chat-theme selection (§12.3/§14.3): background pattern + opacity, an
+/// optional subtle two-stop gradient, and the own-bubble accent color.
+struct ChatThemeConfig: Codable, Equatable {
+    var patternId: Int = ChatThemeStore.defaultPatternId
+    var patternOpacity: Double = ChatThemeStore.defaultPatternOpacity
+    var gradientId: String? = nil
+    var gradientIntensity: Double = ChatThemeStore.defaultGradientIntensity
+    var bubblePaletteId: String = ChatBubblePalette.defaultId
+
+    var gradientPreset: ChatGradientPreset? {
+        gradientId.flatMap { id in ChatGradientPreset.all.first { $0.id == id } }
+    }
+
+    var bubbleColor: Color {
+        (ChatBubblePalette.all.first { $0.id == bubblePaletteId } ?? ChatBubblePalette.all[0]).color
+    }
+
+    /// Sanitize arbitrary (persisted / server-sent) values into the known ranges.
+    func sanitized() -> ChatThemeConfig {
+        var config = self
+        if !(1...10).contains(config.patternId) { config.patternId = ChatThemeStore.defaultPatternId }
+        config.patternOpacity = config.patternOpacity.clamped(to: ChatThemeStore.patternOpacityRange)
+        if let id = config.gradientId, !ChatGradientPreset.all.contains(where: { $0.id == id }) {
+            config.gradientId = nil
+        }
+        config.gradientIntensity = config.gradientIntensity.clamped(to: ChatThemeStore.gradientIntensityRange)
+        if !ChatBubblePalette.all.contains(where: { $0.id == config.bubblePaletteId }) {
+            config.bubblePaletteId = ChatBubblePalette.defaultId
+        }
+        return config
+    }
+
+    /// The server wire shape (§14.3) → client config.
+    init(payload: GroupThemePayload) {
+        self.init(
+            patternId: payload.pattern,
+            patternOpacity: payload.patternOpacity,
+            gradientId: payload.gradientId,
+            gradientIntensity: payload.gradientIntensity ?? ChatThemeStore.defaultGradientIntensity,
+            bubblePaletteId: payload.bubbleColorId ?? ChatBubblePalette.defaultId
+        )
+        self = sanitized()
+    }
+
+    var payload: GroupThemePayload {
+        GroupThemePayload(
+            pattern: patternId,
+            patternOpacity: patternOpacity,
+            gradientId: gradientId,
+            gradientIntensity: gradientIntensity,
+            bubbleColorId: bubblePaletteId
+        )
+    }
+
+    init(
+        patternId: Int = ChatThemeStore.defaultPatternId,
+        patternOpacity: Double = ChatThemeStore.defaultPatternOpacity,
+        gradientId: String? = nil,
+        gradientIntensity: Double = ChatThemeStore.defaultGradientIntensity,
+        bubblePaletteId: String = ChatBubblePalette.defaultId
+    ) {
+        self.patternId = patternId
+        self.patternOpacity = patternOpacity
+        self.gradientId = gradientId
+        self.gradientIntensity = gradientIntensity
+        self.bubblePaletteId = bubblePaletteId
+    }
+}
+
+/// Chat theme state (§12.3/§14.3): the GLOBAL theme (UserDefaults), per-conversation
+/// LOCAL overrides (UserDefaults, keyed by conversation id — the DM "chat theme"),
+/// and SHARED group themes fed from server conversation payloads. Precedence when
+/// rendering a chat: group theme > per-chat override > global.
 @MainActor
 final class ChatThemeStore: ObservableObject {
     static let shared = ChatThemeStore()
@@ -32,6 +102,15 @@ final class ChatThemeStore: ObservableObject {
         didSet { defaults.set(bubblePaletteId, forKey: Keys.bubble) }
     }
 
+    /// §14.3: per-conversation LOCAL theme overrides (DM "chat theme"), persisted.
+    @Published private(set) var overrides: [String: ChatThemeConfig] {
+        didSet { persistOverrides() }
+    }
+
+    /// §14.3: SHARED group themes as last seen from the server (conversation payloads
+    /// + `conversation:updated`). Session-scoped; reseeded on every fetch.
+    @Published private(set) var groupThemes: [String: ChatThemeConfig] = [:]
+
     private let defaults = UserDefaults.standard
 
     private enum Keys {
@@ -40,6 +119,7 @@ final class ChatThemeStore: ObservableObject {
         static let gradient = "klic.chatTheme.gradient"
         static let gradientIntensity = "klic.chatTheme.gradientIntensity"
         static let bubble = "klic.chatTheme.bubble"
+        static let overrides = "klic.chatTheme.overrides"
     }
 
     init() {
@@ -63,27 +143,87 @@ final class ChatThemeStore: ObservableObject {
         bubblePaletteId = ChatBubblePalette.all.contains(where: { $0.id == storedBubble })
             ? storedBubble
             : ChatBubblePalette.defaultId
+
+        if let data = defaults.data(forKey: Keys.overrides),
+           let decoded = try? JSONDecoder().decode([String: ChatThemeConfig].self, from: data) {
+            overrides = decoded.mapValues { $0.sanitized() }
+        } else {
+            overrides = [:]
+        }
     }
 
-    var gradientPreset: ChatGradientPreset? {
-        gradientId.flatMap { id in ChatGradientPreset.all.first { $0.id == id } }
+    // MARK: Global theme
+
+    var globalConfig: ChatThemeConfig {
+        get {
+            ChatThemeConfig(
+                patternId: patternId,
+                patternOpacity: patternOpacity,
+                gradientId: gradientId,
+                gradientIntensity: gradientIntensity,
+                bubblePaletteId: bubblePaletteId
+            )
+        }
+        set {
+            let config = newValue.sanitized()
+            patternId = config.patternId
+            patternOpacity = config.patternOpacity
+            gradientId = config.gradientId
+            gradientIntensity = config.gradientIntensity
+            bubblePaletteId = config.bubblePaletteId
+        }
     }
 
-    /// The own-bubble accent (also used for the send button).
-    var bubbleColor: Color {
-        (ChatBubblePalette.all.first { $0.id == bubblePaletteId } ?? ChatBubblePalette.all[0]).color
-    }
+    var gradientPreset: ChatGradientPreset? { globalConfig.gradientPreset }
+
+    /// The own-bubble accent (also used for the send button) — GLOBAL theme.
+    var bubbleColor: Color { globalConfig.bubbleColor }
 
     func reset() {
-        patternId = Self.defaultPatternId
-        patternOpacity = Self.defaultPatternOpacity
-        gradientId = nil
-        gradientIntensity = Self.defaultGradientIntensity
-        bubblePaletteId = ChatBubblePalette.defaultId
+        globalConfig = ChatThemeConfig()
+    }
+
+    // MARK: Per-conversation resolution (§14.3)
+
+    /// Precedence: group theme > per-chat local override > global.
+    func resolvedConfig(for conversationId: String?) -> ChatThemeConfig {
+        guard let conversationId else { return globalConfig }
+        if let group = groupThemes[conversationId] { return group }
+        if let override = overrides[conversationId] { return override }
+        return globalConfig
+    }
+
+    func bubbleColor(for conversationId: String?) -> Color {
+        resolvedConfig(for: conversationId).bubbleColor
+    }
+
+    func override(for conversationId: String) -> ChatThemeConfig? {
+        overrides[conversationId]
+    }
+
+    func setOverride(_ config: ChatThemeConfig, for conversationId: String) {
+        overrides[conversationId] = config.sanitized()
+    }
+
+    func clearOverride(for conversationId: String) {
+        overrides[conversationId] = nil
+    }
+
+    /// Seed/refresh a group's shared theme from a server payload (nil clears it).
+    func setGroupTheme(_ payload: GroupThemePayload?, for conversationId: String) {
+        let config = payload.map(ChatThemeConfig.init(payload:))
+        guard groupThemes[conversationId] != config else { return }
+        groupThemes[conversationId] = config
+    }
+
+    private func persistOverrides() {
+        if let data = try? JSONEncoder().encode(overrides) {
+            defaults.set(data, forKey: Keys.overrides)
+        }
     }
 }
 
-private extension Double {
+extension Double {
     func clamped(to range: ClosedRange<Double>) -> Double {
         Swift.min(Swift.max(self, range.lowerBound), range.upperBound)
     }
@@ -157,23 +297,29 @@ struct ChatBubblePalette: Identifiable {
 // MARK: - Background stack
 
 /// The chat background stack (§12.3): background color → gradient layer → pattern layer.
-/// Used by every chat screen and by the theme page's live preview.
+/// Used by every chat screen and by the theme page's live preview. §14.3: pass the
+/// conversation id to render that chat's RESOLVED theme (group > per-chat > global).
 struct ChatThemeBackground: View {
+    var conversationId: String? = nil
+    /// Explicit config (theme editors' live preview); overrides resolution.
+    var config: ChatThemeConfig? = nil
+
     @ObservedObject private var theme = ChatThemeStore.shared
 
     var body: some View {
+        let resolved = config ?? theme.resolvedConfig(for: conversationId)
         ZStack {
             KlicColor.background
-            if let preset = theme.gradientPreset {
+            if let preset = resolved.gradientPreset {
                 LinearGradient(
                     colors: [preset.top, preset.bottom],
                     startPoint: .topLeading,
                     endPoint: .bottomTrailing
                 )
-                .opacity(theme.gradientIntensity)
+                .opacity(resolved.gradientIntensity)
             }
-            ChatPatternImage(patternId: theme.patternId)
-                .opacity(theme.patternOpacity)
+            ChatPatternImage(patternId: resolved.patternId)
+                .opacity(resolved.patternOpacity)
         }
     }
 }

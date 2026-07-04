@@ -23,9 +23,23 @@ struct MessageBubble: View {
     var onReactionTap: (String) -> Void = { _ in }
     var onOpenAttachment: (Attachment) -> Void = { _ in }
 
-    private var topRadius:    CGFloat { isFirst ? 18 : (isMine ? 18 : 4) }
-    private var bottomRadius: CGFloat { isLast  ? 18 : (isMine ? 4  : 18) }
-    private var tailRadius:   CGFloat { isLast  ? 4  : 18 }
+    /// §14.6: measured height of the text bubble — drives the dynamic corner radius.
+    @State private var textBubbleHeight: CGFloat = 0
+
+    /// §14.6: dynamic corner radius. Short bubbles read capsule-ish (half their
+    /// height, capped); past a few lines the radius CONTINUOUSLY interpolates down
+    /// to 16pt so tall paragraphs stop looking like balloons. No snapping.
+    private var bubbleRadius: CGFloat {
+        let height = textBubbleHeight
+        guard height > 0 else { return 18 }
+        let capsule = min(height / 2, 22)
+        guard height > 100 else { return capsule }
+        return max(16, capsule - (height - 100) * 0.04)
+    }
+
+    private var topRadius:    CGFloat { isFirst ? bubbleRadius : (isMine ? bubbleRadius : 4) }
+    private var bottomRadius: CGFloat { isLast  ? bubbleRadius : (isMine ? 4  : bubbleRadius) }
+    private var tailRadius:   CGFloat { isLast  ? 4  : bubbleRadius }
 
     /// §11.6: with read receipts OFF, DMs never show the blue read tick (both ways —
     /// the server also stops emitting/exposing read state); groups are unaffected.
@@ -71,9 +85,16 @@ struct MessageBubble: View {
         .frame(maxWidth: .infinity, alignment: isMine ? .trailing : .leading)
     }
 
-    /// §13.3: the gutter reserved opposite a bubble. Small enough that text pills can
-    /// fill ~85% of the row before wrapping (was 56 — bubbles wrapped too early).
-    private static let bubbleGutter: CGFloat = 44
+    /// §14.6: the gutter reserved opposite a bubble. Small enough that text pills
+    /// can stretch to ~90% of the row before wrapping (§13.3 had 44 → ~85%).
+    private static let bubbleGutter: CGFloat = 32
+
+    /// §14.5: reactions render INSIDE the bubble for every bubble-backed kind; only
+    /// bubble-less presentations (big emoji, bare-link cards) keep the outer pills.
+    private var reactionsRenderedOutside: Bool {
+        guard message.attachments.isEmpty else { return false }
+        return emojiOnlyCount != nil || isBareLink
+    }
 
     private var standardBubble: some View {
         HStack(alignment: .bottom, spacing: 6) {
@@ -86,7 +107,7 @@ struct MessageBubble: View {
             VStack(alignment: isMine ? .trailing : .leading, spacing: 4) {
                 messageContent
 
-                if !message.reactions.isEmpty {
+                if !message.reactions.isEmpty, reactionsRenderedOutside {
                     ReactionPills(reactions: message.reactions, onTap: onReactionTap)
                 }
             }
@@ -129,6 +150,8 @@ struct MessageBubble: View {
                     highlightMentions: isGroupChat,
                     mentionNames: mentionNames,
                     conversationId: message.conversationId,
+                    reactions: message.reactions,
+                    onReactionTap: onReactionTap,
                     onOpenAttachment: onOpenAttachment,
                     onLongPress: onLongPress
                 )
@@ -164,29 +187,53 @@ struct MessageBubble: View {
                         if let reply = message.replyTo, message.attachments.isEmpty {
                             ReplyQuoteView(reply: reply, authorName: replyAuthorName, onPrimary: isMine)
                         }
-                        HStack(alignment: .bottom, spacing: 6) {
-                            RichMessageText(
-                                text: message.body,
-                                font: UIFont(name: "TikTokSans-Regular", size: 16) ?? .systemFont(ofSize: 16),
-                                textColor: UIColor(isMine ? KlicColor.onPrimary : KlicColor.textPrimary),
-                                highlightMentions: isGroupChat,
-                                mentionNames: mentionNames,
-                                mentionColor: UIColor(isMine ? KlicColor.onPrimary : KlicColor.primary),
-                                onLongPress: onLongPress
-                            )
-                            inlineTimeStatus(onPrimary: isMine)
+                        VStack(alignment: .leading, spacing: 6) {
+                            HStack(alignment: .bottom, spacing: 6) {
+                                RichMessageText(
+                                    text: message.body,
+                                    font: UIFont(name: "TikTokSans-Regular", size: 16) ?? .systemFont(ofSize: 16),
+                                    textColor: UIColor(isMine ? KlicColor.onPrimary : KlicColor.textPrimary),
+                                    highlightMentions: isGroupChat,
+                                    mentionNames: mentionNames,
+                                    mentionColor: UIColor(isMine ? KlicColor.onPrimary : KlicColor.primary),
+                                    onLongPress: onLongPress
+                                )
+                                // §14.6: the time chip sizes FIRST (fixed + higher
+                                // priority) so the text gets the whole remaining row
+                                // width — the HStack used to split the proposal 50/50
+                                // and the text view accepted the half-width, wrapping
+                                // long messages into a skinny column.
+                                inlineTimeStatus(onPrimary: isMine)
+                                    .fixedSize()
+                                    .layoutPriority(1)
+                            }
+                            // §14.5: reaction chips INSIDE the bubble, bottom edge.
+                            if !message.reactions.isEmpty {
+                                InlineReactionChips(
+                                    reactions: message.reactions,
+                                    onPrimary: isMine,
+                                    onTap: onReactionTap
+                                )
+                            }
                         }
                         .padding(.horizontal, 14)
                         .padding(.vertical, 10)
                         .background(
-                            isMine ? chatTheme.bubbleColor : KlicColor.surfaceRaised,
+                            isMine ? chatTheme.bubbleColor(for: message.conversationId) : KlicColor.surfaceRaised,
                             in: UnevenRoundedRectangle(
-                                topLeadingRadius:     isMine ? 18 : topRadius,
-                                bottomLeadingRadius:  isMine ? 18 : bottomRadius,
-                                bottomTrailingRadius: isMine ? tailRadius : 18,
-                                topTrailingRadius:    isMine ? topRadius : 18
+                                topLeadingRadius:     isMine ? bubbleRadius : topRadius,
+                                bottomLeadingRadius:  isMine ? bubbleRadius : bottomRadius,
+                                bottomTrailingRadius: isMine ? tailRadius : bubbleRadius,
+                                topTrailingRadius:    isMine ? topRadius : bubbleRadius
                             )
                         )
+                        // §14.6: measure the bubble to drive the dynamic radius.
+                        .background(
+                            GeometryReader { geo in
+                                Color.clear.preference(key: BubbleHeightKey.self, value: geo.size.height)
+                            }
+                        )
+                        .onPreferenceChange(BubbleHeightKey.self) { textBubbleHeight = $0 }
 
                         if let url = detectedURL {
                             LinkPreviewCard(url: url)
@@ -276,6 +323,12 @@ struct MessageBubble: View {
         f.dateFormat = "h:mm a"
         return f.string(from: date)
     }
+}
+
+/// §14.6: reports the text bubble's laid-out height for the dynamic corner radius.
+private struct BubbleHeightKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = nextValue() }
 }
 
 private extension Character {

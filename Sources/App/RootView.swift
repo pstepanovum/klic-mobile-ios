@@ -5,9 +5,11 @@ import Inject
 struct RootView: View {
     @ObserveInjection var inject
     @EnvironmentObject var session: AppSession
+    @Environment(\.scenePhase) private var scenePhase
     @StateObject private var callKit = CallKitManager.shared
     @StateObject private var appLock = AppLockManager.shared
     @StateObject private var friendLinks = FriendLinkRouter.shared
+    @StateObject private var updateChecker = UpdateChecker.shared
     @State private var didGetStarted = false
     @State private var selectedTab: RootTab = .chats
 
@@ -104,6 +106,19 @@ struct RootView: View {
         .animation(.spring(response: 0.3), value: callKit.callMinimized)
         .fullScreenCover(item: presentedCall) { call in
             CallView(call: call)
+        }
+        // §14.7: a newer GitHub release → dismissible update page (auth styling).
+        // Checked on launch + foreground, throttled to once per 6h by the checker.
+        .fullScreenCover(item: $updateChecker.available) { release in
+            UpdateAvailableView(
+                release: release,
+                currentVersion: updateChecker.currentVersion,
+                onDismiss: { updateChecker.dismiss() }
+            )
+        }
+        .task { updateChecker.checkIfDue() }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active { updateChecker.checkIfDue() }
         }
         .enableInjection()
     }

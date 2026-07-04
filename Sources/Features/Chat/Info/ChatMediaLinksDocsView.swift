@@ -187,7 +187,7 @@ struct ChatMediaLinksDocsView: View {
                 }
             }
             .padding(16)
-            .adaptiveWidth()
+            .frame(maxWidth: .infinity)
         }
     }
 
@@ -210,7 +210,7 @@ struct ChatMediaLinksDocsView: View {
                 if loadingAttachments { ProgressView().padding(.vertical, 14) }
             }
             .padding(16)
-            .adaptiveWidth()
+            .frame(maxWidth: .infinity)
         }
     }
 
@@ -299,12 +299,8 @@ private struct MediaBrowserTile: View {
         GeometryReader { geo in
             Group {
                 if attachment.kind == "VIDEO" {
-                    ZStack {
-                        Color.black.opacity(0.85)
-                        Image(systemName: "play.circle.fill")
-                            .font(.system(size: 28))
-                            .foregroundStyle(.white.opacity(0.95))
-                    }
+                    // §14.2: real first-frame thumbnail in the media browser grid.
+                    VideoThumbnailView(attachment: attachment.asAttachment, glyphSize: 28)
                 } else {
                     RemoteImage(url: URL(string: attachment.url), cacheKey: RemoteImageStore.attachmentCacheKey(attachment.id)) { phase in
                         switch phase {

@@ -46,6 +46,10 @@ final class ConversationStore: ObservableObject {
         if let list = try? await APIClient.shared.conversations() {
             conversations = list
             loaded = true
+            // §14.3: seed each group's shared theme for precedence resolution.
+            for convo in list where convo.type == "GROUP" {
+                ChatThemeStore.shared.setGroupTheme(convo.theme, for: convo.id)
+            }
         }
     }
 

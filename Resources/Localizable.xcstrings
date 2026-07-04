@@ -511,6 +511,23 @@
         }
       }
     },
+    "Add friend": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Добавить друга"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "添加好友"
+          }
+        }
+      }
+    },
     "Add link": {
       "extractionState": "manual",
       "localizations": {
@@ -864,6 +881,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "音频"
+          }
+        }
+      }
+    },
+    "Audio and video calls": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Аудио- и видеозвонки"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "语音和视频通话"
           }
         }
       }
@@ -1480,6 +1514,23 @@
         }
       }
     },
+    "Close": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Закрыть"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "关闭"
+          }
+        }
+      }
+    },
     "Confirm your passcode": {
       "extractionState": "manual",
       "localizations": {
@@ -1803,6 +1854,23 @@
         }
       }
     },
+    "Couldn't save the theme right now.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не удалось сохранить тему."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "暂时无法保存主题。"
+          }
+        }
+      }
+    },
     "Couldn't save. Please try again.": {
       "extractionState": "manual",
       "localizations": {
@@ -1816,6 +1884,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "无法保存，请重试。"
+          }
+        }
+      }
+    },
+    "Couldn't send the friend request right now.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не удалось отправить запрос в друзья."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "暂时无法发送好友请求。"
           }
         }
       }
@@ -2602,6 +2687,40 @@
         }
       }
     },
+    "Encryption": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Шифрование"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "加密"
+          }
+        }
+      }
+    },
+    "End-to-end encryption keeps your personal messages and calls between you and the people you choose. No one outside — not even Klic — can read, listen to, or share them.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сквозное шифрование защищает ваши сообщения и звонки. Никто посторонний — даже Klic — не может их прочитать, прослушать или переслать."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "端到端加密确保您的私人消息和通话只属于您和您选择的人。任何外人——包括 Klic——都无法读取、收听或分享它们。"
+          }
+        }
+      }
+    },
     "English": {
       "extractionState": "manual",
       "localizations": {
@@ -2768,6 +2887,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "收藏"
+          }
+        }
+      }
+    },
+    "File": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Файл"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "文件"
           }
         }
       }
@@ -2972,6 +3108,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "常用"
+          }
+        }
+      }
+    },
+    "Friend request sent": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Запрос в друзья отправлен"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "好友请求已发送"
           }
         }
       }
@@ -3435,6 +3588,23 @@
         }
       }
     },
+    "Klic %@ is ready — you're on %@.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Klic %@ готов — вы используете %@."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Klic %@ 已就绪——您当前使用的是 %@。"
+          }
+        }
+      }
+    },
     "Klic (in-app)": {
       "extractionState": "manual",
       "localizations": {
@@ -3482,6 +3652,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "Klic 仅能访问部分照片。管理…"
+          }
+        }
+      }
+    },
+    "Klic checks for new releases automatically and shows an update page when one is available. iOS updates install via AltStore or TestFlight.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Klic автоматически проверяет наличие обновлений. На iOS обновления устанавливаются через AltStore или TestFlight."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Klic 会自动检查新版本，并在有可用更新时显示更新页面。iOS 更新通过 AltStore 或 TestFlight 安装。"
           }
         }
       }
@@ -3622,6 +3809,23 @@
         }
       }
     },
+    "Learn more": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Подробнее"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "了解更多"
+          }
+        }
+      }
+    },
     "Link": {
       "extractionState": "manual",
       "localizations": {
@@ -3720,6 +3924,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "看起来很棒！"
+          }
+        }
+      }
+    },
+    "Make %@ the group admin?": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сделать %@ администратором группы?"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "让 %@ 成为群管理员？"
           }
         }
       }
@@ -4081,6 +4302,23 @@
         }
       }
     },
+    "No camera is available on this device.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "На этом устройстве нет камеры."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此设备没有可用的相机。"
+          }
+        }
+      }
+    },
     "No contacts match your search.": {
       "extractionState": "manual",
       "localizations": {
@@ -4247,6 +4485,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "无"
+          }
+        }
+      }
+    },
+    "Not now": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не сейчас"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "暂不"
           }
         }
       }
@@ -4642,6 +4897,23 @@
         }
       }
     },
+    "Photos, videos and documents": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Фото, видео и документы"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "照片、视频和文档"
+          }
+        }
+      }
+    },
     "Pinch to zoom, drag to position": {
       "extractionState": "manual",
       "localizations": {
@@ -5029,6 +5301,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "从群组中移除"
+          }
+        }
+      }
+    },
+    "Remove from saved messages?": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Удалить из сохранённых сообщений?"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "从收藏消息中移除？"
           }
         }
       }
@@ -5522,6 +5811,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "保存到相册"
+          }
+        }
+      }
+    },
+    "Saved messages": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сохранённые сообщения"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "收藏消息"
           }
         }
       }
@@ -6155,6 +6461,23 @@
         }
       }
     },
+    "Sticker": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Стикер"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "贴纸"
+          }
+        }
+      }
+    },
     "Submit report": {
       "extractionState": "manual",
       "localizations": {
@@ -6325,6 +6648,23 @@
         }
       }
     },
+    "Text and voice messages": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Текстовые и голосовые сообщения"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "文字和语音消息"
+          }
+        }
+      }
+    },
     "Thanks for letting us know. Our team will review your report.": {
       "extractionState": "manual",
       "localizations": {
@@ -6410,6 +6750,23 @@
         }
       }
     },
+    "They will be able to edit the group, manage members and set the chat theme. You will no longer be the admin.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Этот пользователь сможет редактировать группу, управлять участниками и менять тему чата. Вы перестанете быть администратором."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "他们将可以编辑群组、管理成员并设置聊天主题。您将不再是管理员。"
+          }
+        }
+      }
+    },
     "They will no longer see this group or its messages.": {
       "extractionState": "manual",
       "localizations": {
@@ -6457,6 +6814,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "此设备返回了不支持的凭据类型。"
+          }
+        }
+      }
+    },
+    "This includes your:": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Это касается ваших:"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这包括您的："
           }
         }
       }
@@ -6512,6 +6886,40 @@
         }
       }
     },
+    "This theme applies to this chat only, on this device.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Эта тема применяется только для этого чата на данном устройстве."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此主题仅应用于此设备上的这个聊天。"
+          }
+        }
+      }
+    },
+    "This theme is shared — every member of the group sees it.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Эта тема общая — её видят все участники группы."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此主题为共享——群内每位成员都能看到。"
+          }
+        }
+      }
+    },
     "Today": {
       "extractionState": "manual",
       "localizations": {
@@ -6559,6 +6967,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "总网络用量"
+          }
+        }
+      }
+    },
+    "Transfer admin": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Передать права админа"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "转让管理员"
           }
         }
       }
@@ -6767,6 +7192,40 @@
         }
       }
     },
+    "Update available": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Доступно обновление"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "有可用更新"
+          }
+        }
+      }
+    },
+    "Update now": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Обновить сейчас"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "立即更新"
+          }
+        }
+      }
+    },
     "Updates": {
       "extractionState": "manual",
       "localizations": {
@@ -6869,6 +7328,23 @@
         }
       }
     },
+    "Use default theme": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Использовать тему по умолчанию"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "使用默认主题"
+          }
+        }
+      }
+    },
     "Use lowercase letters, numbers, _ and . (no leading or trailing dot).": {
       "extractionState": "manual",
       "localizations": {
@@ -6882,6 +7358,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "使用小写字母、数字、_ 和 .（首尾不能是句点）。"
+          }
+        }
+      }
+    },
+    "User": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Пользователь"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "用户"
           }
         }
       }
@@ -6988,6 +7481,23 @@
         }
       }
     },
+    "Video call": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Видеозвонок"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "视频通话"
+          }
+        }
+      }
+    },
     "Videos": {
       "extractionState": "manual",
       "localizations": {
@@ -7073,6 +7583,40 @@
         }
       }
     },
+    "Voice call": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Голосовой звонок"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "语音通话"
+          }
+        }
+      }
+    },
+    "Voice message · %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Голосовое сообщение · %@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "语音消息 · %@"
+          }
+        }
+      }
+    },
     "Waiting for passkey…": {
       "extractionState": "manual",
       "localizations": {
@@ -7103,6 +7647,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "欢迎回来 — 登录以继续聊天。"
+          }
+        }
+      }
+    },
+    "What's new": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Что нового"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更新内容"
           }
         }
       }
@@ -7413,6 +7974,23 @@
         }
       }
     },
+    "Your chats and calls are private": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ваши чаты и звонки приватны"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "您的聊天和通话是私密的"
+          }
+        }
+      }
+    },
     "Your email will no longer be linked to this account.": {
       "extractionState": "manual",
       "localizations": {
@@ -7549,19 +8127,36 @@
         }
       }
     },
-    "iOS updates are delivered via TestFlight. Android users can update directly from Settings → App updates.": {
+    "in %@": {
       "extractionState": "manual",
       "localizations": {
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Обновления iOS приходят через TestFlight. На Android можно обновиться в меню Настройки → Обновления приложения."
+            "value": "в %@"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "iOS 更新通过 TestFlight 发布。Android 用户可以直接在“设置”→“应用更新”中进行更新。"
+            "value": "来自 %@"
+          }
+        }
+      }
+    },
+    "in chat with %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "в чате с %@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "来自与 %@ 的聊天"
           }
         }
       }

@@ -62,7 +62,7 @@ struct LanguageSettingsView: View {
                     .multilineTextAlignment(.center)
             }
             .padding(20)
-            .adaptiveWidth()
+            .frame(maxWidth: .infinity)
         }
         .background(KlicColor.background.ignoresSafeArea())
         .navigationTitle("Language")

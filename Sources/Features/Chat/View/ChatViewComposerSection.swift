@@ -5,6 +5,7 @@ import UniformTypeIdentifiers
 extension ChatView {
     var composer: some View {
         MessageComposer(
+            conversationId: conversation.id,
             draft: $draft,
             focused: $isComposerFocused,
             recorder: recorder,
@@ -35,17 +36,22 @@ extension ChatView {
             onSendVoice: { Task { await stopAndSendVoice() } }
         )
         // ONE Klic attachment sheet with Gallery | Files tabs (§10.11/§11.2).
-        .sheet(isPresented: $showAttachMenu) {
+        // §14.2 crash fix: the follow-up cover (camera/picker/importer/scanner) is
+        // presented from the sheet's onDismiss — AFTER the dismissal actually
+        // completes — instead of a fixed 0.4s timer. On a slow frame the timer fired
+        // while the sheet was still animating out, and presenting the camera cover
+        // mid-dismissal corrupted the presentation stack (stuck/frozen capture flow).
+        .sheet(isPresented: $showAttachMenu, onDismiss: { runPendingAttachAction() }) {
             KlicAttachmentSheet(
                 onSendAssets: { assets in
                     // §13.17: an all-media bulk selection sends ONE message with
                     // multiple attachments (bento grid), via the upload-pill pipeline.
                     Task { await sendAssetsAsMessages(assets) }
                 },
-                onOpenSystemPicker: { pendingAttach = .photos; deferAttachAction() },
-                onOpenCamera: { pendingAttach = .camera; deferAttachAction() },
-                onSelectFiles: { pendingAttach = .file; deferAttachAction() },
-                onScanDocument: { pendingAttach = .scan; deferAttachAction() }
+                onOpenSystemPicker: { pendingAttach = .photos },
+                onOpenCamera: { pendingAttach = .camera },
+                onSelectFiles: { pendingAttach = .file },
+                onScanDocument: { pendingAttach = .scan }
             )
         }
         .fullScreenCover(isPresented: $showDocScanner) {
@@ -81,20 +87,19 @@ extension ChatView {
     }
 
     /// The picker/camera/importer covers can't present while the attach sheet is still
-    /// up — run the chosen action right after it dismisses.
-    private func deferAttachAction() {
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
-            guard let action = pendingAttach else { return }
-            pendingAttach = nil
-            switch action {
-            case .photos: showPhotos = true
-            case .camera:
-                // §11.2: the attachment sheet's camera captures photo AND video.
-                cameraMode = .photoOrVideo
-                showCamera = true
-            case .file: showFileImporter = true
-            case .scan: showDocScanner = true
-            }
+    /// up — the chosen action is recorded in `pendingAttach` and executed by the
+    /// sheet's onDismiss once the dismissal has fully completed (§14.2).
+    func runPendingAttachAction() {
+        guard let action = pendingAttach else { return }
+        pendingAttach = nil
+        switch action {
+        case .photos: showPhotos = true
+        case .camera:
+            // §11.2/§14.2: the attachment sheet's camera captures photo AND video.
+            cameraMode = .photoOrVideo
+            showCamera = true
+        case .file: showFileImporter = true
+        case .scan: showDocScanner = true
         }
     }
 

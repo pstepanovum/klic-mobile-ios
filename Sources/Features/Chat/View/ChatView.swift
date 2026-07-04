@@ -49,7 +49,9 @@ struct ChatView: View {
     /// The staged item currently open in the pre-send media editor (§10.9).
     @State var editingDraft: PendingMediaDraft?
     /// Optimistic in-flight sends rendered as progress pills at the list's tail (§9.1).
-    @State var outgoingUploads: [OutgoingUpload] = []
+    /// §14.2: owned by the session-scoped UploadCenter so pills survive leaving and
+    /// re-entering the chat mid-upload.
+    @ObservedObject var uploadCenter = UploadCenter.shared
     @State var selectedMediaAttachmentId: String?
     @State var captureMode: MessageComposer.CaptureMode = .audio
     @State var cameraMode: CameraPicker.Mode = .photo
@@ -95,6 +97,8 @@ struct ChatView: View {
 
     /// Messages minus anything the user deleted just for themselves (local-only).
     var visibleMessages: [Message] { messages.filter { !hiddenIds.contains($0.id) } }
+    /// This chat's in-flight upload pills, re-attached from the registry (§14.2).
+    var outgoingUploads: [OutgoingUpload] { uploadCenter.uploads(in: conversation.id) }
     var mediaGalleryItems: [ChatMediaGalleryItem] {
         visibleMessages.flatMap { message in
             message.attachments.compactMap { attachment in
@@ -165,7 +169,6 @@ struct ChatView: View {
                     }
                 }
             }
-        .frame(maxWidth: 760)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         // §12.3: background color → gradient → low-opacity pattern → messages.
         // §13.4: the background stack is anchored to the SCREEN, not the keyboard-
@@ -173,7 +176,7 @@ struct ChatView: View {
         // keyboard-inset exemption, so opening the keyboard moves only the
         // messages/composer and never shifts the pattern.
         .background(alignment: .top) {
-            ChatThemeBackground()
+            ChatThemeBackground(conversationId: conversation.id)
                 .frame(
                     width: UIScreen.main.bounds.width,
                     height: UIScreen.main.bounds.height
@@ -307,6 +310,18 @@ struct ChatView: View {
         .onReceive(socket.$lastConversationRemoved.compactMap { $0 }) { removedId in
             guard removedId == conversation.id else { return }
             dismiss()
+        }
+        // Group edits (title/cover/theme/admin) re-render live (§14.3).
+        .onReceive(socket.$lastConversationUpdated.compactMap { $0 }) { updated in
+            guard updated.id == conversation.id else { return }
+            groupDetails = updated
+        }
+        // A background upload resolved into its server message (§14.2) — swap the
+        // pill for the real bubble in place.
+        .onReceive(uploadCenter.completions) { msg in
+            guard msg.conversationId == conversation.id else { return }
+            upsert(msg)
+            if atBottom { scrollToBottom(animated: false) }
         }
         .onReceive(socket.$lastRead.compactMap { $0 }) { applyReceipt($0, status: "read") }
         .onReceive(socket.$lastDelivered.compactMap { $0 }) { applyReceipt($0, status: "delivered") }
