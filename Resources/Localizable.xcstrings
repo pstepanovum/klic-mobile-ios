@@ -1721,6 +1721,12 @@
     "Couldn't reach the server. Check your connection and retry.": {
       "extractionState": "manual",
       "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не удалось связаться с сервером. Проверьте подключение и повторите попытку."
+          }
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
@@ -4554,6 +4560,12 @@
     "Password": {
       "extractionState": "manual",
       "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Пароль"
+          }
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
@@ -6809,6 +6821,12 @@
     "Upload failed. Please try again.": {
       "extractionState": "manual",
       "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ошибка загрузки. Попробуйте ещё раз."
+          }
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
