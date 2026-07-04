@@ -22,7 +22,7 @@ struct RichMessageText: UIViewRepresentable {
 
     /// "@all" plus every current member name, longest first so "@Anna Maria" wins
     /// over "@Anna". Names are escaped; matches are case-insensitive like @all.
-    private func mentionsRegex() -> NSRegularExpression? {
+    private static func mentionsRegex(mentionNames: [String]) -> NSRegularExpression? {
         guard !mentionNames.isEmpty else { return Self.mentionsAllRegex }
         let names = mentionNames
             .map { $0.trimmingCharacters(in: .whitespaces) }
@@ -35,7 +35,10 @@ struct RichMessageText: UIViewRepresentable {
     }
 
     func makeUIView(context: Context) -> UITextView {
-        let view = UITextView()
+        // TextKit 1 explicitly: §15.2's bubble measurement uses NSLayoutManager, so
+        // rendering must go through the same layout engine for the line metrics
+        // (and the measured last-line width) to match exactly.
+        let view = UITextView(usingTextLayoutManager: false)
         view.isEditable = false
         view.isSelectable = false // avoids UITextView's own selection long-press fighting ours
         view.isScrollEnabled = false
@@ -79,8 +82,25 @@ struct RichMessageText: UIViewRepresentable {
     /// Attributed body with mention runs tinted + bolded — nil when highlighting is
     /// off or the text has no mention (keeps the cheap plain-text path).
     private func mentionAttributedText() -> NSAttributedString? {
+        Self.mentionAttributedText(
+            text: text, font: font, textColor: textColor,
+            highlightMentions: highlightMentions, mentionNames: mentionNames,
+            mentionColor: mentionColor
+        )
+    }
+
+    /// Shared with §15.2's bubble measurement so measured runs (incl. bolded
+    /// mentions) carry exactly the fonts the text view renders with.
+    static func mentionAttributedText(
+        text: String,
+        font: UIFont,
+        textColor: UIColor,
+        highlightMentions: Bool,
+        mentionNames: [String],
+        mentionColor: UIColor
+    ) -> NSAttributedString? {
         guard highlightMentions, text.contains("@"),
-              let regex = mentionsRegex() else { return nil }
+              let regex = mentionsRegex(mentionNames: mentionNames) else { return nil }
         let range = NSRange(text.startIndex..., in: text)
         let matches = regex.matches(in: text, range: range)
         guard !matches.isEmpty else { return nil }
