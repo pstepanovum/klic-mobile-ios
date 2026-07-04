@@ -22,6 +22,10 @@ final class SocketService: ObservableObject {
     /// Most recent reaction / delete events — the open chat merges these into its messages.
     @Published var lastReaction: ReactionUpdate?
     @Published var lastDeleted: DeletedUpdate?
+    /// §16.4: a message's content changed (edit) — full refreshed payload, applied in place.
+    @Published var lastUpdatedMessage: Message?
+    /// §16.3: a message was pinned or unpinned — the open chat updates its pinned bar.
+    @Published var lastPinEvent: PinEvent?
     /// Call membership events — drive the group chat "Join call" banner and pre-join ring UX.
     @Published var lastCallParticipantJoined: CallParticipantEvent?
     @Published var lastCallParticipantLeft: CallParticipantEvent?
@@ -41,6 +45,12 @@ final class SocketService: ObservableObject {
     struct Receipt: Equatable { let conversationId: String; let userId: String; let at: Date }
     struct ReactionUpdate: Equatable { let conversationId: String; let messageId: String; let reactions: [Reaction] }
     struct DeletedUpdate: Equatable { let conversationId: String; let messageId: String }
+    struct PinEvent: Equatable {
+        let conversationId: String
+        let messageId: String
+        let pinnedBy: String
+        let pinned: Bool        // true = message:pinned, false = message:unpinned
+    }
     struct CallParticipantEvent: Equatable { let callId: String; let userId: String }
     struct CallEndedEvent: Equatable { let callId: String }
 
@@ -156,6 +166,34 @@ final class SocketService: ObservableObject {
                   let conversationId = dict["conversationId"] as? String,
                   let messageId = dict["messageId"] as? String else { return }
             self.lastDeleted = DeletedUpdate(conversationId: conversationId, messageId: messageId)
+        }
+        // §16.4: an edit fans out the FULL refreshed payload — apply in place.
+        socket.on("message:updated") { [weak self] data, _ in
+            guard let self,
+                  let dict = data.first as? [String: Any],
+                  let json = try? JSONSerialization.data(withJSONObject: dict),
+                  let msg = try? JSONDecoder().decode(Message.self, from: json) else { return }
+            Task { @MainActor in
+                self.lastUpdatedMessage = await E2eeMessaging.shared.materialize(msg)
+            }
+        }
+        // §16.3: pin/unpin events — the open chat refreshes its pinned bar from these
+        // (we use the realtime events, not a conversation:updated refetch).
+        socket.on("message:pinned") { [weak self] data, _ in
+            guard let dict = data.first as? [String: Any],
+                  let conversationId = dict["conversationId"] as? String,
+                  let messageId = dict["messageId"] as? String else { return }
+            self?.lastPinEvent = PinEvent(
+                conversationId: conversationId, messageId: messageId,
+                pinnedBy: dict["pinnedBy"] as? String ?? "", pinned: true)
+        }
+        socket.on("message:unpinned") { [weak self] data, _ in
+            guard let dict = data.first as? [String: Any],
+                  let conversationId = dict["conversationId"] as? String,
+                  let messageId = dict["messageId"] as? String else { return }
+            self?.lastPinEvent = PinEvent(
+                conversationId: conversationId, messageId: messageId,
+                pinnedBy: dict["pinnedBy"] as? String ?? "", pinned: false)
         }
         socket.on("call:invite") { [weak self] data, _ in
             guard let dict = data.first as? [String: Any] else { return }

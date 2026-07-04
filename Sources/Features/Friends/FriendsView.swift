@@ -65,6 +65,12 @@ struct FriendsView: View {
             }
             .task { await reload() }
             .refreshable { await reload() }
+            // §16.6: back from a profile — a removed/blocked friend (mirrored into
+            // the shared cache) drops out of the list immediately.
+            .onChange(of: selectedFriend) { _, value in
+                guard value == nil else { return }
+                friends = ChatCaches.friends
+            }
         }
         .tint(KlicColor.primary)
         .enableInjection()

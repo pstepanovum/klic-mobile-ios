@@ -533,7 +533,8 @@ struct BlockedUsersView: View {
         unblockingIds.insert(entry.id)
         defer { unblockingIds.remove(entry.id) }
         do {
-            try await APIClient.shared.unblockUser(userId: entry.user.id)
+            // §16.6: route through the store so any open blocked-DM banner clears too.
+            try await BlockStore.shared.unblock(userId: entry.user.id)
             blocked.removeAll { $0.id == entry.id }
         } catch let e as APIError {
             errorText = e.userMessage

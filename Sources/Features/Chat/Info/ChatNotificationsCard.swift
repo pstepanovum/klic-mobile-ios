@@ -146,16 +146,16 @@ struct ChatNotificationsCard: View {
         }
     }
 
-    // MARK: Mute options
+    // MARK: Mute options (shared with the §16.5 chat-list menu)
 
-    private static let muteOptions: [KlicSheetOption] = [
+    static let muteOptions: [KlicSheetOption] = [
         KlicSheetOption(id: "8h", label: String(localized: "For 8 hours")),
         KlicSheetOption(id: "1w", label: String(localized: "For 1 week")),
         KlicSheetOption(id: "always", label: String(localized: "Always")),
         KlicSheetOption(id: "off", label: String(localized: "Unmute")),
     ]
 
-    private static func muteValue(for id: String) -> String? {
+    static func muteValue(for id: String) -> String? {
         switch id {
         case "8h": return ChatLocalPrefs.isoString(Date().addingTimeInterval(8 * 3600))
         case "1w": return ChatLocalPrefs.isoString(Date().addingTimeInterval(7 * 24 * 3600))

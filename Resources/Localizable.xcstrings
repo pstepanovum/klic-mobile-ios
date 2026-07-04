@@ -783,6 +783,23 @@
         }
       }
     },
+    "Also delete the chat": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Также удалить чат"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "同时删除聊天"
+          }
+        }
+      }
+    },
     "Always": {
       "extractionState": "manual",
       "localizations": {
@@ -1633,6 +1650,23 @@
         }
       }
     },
+    "Couldn't delete": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не удалось удалить"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法删除"
+          }
+        }
+      }
+    },
     "Couldn't delete synced contacts.": {
       "extractionState": "manual",
       "localizations": {
@@ -1663,6 +1697,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "暂时无法注销账号。"
+          }
+        }
+      }
+    },
+    "Couldn't delete this chat right now.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не удалось удалить этот чат прямо сейчас."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "目前无法删除此聊天。"
           }
         }
       }
@@ -1820,6 +1871,23 @@
         }
       }
     },
+    "Couldn't remove this friend right now.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не удалось удалить этого друга прямо сейчас."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "目前无法删除此好友。"
+          }
+        }
+      }
+    },
     "Couldn't remove your email. Please try again.": {
       "extractionState": "manual",
       "localizations": {
@@ -1884,6 +1952,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "无法保存，请重试。"
+          }
+        }
+      }
+    },
+    "Couldn't send": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не удалось отправить"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法发送"
           }
         }
       }
@@ -2211,6 +2296,23 @@
         }
       }
     },
+    "Delete Chat": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Удалить чат"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "删除聊天"
+          }
+        }
+      }
+    },
     "Delete Forever": {
       "extractionState": "manual",
       "localizations": {
@@ -2364,6 +2466,23 @@
         }
       }
     },
+    "Delete this chat?": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Удалить этот чат?"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "删除此聊天？"
+          }
+        }
+      }
+    },
     "Delete this group?": {
       "extractionState": "manual",
       "localizations": {
@@ -2394,6 +2513,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "删除您的账号？"
+          }
+        }
+      }
+    },
+    "Deleted message": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сообщение удалено"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已删除的消息"
           }
         }
       }
@@ -2564,6 +2700,40 @@
           "stringUnit": {
             "state": "translated",
             "value": "黄昏"
+          }
+        }
+      }
+    },
+    "Edit": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Изменить"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "编辑"
+          }
+        }
+      }
+    },
+    "Edit Message": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Изменить сообщение"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "编辑消息"
           }
         }
       }
@@ -3163,6 +3333,23 @@
         }
       }
     },
+    "GIF": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "GIF"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "GIF"
+          }
+        }
+      }
+    },
     "Gallery": {
       "extractionState": "manual",
       "localizations": {
@@ -3397,6 +3584,40 @@
           "stringUnit": {
             "state": "translated",
             "value": "嘿！你看到新主题了吗？"
+          }
+        }
+      }
+    },
+    "Hold to record audio. Tap to switch to video.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Удерживайте для записи аудио. Нажмите для переключения на видео."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "按住录制语音。轻点切换至视频。"
+          }
+        }
+      }
+    },
+    "Hold to record video. Tap to switch to audio.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Удерживайте для записи видео. Нажмите для переключения на аудио."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "按住录制视频。轻点切换至语音。"
           }
         }
       }
@@ -3962,6 +4183,23 @@
         }
       }
     },
+    "Mark as Read": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Прочитать"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "标记为已读"
+          }
+        }
+      }
+    },
     "Meadow": {
       "extractionState": "manual",
       "localizations": {
@@ -4060,6 +4298,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "未接"
+          }
+        }
+      }
+    },
+    "Mute": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Без звука"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "静音"
           }
         }
       }
@@ -4315,6 +4570,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "此设备没有可用的相机。"
+          }
+        }
+      }
+    },
+    "No camera on this device": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "На устройстве нет камеры"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此设备没有摄像头"
           }
         }
       }
@@ -4625,6 +4897,23 @@
         }
       }
     },
+    "Only Pin": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Только закрепить"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "仅置顶"
+          }
+        }
+      }
+    },
     "Open in %@": {
       "extractionState": "manual",
       "localizations": {
@@ -4863,6 +5152,23 @@
         }
       }
     },
+    "Photo": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Фото"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "照片"
+          }
+        }
+      }
+    },
     "Photo Library": {
       "extractionState": "manual",
       "localizations": {
@@ -4914,6 +5220,74 @@
         }
       }
     },
+    "Pin": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Закрепить"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "置顶"
+          }
+        }
+      }
+    },
+    "Pin and notify all members": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Закрепить и уведомить всех"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "置顶并通知所有成员"
+          }
+        }
+      }
+    },
+    "Pin message": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Закрепить сообщение"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "置顶消息"
+          }
+        }
+      }
+    },
+    "Pin this message at the top of the chat?": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Закрепить сообщение вверху чата?"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "将此消息置顶？"
+          }
+        }
+      }
+    },
     "Pinch to zoom, drag to position": {
       "extractionState": "manual",
       "localizations": {
@@ -4927,6 +5301,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "双指缩放，拖动调整位置"
+          }
+        }
+      }
+    },
+    "Pinned Message": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Закреплённое сообщение"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "置顶消息"
           }
         }
       }
@@ -5186,23 +5577,6 @@
         }
       }
     },
-    "Recording…": {
-      "extractionState": "manual",
-      "localizations": {
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Запись…"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "正在录音…"
-          }
-        }
-      }
-    },
     "Remove": {
       "extractionState": "manual",
       "localizations": {
@@ -5220,6 +5594,23 @@
         }
       }
     },
+    "Remove %@ from your friends?": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Удалить %@ из друзей?"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "将 %@ 从好友列表中删除？"
+          }
+        }
+      }
+    },
     "Remove %@?": {
       "extractionState": "manual",
       "localizations": {
@@ -5233,6 +5624,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "移除 %@？"
+          }
+        }
+      }
+    },
+    "Remove Friend": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Удалить из друзей"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "删除好友"
           }
         }
       }
@@ -5386,6 +5794,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "移除 Klic 为您的帐户存储的所有联系人哈希值并关闭同步。"
+          }
+        }
+      }
+    },
+    "Removing…": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Удаление…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在删除…"
           }
         }
       }
@@ -6308,6 +6733,23 @@
         }
       }
     },
+    "Slide to cancel": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Смахните для отмены"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "滑动取消"
+          }
+        }
+      }
+    },
     "Slow to respond": {
       "extractionState": "manual",
       "localizations": {
@@ -6699,6 +7141,23 @@
         }
       }
     },
+    "The chat and its history stay in your list.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Чат и история останутся в вашем списке."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "聊天及其历史记录将保留在列表中。"
+          }
+        }
+      }
+    },
     "The cover uploaded but couldn't be saved: ": {
       "extractionState": "manual",
       "localizations": {
@@ -6865,6 +7324,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "这将永久删除您的账号、消息和媒体文件（对所有人）。此操作无法撤销。"
+          }
+        }
+      }
+    },
+    "This removes the chat and its messages.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Это удалит чат и все сообщения."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这将删除聊天及其消息。"
           }
         }
       }
@@ -7090,6 +7566,23 @@
         }
       }
     },
+    "Unblocking…": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Разблокировка…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在解除封锁…"
+          }
+        }
+      }
+    },
     "Unlock Klic": {
       "extractionState": "manual",
       "localizations": {
@@ -7137,6 +7630,40 @@
           "stringUnit": {
             "state": "translated",
             "value": "取消静音"
+          }
+        }
+      }
+    },
+    "Unpin": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Открепить"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "取消置顶"
+          }
+        }
+      }
+    },
+    "Unpin this message?": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Открепить сообщение?"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "取消置顶此消息？"
           }
         }
       }
@@ -7498,6 +8025,23 @@
         }
       }
     },
+    "Video message": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Видеосообщение"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "视频消息"
+          }
+        }
+      }
+    },
     "Videos": {
       "extractionState": "manual",
       "localizations": {
@@ -7596,6 +8140,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "语音通话"
+          }
+        }
+      }
+    },
+    "Voice message": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Голосовое сообщение"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "语音消息"
           }
         }
       }
@@ -7923,6 +8484,23 @@
         }
       }
     },
+    "You blocked %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Вы заблокировали %@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "您已封锁 %@"
+          }
+        }
+      }
+    },
     "You haven't blocked anyone.": {
       "extractionState": "manual",
       "localizations": {
@@ -8123,6 +8701,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "arrowshape.turn.up.right"
+          }
+        }
+      }
+    },
+    "edited": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "изменено"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已编辑"
           }
         }
       }

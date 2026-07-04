@@ -138,6 +138,7 @@ private struct StarredMessageRow: View {
         case "IMAGE": return "📷 Photo"
         case "VIDEO": return "🎥 Video"
         case "VOICE": return "🎤 Voice message"
+        case "VIDEO_NOTE": return "🎥 Video message"
         case .some: return "📎 \(message.attachments.first?.fileName ?? "File")"
         default: return "Message"
         }

@@ -76,6 +76,12 @@ actor APIClient {
         try await post("/friends/requests/\(id)/decline", body: [:])
     }
 
+    /// §16.6: remove an accepted friendship (404 when there is none). The DM
+    /// conversation and its history remain. Body-less DELETE — no Content-Type header.
+    func removeFriend(userId: String) async throws {
+        let _: EmptyResponse = try await delete("/friends/\(userId)")
+    }
+
     func openConversation(userId: String) async throws -> Conversation {
         try await post("/conversations", encodable: CreateConversationRequest(userId: userId, title: nil, userIds: nil))
     }
@@ -141,7 +147,9 @@ actor APIClient {
         let _: EmptyResponse = try await delete("/conversations/\(conversationId)/members/\(userId)")
     }
 
-    func deleteGroup(conversationId: String) async throws -> EmptyResponse {
+    /// Delete a conversation for everyone (admin-only for groups). Also the §16.5
+    /// chat-list Delete and the §16.6 block-and-delete follow-up.
+    func deleteConversation(conversationId: String) async throws -> EmptyResponse {
         try await delete("/conversations/\(conversationId)")
     }
 
@@ -290,6 +298,33 @@ actor APIClient {
     /// Delete a message for everyone (sender-only server-side).
     func deleteForEveryone(conversationId: String, messageId: String) async throws {
         let _: EmptyResponse = try await delete("/conversations/\(conversationId)/messages/\(messageId)?scope=everyone")
+    }
+
+    /// Edit a message's body/caption (§16.4). Sender-only, ≤48h server-side; returns
+    /// the full refreshed message (`editedAt` set unless the body was identical).
+    func editMessage(conversationId: String, messageId: String, body: String) async throws -> Message {
+        try await patch("/conversations/\(conversationId)/messages/\(messageId)", body: ["body": body])
+    }
+
+    /// Pin a message (§16.3). DIRECT → either participant; GROUP → admin only.
+    /// `notify: true` additionally fans out a SYSTEM "pinned a message" line.
+    func pinMessage(conversationId: String, messageId: String, notify: Bool) async throws {
+        let _: EmptyResponse = try await post(
+            "/conversations/\(conversationId)/messages/\(messageId)/pin", body: ["notify": notify])
+    }
+
+    /// Unpin a message (§16.3). Same permission as pin; idempotent.
+    func unpinMessage(conversationId: String, messageId: String) async throws {
+        let _: EmptyResponse = try await delete("/conversations/\(conversationId)/messages/\(messageId)/pin")
+    }
+
+    /// The conversation's pinned messages, oldest→newest (§16.3). Decoded from the
+    /// details payload through a minimal envelope so it works for DMs and groups
+    /// alike (and degrades to [] against servers without pin support).
+    func pinnedMessages(conversationId: String) async throws -> [ReplyPreview] {
+        struct Envelope: Decodable { var pinnedMessages: [ReplyPreview]? }
+        let envelope: Envelope = try await get("/conversations/\(conversationId)")
+        return envelope.pinnedMessages ?? []
     }
 
     func recentCalls() async throws -> [RecentCall] { try await get("/calls") }
@@ -531,17 +566,21 @@ actor APIClient {
     }
 
     /// Partial update; a double-optional set to `.some(nil)` sends an explicit null (unmute).
+    /// `pinned` (§16.5) stamps/clears the chat-list pin — only sent when provided so
+    /// mute updates stay compatible with pre-§16.5 servers.
     @discardableResult
     func updateConversationPrefs(
         conversationId: String,
         messagesMutedUntil: String?? = nil,
         muteMentions: Bool? = nil,
-        callsMutedUntil: String?? = nil
+        callsMutedUntil: String?? = nil,
+        pinned: Bool? = nil
     ) async throws -> ConversationPrefs {
         var body: [String: Any] = [:]
         if let value = messagesMutedUntil { body["messagesMutedUntil"] = value ?? NSNull() }
         if let muteMentions { body["muteMentions"] = muteMentions }
         if let value = callsMutedUntil { body["callsMutedUntil"] = value ?? NSNull() }
+        if let pinned { body["pinned"] = pinned }
         return try await put("/conversations/\(conversationId)/prefs", body: body)
     }
 
