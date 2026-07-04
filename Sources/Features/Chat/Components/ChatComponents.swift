@@ -22,6 +22,8 @@ struct MessageBubble: View {
     var onLongPress: () -> Void = {}
     var onReactionTap: (String) -> Void = { _ in }
     var onOpenAttachment: (Attachment) -> Void = { _ in }
+    /// §16.1: tap on the quote card → scroll to the original message + highlight.
+    var onReplyTap: (String) -> Void = { _ in }
 
     /// §14.6: measured height of the text bubble — drives the dynamic corner radius.
     @State private var textBubbleHeight: CGFloat = 0
@@ -58,9 +60,43 @@ struct MessageBubble: View {
             CallEventRow(call: call, outgoing: isMine, time: shortTime(message.createdAt), onCallBack: onCallBack)
         } else if message.isSticker, let stickerId = message.stickerId {
             stickerBubble(stickerId)
+        } else if message.isVideoNote, let note = message.attachments.first(where: { $0.isVideoNote }) {
+            videoNoteBubble(note)
         } else {
             standardBubble
         }
+    }
+
+    /// §16.2: round video message — a chrome-less circular player, like stickers.
+    private func videoNoteBubble(_ note: Attachment) -> some View {
+        HStack(alignment: .bottom, spacing: 6) {
+            if isMine { Spacer(minLength: Self.bubbleGutter) }
+            if showGroupAvatar { groupAvatar }
+
+            VStack(alignment: isMine ? .trailing : .leading, spacing: 4) {
+                if let reply = message.replyTo {
+                    ReplyCardView(reply: reply, authorName: replyAuthorName) {
+                        onReplyTap(reply.id)
+                    }
+                    .frame(maxWidth: 212)
+                }
+                VideoNoteBubbleView(
+                    attachment: note,
+                    time: shortTime(message.createdAt),
+                    status: isMine ? displayStatus : nil,
+                    edited: message.isEdited,
+                    starred: message.starred == true
+                )
+                .onLongPressGesture(minimumDuration: 0.3, perform: onLongPress)
+                if !message.reactions.isEmpty {
+                    ReactionPills(reactions: message.reactions, onTap: onReactionTap)
+                }
+            }
+
+            if showGroupAvatarSpacer { Color.clear.frame(width: 34, height: 34) }
+            if !isMine { Spacer(minLength: Self.bubbleGutter) }
+        }
+        .padding(.vertical, 1)
     }
 
     private var systemBubble: some View {
@@ -134,14 +170,12 @@ struct MessageBubble: View {
     private var messageContent: some View {
         VStack(alignment: isMine ? .trailing : .leading, spacing: 4) {
             if !message.attachments.isEmpty {
-                if let reply = message.replyTo {
-                    ReplyQuoteView(reply: reply, authorName: replyAuthorName)
-                }
                 if showSenderName, hasMediaAttachments, let senderName {
                     Text(senderName)
                         .font(KlicFont.caption(12))
                         .foregroundStyle(KlicColor.primary.opacity(0.95))
                 }
+                // §16.1: the quote card rides INSIDE the media card / pills now.
                 MessageAttachmentsView(
                     attachments: message.attachments,
                     isMine: isMine,
@@ -150,10 +184,14 @@ struct MessageBubble: View {
                     time: shortTime(message.createdAt),
                     status: displayStatus,
                     starred: message.starred == true,
+                    edited: message.isEdited,
                     highlightMentions: isGroupChat,
                     mentionNames: mentionNames,
                     conversationId: message.conversationId,
                     reactions: message.reactions,
+                    reply: message.replyTo,
+                    replyAuthorName: replyAuthorName,
+                    onReplyTap: onReplyTap,
                     onReactionTap: onReactionTap,
                     onOpenAttachment: onOpenAttachment,
                     onLongPress: onLongPress
@@ -173,7 +211,10 @@ struct MessageBubble: View {
                         // bubble background, large glyphs (1 biggest, 2–3 smaller).
                         // §13.7: time/ticks sit BELOW the emoji, bottom-trailing.
                         if let reply = message.replyTo, message.attachments.isEmpty {
-                            ReplyQuoteView(reply: reply, authorName: replyAuthorName)
+                            ReplyCardView(reply: reply, authorName: replyAuthorName) {
+                                onReplyTap(reply.id)
+                            }
+                            .frame(maxWidth: 220)
                         }
                         VStack(alignment: .trailing, spacing: 2) {
                             Text(message.body.trimmingCharacters(in: .whitespacesAndNewlines))
@@ -187,31 +228,19 @@ struct MessageBubble: View {
                             .frame(maxWidth: 260)
                         inlineTimeStatus(onPrimary: false)
                     } else {
-                        if let reply = message.replyTo, message.attachments.isEmpty {
-                            ReplyQuoteView(reply: reply, authorName: replyAuthorName, onPrimary: isMine)
-                        }
                         VStack(alignment: .leading, spacing: 6) {
-                            // §15.2: the time chip tucks into the last line's trailing
-                            // gap when it fits, and wraps to its own compact trailing
-                            // row only when it doesn't — the bubble hugs the longest
-                            // line instead of reserving an empty band beside the text.
-                            TimeTuckLayout(
-                                text: message.body,
-                                font: Self.bodyFont,
-                                highlightMentions: isGroupChat,
-                                mentionNames: mentionNames
-                            ) {
-                                RichMessageText(
-                                    text: message.body,
-                                    font: Self.bodyFont,
-                                    textColor: UIColor(isMine ? KlicColor.onPrimary : KlicColor.textPrimary),
-                                    highlightMentions: isGroupChat,
-                                    mentionNames: mentionNames,
-                                    mentionColor: UIColor(isMine ? KlicColor.onPrimary : KlicColor.primary),
-                                    onLongPress: onLongPress
-                                )
-                                inlineTimeStatus(onPrimary: isMine)
-                                    .fixedSize()
+                            // §16.1: the quote card renders INSIDE the bubble, above
+                            // the text — ReplyCardStack sizes the bubble to
+                            // max(text, card) and stretches the card to that width.
+                            if let reply = message.replyTo, message.attachments.isEmpty {
+                                ReplyCardStack(spacing: 6) {
+                                    ReplyCardView(reply: reply, authorName: replyAuthorName, onPrimary: isMine) {
+                                        onReplyTap(reply.id)
+                                    }
+                                    textWithTime
+                                }
+                            } else {
+                                textWithTime
                             }
                             // §14.5: reaction chips INSIDE the bubble, bottom edge.
                             if !message.reactions.isEmpty {
@@ -251,6 +280,29 @@ struct MessageBubble: View {
         }
     }
 
+    /// §15.2: the message text + tucked time chip (shared by the plain and the
+    /// §16.1 reply-card bubble variants).
+    private var textWithTime: some View {
+        TimeTuckLayout(
+            text: message.body,
+            font: Self.bodyFont,
+            highlightMentions: isGroupChat,
+            mentionNames: mentionNames
+        ) {
+            RichMessageText(
+                text: message.body,
+                font: Self.bodyFont,
+                textColor: UIColor(isMine ? KlicColor.onPrimary : KlicColor.textPrimary),
+                highlightMentions: isGroupChat,
+                mentionNames: mentionNames,
+                mentionColor: UIColor(isMine ? KlicColor.onPrimary : KlicColor.primary),
+                onLongPress: onLongPress
+            )
+            inlineTimeStatus(onPrimary: isMine)
+                .fixedSize()
+        }
+    }
+
     private var showSenderName: Bool {
         isGroupChat && !isMine && isFirst
     }
@@ -280,6 +332,11 @@ struct MessageBubble: View {
         HStack(spacing: 3) {
             if message.starred == true {
                 StarIndicator(onPrimary: onPrimary)
+            }
+            // §16.4: `edited 9:39 ✓` — the label sits immediately before the time in
+            // every meta placement (tucked, compact-trailing, big-emoji below-meta).
+            if message.isEdited {
+                EditedLabel(onPrimary: onPrimary)
             }
             Text(shortTime(message.createdAt))
                 .font(KlicFont.caption(11))

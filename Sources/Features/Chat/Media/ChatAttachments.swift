@@ -12,6 +12,8 @@ struct MessageAttachmentsView: View {
     var status: String? = nil
     /// Star indicator (§8.4) shown next to the time/ticks.
     var starred: Bool = false
+    /// §16.4: "edited" label before the time in the meta row.
+    var edited: Bool = false
     /// Highlight "@all" mentions in the caption (group chats).
     var highlightMentions: Bool = false
     /// Member names highlighted as mentions alongside @all (§9.5).
@@ -20,6 +22,10 @@ struct MessageAttachmentsView: View {
     var conversationId: String = ""
     /// §14.5: the message's reactions, rendered INSIDE the hosting bubble.
     var reactions: [Reaction] = []
+    /// §16.1: the quote card, rendered INSIDE the media card / first pill.
+    var reply: ReplyPreview? = nil
+    var replyAuthorName: String = ""
+    var onReplyTap: (String) -> Void = { _ in }
     var onReactionTap: (String) -> Void = { _ in }
     var onOpenAttachment: (Attachment) -> Void = { _ in }
     var onLongPress: () -> Void = {}
@@ -37,10 +43,14 @@ struct MessageAttachmentsView: View {
                     time: time,
                     status: status,
                     starred: starred,
+                    edited: edited,
                     highlightMentions: highlightMentions,
                     mentionNames: mentionNames,
                     conversationId: conversationId,
                     reactions: reactions,
+                    reply: reply,
+                    replyAuthorName: replyAuthorName,
+                    onReplyTap: onReplyTap,
                     onReactionTap: onReactionTap,
                     onOpen: onOpenAttachment,
                     onLongPress: onLongPress
@@ -48,9 +58,11 @@ struct MessageAttachmentsView: View {
             }
             ForEach(Array(others.enumerated()), id: \.1.id) { index, attachment in
                 // Time/ticks ride on the media card when there is one; otherwise on the
-                // last non-media row (same as before). §14.5: reactions too.
+                // last non-media row (same as before). §14.5: reactions too. §16.1: the
+                // quote card rides inside the FIRST pill (when no media card hosts it).
                 let isTimedRow = media.isEmpty && showTime && index == others.count - 1
                 let hostsReactions = media.isEmpty && index == others.count - 1
+                let hostsReply = media.isEmpty && index == 0
                 switch attachment.kind {
                 case "VOICE":
                     VoiceAttachmentView(
@@ -59,8 +71,12 @@ struct MessageAttachmentsView: View {
                         time: isTimedRow ? time : nil,
                         status: isTimedRow ? status : nil,
                         starred: isTimedRow && starred,
+                        edited: isTimedRow && edited,
                         conversationId: conversationId,
                         reactions: hostsReactions ? reactions : [],
+                        reply: hostsReply ? reply : nil,
+                        replyAuthorName: replyAuthorName,
+                        onReplyTap: onReplyTap,
                         onReactionTap: onReactionTap
                     )
                 default:
@@ -70,8 +86,12 @@ struct MessageAttachmentsView: View {
                         time: isTimedRow ? time : nil,
                         status: isTimedRow ? status : nil,
                         starred: isTimedRow && starred,
+                        edited: isTimedRow && edited,
                         conversationId: conversationId,
                         reactions: hostsReactions ? reactions : [],
+                        reply: hostsReply ? reply : nil,
+                        replyAuthorName: replyAuthorName,
+                        onReplyTap: onReplyTap,
                         onReactionTap: onReactionTap
                     )
                 }
@@ -91,6 +111,18 @@ struct StarIndicator: View {
     }
 }
 
+/// §16.4: lowercase "edited" label shown immediately before the time on edited
+/// bubbles — secondary color in every meta placement.
+struct EditedLabel: View {
+    var onPrimary: Bool = false
+
+    var body: some View {
+        Text("edited")
+            .font(KlicFont.caption(11))
+            .foregroundStyle(onPrimary ? KlicColor.onPrimary.opacity(0.65) : KlicColor.textMuted)
+    }
+}
+
 // MARK: - Unified image+caption card & bento grid
 
 /// One bubble card for a message's images/videos: bento grid on top (inner radius 4pt
@@ -105,12 +137,18 @@ private struct MediaMessageCard: View {
     let time: String
     let status: String?
     var starred: Bool = false
+    /// §16.4: "edited" label in the meta row (captions are editable).
+    var edited: Bool = false
     var highlightMentions: Bool = false
     var mentionNames: [String] = []
     var conversationId: String = ""
     /// §14.5: reactions hosted by the card — inside it (caption card) or scrim-backed
     /// on the media's bottom edge (bare grid).
     var reactions: [Reaction] = []
+    /// §16.1: quote card rendered at the top of the card, above the bento grid.
+    var reply: ReplyPreview? = nil
+    var replyAuthorName: String = ""
+    var onReplyTap: (String) -> Void = { _ in }
     var onReactionTap: (String) -> Void = { _ in }
     let onOpen: (Attachment) -> Void
     var onLongPress: () -> Void = {}
@@ -120,7 +158,9 @@ private struct MediaMessageCard: View {
     private let gridInset: CGFloat = 4
 
     var body: some View {
-        if caption.isEmpty {
+        // §16.1: a reply always gets the card chrome so the quote sits inside the
+        // bubble above the media, even when there is no caption.
+        if caption.isEmpty && reply == nil {
             MediaBentoGrid(
                 media: media, width: mediaWidth, cornerRadius: cardRadius,
                 conversationId: conversationId, isMine: isMine, onOpen: onOpen
@@ -134,6 +174,13 @@ private struct MediaMessageCard: View {
             }
         } else {
             VStack(alignment: .leading, spacing: 0) {
+                if let reply {
+                    ReplyCardView(reply: reply, authorName: replyAuthorName, onPrimary: isMine) {
+                        onReplyTap(reply.id)
+                    }
+                    .padding(.horizontal, gridInset + 2)
+                    .padding(.top, gridInset + 2)
+                }
                 MediaBentoGrid(
                     media: media,
                     width: mediaWidth - gridInset * 2,
@@ -143,34 +190,41 @@ private struct MediaMessageCard: View {
                     onOpen: onOpen
                 )
                 .padding(gridInset)
-
-                HStack(alignment: .bottom, spacing: 6) {
-                    RichMessageText(
-                        text: caption,
-                        font: UIFont(name: "TikTokSans-Regular", size: 16) ?? .systemFont(ofSize: 16),
-                        textColor: UIColor(isMine ? KlicColor.onPrimary : KlicColor.textPrimary),
-                        highlightMentions: highlightMentions,
-                        mentionNames: mentionNames,
-                        mentionColor: UIColor(isMine ? KlicColor.onPrimary : KlicColor.primary),
-                        onLongPress: onLongPress
-                    )
-                    // §14.6: time chip sizes first so the caption gets the full
-                    // remaining card width (see the text-bubble note).
-                    HStack(spacing: 3) {
-                        if starred { StarIndicator(onPrimary: isMine) }
-                        Text(time)
-                            .font(KlicFont.caption(11))
-                            .foregroundStyle(isMine ? KlicColor.onPrimary.opacity(0.65) : KlicColor.textMuted)
-                        if isMine, let status {
-                            MessageTicks(status: status, onPrimary: isMine)
-                        }
-                    }
-                    .fixedSize()
-                    .layoutPriority(1)
+                .overlay(alignment: .bottomTrailing) {
+                    // Caption-less reply card: time/ticks overlay the media instead.
+                    if caption.isEmpty { overlayPill.padding(gridInset) }
                 }
-                .padding(.horizontal, 10)
-                .padding(.top, 6)
-                .padding(.bottom, reactions.isEmpty ? 9 : 4)
+
+                if !caption.isEmpty {
+                    HStack(alignment: .bottom, spacing: 6) {
+                        RichMessageText(
+                            text: caption,
+                            font: UIFont(name: "TikTokSans-Regular", size: 16) ?? .systemFont(ofSize: 16),
+                            textColor: UIColor(isMine ? KlicColor.onPrimary : KlicColor.textPrimary),
+                            highlightMentions: highlightMentions,
+                            mentionNames: mentionNames,
+                            mentionColor: UIColor(isMine ? KlicColor.onPrimary : KlicColor.primary),
+                            onLongPress: onLongPress
+                        )
+                        // §14.6: time chip sizes first so the caption gets the full
+                        // remaining card width (see the text-bubble note).
+                        HStack(spacing: 3) {
+                            if starred { StarIndicator(onPrimary: isMine) }
+                            if edited { EditedLabel(onPrimary: isMine) }
+                            Text(time)
+                                .font(KlicFont.caption(11))
+                                .foregroundStyle(isMine ? KlicColor.onPrimary.opacity(0.65) : KlicColor.textMuted)
+                            if isMine, let status {
+                                MessageTicks(status: status, onPrimary: isMine)
+                            }
+                        }
+                        .fixedSize()
+                        .layoutPriority(1)
+                    }
+                    .padding(.horizontal, 10)
+                    .padding(.top, 6)
+                    .padding(.bottom, reactions.isEmpty ? 9 : 4)
+                }
 
                 // §14.5: reaction chips inside the card, at its bottom edge.
                 if !reactions.isEmpty {
@@ -190,6 +244,11 @@ private struct MediaMessageCard: View {
     private var overlayPill: some View {
         HStack(spacing: 3) {
             if starred { StarIndicator(onPrimary: true) }
+            if edited {
+                Text("edited")
+                    .font(KlicFont.caption(11))
+                    .foregroundStyle(.white.opacity(0.85))
+            }
             Text(time)
                 .font(KlicFont.caption(11))
                 .foregroundStyle(.white)
@@ -423,9 +482,14 @@ private struct VoiceAttachmentView: View {
     var time: String? = nil
     var status: String? = nil
     var starred: Bool = false
+    var edited: Bool = false
     var conversationId: String = ""
     /// §14.5: reactions hosted inside the voice pill.
     var reactions: [Reaction] = []
+    /// §16.1: quote card at the top of the pill when this message is a reply.
+    var reply: ReplyPreview? = nil
+    var replyAuthorName: String = ""
+    var onReplyTap: (String) -> Void = { _ in }
     var onReactionTap: (String) -> Void = { _ in }
 
     @ObservedObject private var player = AudioPlaybackManager.shared
@@ -440,6 +504,11 @@ private struct VoiceAttachmentView: View {
 
     var body: some View {
         VStack(alignment: .trailing, spacing: 4) {
+            if let reply {
+                ReplyCardView(reply: reply, authorName: replyAuthorName, onPrimary: isMine) {
+                    onReplyTap(reply.id)
+                }
+            }
             HStack(spacing: 10) {
                 Button { play() } label: {
                     Image(systemName: playing ? "pause.fill" : "play.fill")
@@ -465,6 +534,7 @@ private struct VoiceAttachmentView: View {
             if let time {
                 HStack(spacing: 3) {
                     if starred { StarIndicator(onPrimary: isMine) }
+                    if edited { EditedLabel(onPrimary: isMine) }
                     Text(time)
                         .font(KlicFont.caption(11))
                         .foregroundStyle(isMine ? KlicColor.onPrimary.opacity(0.65) : KlicColor.textMuted)
@@ -517,9 +587,14 @@ private struct FileAttachmentView: View {
     var time: String? = nil
     var status: String? = nil
     var starred: Bool = false
+    var edited: Bool = false
     var conversationId: String = ""
     /// §14.5: reactions hosted inside the file pill / PDF card.
     var reactions: [Reaction] = []
+    /// §16.1: quote card at the top of the pill when this message is a reply.
+    var reply: ReplyPreview? = nil
+    var replyAuthorName: String = ""
+    var onReplyTap: (String) -> Void = { _ in }
     var onReactionTap: (String) -> Void = { _ in }
 
     @ObservedObject private var store = AttachmentFileStore.shared
@@ -571,6 +646,13 @@ private struct FileAttachmentView: View {
     /// Image-style pill for PDFs: first page on top, doc badge, filename + size footer.
     private func pdfCard(_ thumbnail: UIImage) -> some View {
         VStack(alignment: .leading, spacing: 0) {
+            if let reply {
+                ReplyCardView(reply: reply, authorName: replyAuthorName, onPrimary: isMine) {
+                    onReplyTap(reply.id)
+                }
+                .padding(.horizontal, 6)
+                .padding(.top, 6)
+            }
             Image(uiImage: thumbnail)
                 .resizable()
                 .scaledToFill()
@@ -605,6 +687,7 @@ private struct FileAttachmentView: View {
                 if let time {
                     HStack(spacing: 3) {
                         if starred { StarIndicator(onPrimary: isMine) }
+                        if edited { EditedLabel(onPrimary: isMine) }
                         Text(time)
                             .font(KlicFont.caption(11))
                             .foregroundStyle(isMine ? KlicColor.onPrimary.opacity(0.65) : KlicColor.textMuted)
@@ -636,6 +719,11 @@ private struct FileAttachmentView: View {
 
     private var plainPill: some View {
             VStack(alignment: .trailing, spacing: 4) {
+                if let reply {
+                    ReplyCardView(reply: reply, authorName: replyAuthorName, onPrimary: isMine) {
+                        onReplyTap(reply.id)
+                    }
+                }
                 HStack(spacing: 10) {
                     ZStack {
                         if let downloadProgress {
@@ -663,6 +751,7 @@ private struct FileAttachmentView: View {
                 if let time {
                     HStack(spacing: 3) {
                         if starred { StarIndicator(onPrimary: isMine) }
+                        if edited { EditedLabel(onPrimary: isMine) }
                         Text(time)
                             .font(KlicFont.caption(11))
                             .foregroundStyle(isMine ? KlicColor.onPrimary.opacity(0.65) : KlicColor.textMuted)

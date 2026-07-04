@@ -12,10 +12,18 @@ struct MessageActionsOverlay: View {
     let message: Message
     let isMine: Bool
     let peerName: String
+    /// §16.4: own text/caption messages within the 48h window.
+    var canEdit: Bool = false
+    /// §16.3: DIRECT → either participant; GROUP → admin only.
+    var canPin: Bool = false
+    /// §16.3: already pinned → the row reads "Unpin".
+    var pinned: Bool = false
     let onReact: (String) -> Void
     let onReply: () -> Void
     let onCopy: () -> Void
     var onToggleStar: () -> Void = {}
+    var onEdit: () -> Void = {}
+    var onPin: () -> Void = {}
     /// §12.1 "Report message" — shown for other people's messages only.
     var onReport: () -> Void = {}
     let onDelete: () -> Void
@@ -76,10 +84,11 @@ struct MessageActionsOverlay: View {
         if message.isSticker { return "Sticker" }
         if let a = message.attachments.first {
             switch a.kind {
-            case "IMAGE": return "📷 Photo"
-            case "VOICE": return "🎤 Voice message"
-            case "VIDEO": return "🎥 Video"
-            default:      return "📎 File"
+            case "IMAGE":      return "📷 Photo"
+            case "VOICE":      return "🎤 Voice message"
+            case "VIDEO":      return "🎥 Video"
+            case "VIDEO_NOTE": return "🎥 Video message"
+            default:           return "📎 File"
             }
         }
         return "Message"
@@ -91,6 +100,17 @@ struct MessageActionsOverlay: View {
             if hasBody {
                 Divider().overlay(KlicColor.surfaceRaised)
                 ActionRow(title: String(localized: "Copy"), systemImage: "doc.on.doc") { onCopy(); onDismiss() }
+            }
+            if canEdit {
+                Divider().overlay(KlicColor.surfaceRaised)
+                ActionRow(title: String(localized: "Edit"), systemImage: "pencil") { onEdit(); onDismiss() }
+            }
+            if canPin {
+                Divider().overlay(KlicColor.surfaceRaised)
+                ActionRow(
+                    title: pinned ? String(localized: "Unpin") : String(localized: "Pin"),
+                    systemImage: pinned ? "pin.slash" : "pin"
+                ) { onPin() }
             }
             Divider().overlay(KlicColor.surfaceRaised)
             ActionRow(
@@ -223,34 +243,8 @@ struct ReactionPills: View {
     }
 }
 
-// MARK: - Reply views
-
-/// The quoted header rendered at the top of a bubble that is a reply.
-struct ReplyQuoteView: View {
-    let reply: ReplyPreview
-    let authorName: String
-    var onPrimary: Bool = false   // tint for when it sits inside the user's own (red) bubble
-
-    var body: some View {
-        HStack(spacing: 8) {
-            RoundedRectangle(cornerRadius: 2)
-                .fill(onPrimary ? KlicColor.onPrimary : KlicColor.primary)
-                .frame(width: 3)
-            VStack(alignment: .leading, spacing: 1) {
-                Text(authorName)
-                    .font(KlicFont.caption(12))
-                    .foregroundStyle(onPrimary ? KlicColor.onPrimary : KlicColor.primary)
-                Text(reply.preview)
-                    .font(KlicFont.caption(12))
-                    .foregroundStyle(onPrimary ? KlicColor.onPrimary.opacity(0.85) : KlicColor.textMuted)
-                    .lineLimit(1)
-            }
-        }
-        .padding(.vertical, 3)
-    }
-}
-
-// The composer's "replying to …" banner lives inside MessageComposer now (§15.1).
+// The quote card at the top of reply bubbles lives in ReplyCardView.swift (§16.1);
+// the composer's "replying to …" banner lives inside MessageComposer (§15.1).
 
 // MARK: - Tombstone
 
