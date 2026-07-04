@@ -61,6 +61,72 @@ struct CreatedReport: Decodable {
     let id: String
 }
 
+/// GET /me/email/status (§18.2): the verification state of the pending recovery email.
+/// Tolerant defaults so an older/absent server response still decodes.
+struct EmailStatus: Decodable {
+    var email: String?
+    var emailVerified: Bool
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        email = (try? c.decodeIfPresent(String.self, forKey: .email)) ?? nil
+        emailVerified = ((try? c.decodeIfPresent(Bool.self, forKey: .emailVerified)) ?? nil) ?? false
+    }
+
+    private enum CodingKeys: String, CodingKey { case email, emailVerified }
+}
+
+// MARK: - Message search (§18.4)
+
+/// One GET /search/messages hit: enough conversation context to group + render a row and to
+/// open the chat and jump to the message. `snippet` may wrap matches in <b>…</b>.
+struct GlobalSearchResult: Decodable, Identifiable, Hashable {
+    let conversationId: String
+    let conversationTitle: String?
+    let conversationAvatarUrl: String?
+    let messageId: String
+    let snippet: String?
+    let kind: String?
+    let senderName: String?
+    let createdAt: String?
+
+    var id: String { messageId }
+}
+
+struct GlobalSearchResponse: Decodable {
+    var results: [GlobalSearchResult]
+    var nextCursor: String?
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        results = (try? c.decode([GlobalSearchResult].self, forKey: .results)) ?? []
+        nextCursor = try? c.decodeIfPresent(String.self, forKey: .nextCursor)
+    }
+
+    private enum CodingKeys: String, CodingKey { case results, nextCursor }
+}
+
+/// One GET /conversations/:id/messages/search hit — just the id + timestamp to jump to.
+struct ScopedSearchResult: Decodable, Identifiable, Hashable {
+    let messageId: String
+    let createdAt: String?
+
+    var id: String { messageId }
+}
+
+struct ScopedSearchResponse: Decodable {
+    var results: [ScopedSearchResult]
+    var nextCursor: String?
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        results = (try? c.decode([ScopedSearchResult].self, forKey: .results)) ?? []
+        nextCursor = try? c.decodeIfPresent(String.self, forKey: .nextCursor)
+    }
+
+    private enum CodingKeys: String, CodingKey { case results, nextCursor }
+}
+
 /// §12.1 report categories — raw values match the server enum exactly.
 enum ReportCategory: String, CaseIterable, Identifiable {
     case spam = "SPAM"

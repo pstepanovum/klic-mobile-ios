@@ -12,6 +12,7 @@ struct LoginView: View {
     @State private var password = ""
     @State private var isSubmitting = false
     @State private var passkeyBusy = false
+    @State private var showForgotPassword = false
 
     var body: some View {
         AuthScaffold(artworkName: "AuthLoginArt", tipFraction: 0.47) {
@@ -41,6 +42,20 @@ struct LoginView: View {
                     )
                 }
                 .padding(.top, 28)
+
+                // §18.2: Firebase-hosted password reset.
+                HStack {
+                    Spacer()
+                    Button {
+                        showForgotPassword = true
+                    } label: {
+                        Text("Forgot password?")
+                            .font(KlicFont.medium(13))
+                            .foregroundStyle(AuthStyle.smallText)
+                    }
+                    .buttonStyle(.plain)
+                }
+                .padding(.top, 10)
 
                 PillButton(
                     title: String(localized: "Login"),
@@ -93,6 +108,9 @@ struct LoginView: View {
             UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
         }
         .toolbar(.hidden, for: .navigationBar)
+        .sheet(isPresented: $showForgotPassword) {
+            ForgotPasswordView(initialEmail: "")
+        }
         .enableInjection()
     }
 

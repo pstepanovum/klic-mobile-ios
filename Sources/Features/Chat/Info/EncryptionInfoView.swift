@@ -19,12 +19,12 @@ struct EncryptionInfoView: View {
                         .background(KlicColor.primary.opacity(0.12), in: Circle())
                         .padding(.top, 12)
 
-                    Text("Your chats and calls are private")
+                    Text("Your chats and calls are protected")
                         .font(KlicFont.headline(22))
                         .foregroundStyle(KlicColor.textPrimary)
                         .multilineTextAlignment(.center)
 
-                    Text("End-to-end encryption keeps your personal messages and calls between you and the people you choose. No one outside — not even Klic — can read, listen to, or share them.")
+                    Text("Your messages, calls and media are encrypted in transit and stored encrypted on our servers. Klic runs these servers to deliver your conversations across your devices. We're working toward end-to-end encryption.")
                         .font(KlicFont.body(15))
                         .foregroundStyle(KlicColor.textMuted)
                         .multilineTextAlignment(.center)
@@ -35,7 +35,7 @@ struct EncryptionInfoView: View {
                 .background(KlicColor.surface, in: RoundedRectangle(cornerRadius: 20))
 
                 VStack(alignment: .leading, spacing: 0) {
-                    Text("This includes your:")
+                    Text("Protected in transit and at rest:")
                         .font(KlicFont.headline(15))
                         .foregroundStyle(KlicColor.textPrimary)
                         .padding(.horizontal, 18)

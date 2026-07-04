@@ -8,8 +8,12 @@ struct ConversationsView: View {
     @ObservedObject private var store = ConversationStore.shared
     @State private var searchText = ""
     @State private var showNewMessage = false
-    @State private var navPath: [Conversation] = []
+    @State private var navPath = NavigationPath()
     @State private var pendingConversation: Conversation?
+    // §18.4: server-backed global message search (grouped by conversation).
+    @State private var messageResults: [GlobalSearchResult] = []
+    @State private var searchingMessages = false
+    @State private var searchTask: Task<Void, Never>?
     // §16.5: chat-row long-press menu + its follow-up sheets.
     @State private var menuTarget: Conversation?
     @State private var muteSheetTarget: Conversation?
@@ -36,8 +40,12 @@ struct ConversationsView: View {
             ScrollView {
                 LazyVStack(spacing: 4) {
                     // Capsule search bar matching the Login inputs (§9.8).
-                    KlicSearchField(placeholder: String(localized: "Search chats"), text: $searchText)
+                    KlicSearchField(placeholder: String(localized: "Search chats & messages"), text: $searchText)
                         .padding(.bottom, 6)
+
+                    if isSearching {
+                        sectionHeader(String(localized: "Chats"))
+                    }
                     ForEach(filtered) { convo in
                         ConversationRow(conversation: convo)
                             .contentShape(Rectangle())
@@ -49,6 +57,14 @@ struct ConversationsView: View {
                                 withAnimation(.easeIn(duration: 0.15)) { menuTarget = convo }
                             }
                     }
+                    if isSearching && filtered.isEmpty {
+                        emptyHint(String(localized: "No chats match."))
+                    }
+
+                    // §18.4: message hits, grouped by conversation.
+                    if isSearching {
+                        messageResultsSection
+                    }
                 }
                 .padding(.horizontal, 16)
                 .padding(.top, 8)
@@ -57,6 +73,11 @@ struct ConversationsView: View {
             .background(KlicColor.background.ignoresSafeArea())
             .navigationTitle("Chats")
             .navigationDestination(for: Conversation.self) { ChatView(conversation: $0) }
+            // §18.4: opening a global-search message hit jumps straight to that message.
+            .navigationDestination(for: MessageJump.self) {
+                ChatView(conversation: $0.conversation, initialJumpMessageId: $0.messageId)
+            }
+            .onChange(of: searchText) { _, q in scheduleGlobalSearch(q) }
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button { showNewMessage = true } label: {
@@ -164,6 +185,152 @@ struct ConversationsView: View {
         withAnimation(.easeOut(duration: 0.15)) { menuTarget = nil }
     }
 
+    // MARK: §18.4 global message search
+
+    private var isSearching: Bool {
+        !searchText.trimmingCharacters(in: .whitespaces).isEmpty
+    }
+
+    /// Message hits grouped by conversation, preserving the server's most-recent-first order.
+    private var groupedMessageResults: [(conversationId: String, title: String, avatarUrl: String?, hits: [GlobalSearchResult])] {
+        var order: [String] = []
+        var groups: [String: [GlobalSearchResult]] = [:]
+        for r in messageResults {
+            if groups[r.conversationId] == nil { order.append(r.conversationId) }
+            groups[r.conversationId, default: []].append(r)
+        }
+        return order.map { id in
+            let hits = groups[id] ?? []
+            let title = hits.first?.conversationTitle
+                ?? conversations.first { $0.id == id }.map(conversationTitle)
+                ?? String(localized: "Chat")
+            return (id, title, hits.first?.conversationAvatarUrl, hits)
+        }
+    }
+
+    @ViewBuilder private var messageResultsSection: some View {
+        HStack(spacing: 8) {
+            sectionHeader(String(localized: "Messages"))
+            if searchingMessages { ProgressView().controlSize(.small) }
+            Spacer()
+        }
+        if !searchingMessages && messageResults.isEmpty {
+            emptyHint(String(localized: "No messages match."))
+        }
+        ForEach(groupedMessageResults, id: \.conversationId) { group in
+            VStack(alignment: .leading, spacing: 0) {
+                HStack(spacing: 10) {
+                    AvatarView(url: group.avatarUrl, name: group.title, size: 28)
+                    Text(group.title)
+                        .font(KlicFont.medium(14))
+                        .foregroundStyle(KlicColor.textPrimary)
+                        .lineLimit(1)
+                    Spacer()
+                }
+                .padding(.horizontal, 12)
+                .padding(.top, 10)
+                .padding(.bottom, 4)
+
+                ForEach(group.hits) { hit in
+                    Button { openMessageHit(hit) } label: {
+                        VStack(alignment: .leading, spacing: 2) {
+                            HStack {
+                                if let sender = hit.senderName {
+                                    Text(sender)
+                                        .font(KlicFont.caption(11))
+                                        .foregroundStyle(KlicColor.primary)
+                                }
+                                Spacer()
+                                if let stamp = Self.stamp(hit.createdAt) {
+                                    Text(stamp)
+                                        .font(KlicFont.caption(11))
+                                        .foregroundStyle(KlicColor.textMuted)
+                                }
+                            }
+                            Text(Self.plainSnippet(hit.snippet))
+                                .font(KlicFont.body(14))
+                                .foregroundStyle(KlicColor.textPrimary)
+                                .lineLimit(2)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .background(KlicColor.surface, in: RoundedRectangle(cornerRadius: 16))
+            .padding(.bottom, 6)
+        }
+    }
+
+    private func sectionHeader(_ text: String) -> some View {
+        Text(text)
+            .font(KlicFont.caption(12).weight(.semibold))
+            .foregroundStyle(KlicColor.textMuted)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 4)
+            .padding(.top, 6)
+    }
+
+    private func emptyHint(_ text: String) -> some View {
+        Text(text)
+            .font(KlicFont.body(14))
+            .foregroundStyle(KlicColor.textMuted)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 16)
+    }
+
+    private func openMessageHit(_ hit: GlobalSearchResult) {
+        guard let convo = conversations.first(where: { $0.id == hit.conversationId }) else { return }
+        navPath.append(MessageJump(conversation: convo, messageId: hit.messageId))
+    }
+
+    /// Debounce, then run the global search. Empty query clears results.
+    private func scheduleGlobalSearch(_ raw: String) {
+        searchTask?.cancel()
+        let query = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard query.count >= 2 else {
+            messageResults = []
+            searchingMessages = false
+            return
+        }
+        searchingMessages = true
+        searchTask = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 300_000_000)
+            guard !Task.isCancelled else { return }
+            if let response = try? await APIClient.shared.searchMessages(query: query), !Task.isCancelled {
+                messageResults = response.results
+            } else if !Task.isCancelled {
+                messageResults = []
+            }
+            searchingMessages = false
+        }
+    }
+
+    /// Strip the `<b>…</b>` match markers the server wraps around hits (rendered plain).
+    static func plainSnippet(_ snippet: String?) -> String {
+        guard let snippet else { return "" }
+        return snippet
+            .replacingOccurrences(of: "<b>", with: "")
+            .replacingOccurrences(of: "</b>", with: "")
+    }
+
+    static func stamp(_ iso: String?) -> String? {
+        guard let iso, !iso.isEmpty else { return nil }
+        let df = ISO8601DateFormatter(); df.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let df2 = ISO8601DateFormatter(); df2.formatOptions = [.withInternetDateTime]
+        guard let date = df.date(from: iso) ?? df2.date(from: iso) else { return nil }
+        let f = DateFormatter()
+        if Calendar.current.isDate(date, equalTo: Date(), toGranularity: .year) {
+            f.dateFormat = "MMM d"
+        } else {
+            f.dateFormat = "MM/dd/yy"
+        }
+        return f.string(from: date)
+    }
+
     // MARK: §16.5 row actions
 
     /// Mark as Read without opening the chat: the same message:read signal the chat
@@ -198,6 +365,13 @@ struct ConversationsView: View {
             actionError = String(localized: "Couldn't delete this chat right now.")
         }
     }
+}
+
+/// §18.4: a navigation route that opens a conversation AND jumps to a specific message
+/// (from a global-search hit).
+struct MessageJump: Hashable {
+    let conversation: Conversation
+    let messageId: String
 }
 
 // MARK: - §16.5 long-press menu overlay

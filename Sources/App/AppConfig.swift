@@ -17,6 +17,15 @@ enum AppConfig {
 
     static let apiBaseURL = URL(string: "\(apiOrigin)/api/v1")!
 
+    /// Firebase Web API key for the Identity Toolkit REST endpoints used by account recovery
+    /// (§18.2 "Forgot password?"). Read from env or Info.plist; nil when unset/placeholder so
+    /// the recovery flow degrades gracefully until the key is provisioned.
+    static var firebaseWebAPIKey: String? {
+        guard let raw = env("FIREBASE_WEB_API_KEY") ?? info("FIREBASE_WEB_API_KEY") else { return nil }
+        guard !raw.contains("$("), !raw.contains("YOUR_") else { return nil }
+        return raw
+    }
+
     static func avatarURL(forUserId userId: String) -> String {
         "\(apiOrigin)/api/v1/users/\(userId)/avatar"
     }
