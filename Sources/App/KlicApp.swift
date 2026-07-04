@@ -17,47 +17,63 @@ struct KlicApp: App {
 
     var body: some Scene {
         WindowGroup {
-            RootView()
-                .environmentObject(session)
-                .environmentObject(themeManager)
-                .preferredColorScheme(themeManager.colorScheme)
-                .tint(KlicColor.primary)
-                .onAppear { session.bootstrap() }
-                .onChange(of: scenePhase) { _, phase in
-                    // App lock (§10.4): lock on background/foreground per the auto-lock pref.
-                    AppLockManager.shared.handleScenePhase(phase)
-                    if phase == .active {
-                        // Clear the app-icon badge + delivered banners when the user is back in.
-                        UNUserNotificationCenter.current().setBadgeCount(0)
-                        UNUserNotificationCenter.current().removeAllDeliveredNotifications()
-                        if CallKitManager.shared.activeCall == nil {
-                            CallActivityController.end()
-                        }
-                    }
-                }
-                // Siri / CarPlay / Phone-app Recents call-back → resolve the contact and dial.
-                // The legacy audio/video intents cover older routing (still sent by some paths).
-                .onContinueUserActivity(NSStringFromClass(INStartCallIntent.self)) { activity in
-                    CallIntents.startCall(from: activity)
-                }
-                .onContinueUserActivity("INStartAudioCallIntent") { activity in
-                    CallIntents.startCall(from: activity)
-                }
-                .onContinueUserActivity("INStartVideoCallIntent") { activity in
-                    CallIntents.startCall(from: activity)
-                }
-                // Friend links (§13.8) + Google sign-in callback for email linking (§12.2).
-                .onOpenURL { url in
-                    if FriendLinkRouter.shared.handle(url) { return }
-                    _ = GIDSignIn.sharedInstance.handle(url)
-                }
-                // Universal links (§13.8): /u/* and /add/* → the add-friend flow.
-                .onContinueUserActivity(NSUserActivityTypeBrowsingWeb) { activity in
-                    if let url = activity.webpageURL {
-                        FriendLinkRouter.shared.handle(url)
-                    }
-                }
+            #if DEBUG
+            // Simulator-only layout harness for the call screens (see CallLayoutDemoView);
+            // inert unless the app is launched with the -callLayoutDemo argument.
+            if CallLayoutDemoView.isRequested {
+                CallLayoutDemoView()
+                    .preferredColorScheme(themeManager.colorScheme)
+                    .tint(KlicColor.primary)
+            } else {
+                appRoot
+            }
+            #else
+            appRoot
+            #endif
         }
+    }
+
+    private var appRoot: some View {
+        RootView()
+            .environmentObject(session)
+            .environmentObject(themeManager)
+            .preferredColorScheme(themeManager.colorScheme)
+            .tint(KlicColor.primary)
+            .onAppear { session.bootstrap() }
+            .onChange(of: scenePhase) { _, phase in
+                // App lock (§10.4): lock on background/foreground per the auto-lock pref.
+                AppLockManager.shared.handleScenePhase(phase)
+                if phase == .active {
+                    // Clear the app-icon badge + delivered banners when the user is back in.
+                    UNUserNotificationCenter.current().setBadgeCount(0)
+                    UNUserNotificationCenter.current().removeAllDeliveredNotifications()
+                    if CallKitManager.shared.activeCall == nil {
+                        CallActivityController.end()
+                    }
+                }
+            }
+            // Siri / CarPlay / Phone-app Recents call-back → resolve the contact and dial.
+            // The legacy audio/video intents cover older routing (still sent by some paths).
+            .onContinueUserActivity(NSStringFromClass(INStartCallIntent.self)) { activity in
+                CallIntents.startCall(from: activity)
+            }
+            .onContinueUserActivity("INStartAudioCallIntent") { activity in
+                CallIntents.startCall(from: activity)
+            }
+            .onContinueUserActivity("INStartVideoCallIntent") { activity in
+                CallIntents.startCall(from: activity)
+            }
+            // Friend links (§13.8) + Google sign-in callback for email linking (§12.2).
+            .onOpenURL { url in
+                if FriendLinkRouter.shared.handle(url) { return }
+                _ = GIDSignIn.sharedInstance.handle(url)
+            }
+            // Universal links (§13.8): /u/* and /add/* → the add-friend flow.
+            .onContinueUserActivity(NSUserActivityTypeBrowsingWeb) { activity in
+                if let url = activity.webpageURL {
+                    FriendLinkRouter.shared.handle(url)
+                }
+            }
     }
 
     private func configureNavigationBar() {
