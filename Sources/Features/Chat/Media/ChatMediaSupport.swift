@@ -139,7 +139,9 @@ struct CameraPicker: UIViewControllerRepresentable {
         case photo
         case video
         /// §11.2: full capture from the attachment sheet's camera tile — the user can
-        /// switch between photo and video inside the system camera UI.
+        /// switch between photo and video inside the system camera UI (§14.2: the
+        /// Photo | Video selector is the system camera's own mode control, enabled by
+        /// declaring both media types).
         case photoOrVideo
     }
 
@@ -147,7 +149,20 @@ struct CameraPicker: UIViewControllerRepresentable {
     var onImage: ((UIImage) -> Void)? = nil
     var onVideo: ((URL) -> Void)? = nil
 
-    func makeUIViewController(context: Context) -> UIImagePickerController {
+    /// §14.2 crash fix: the capture flow ends through THIS dismiss action, so the
+    /// `showCamera` presentation binding is always reset. The old delegate called
+    /// `picker.dismiss(animated:)` on the UIKit controller directly, which left
+    /// SwiftUI's fullScreenCover binding stuck at `true`; the next state change
+    /// re-evaluated the body against a presentation SwiftUI no longer tracked and
+    /// froze (or crashed) the capture flow.
+    @Environment(\.dismiss) private var dismiss
+
+    func makeUIViewController(context: Context) -> UIViewController {
+        // §14.2 crash fix: `sourceType = .camera` throws NSInvalidArgumentException
+        // on hardware without a camera (the simulator) — never set it unguarded.
+        guard UIImagePickerController.isSourceTypeAvailable(.camera) else {
+            return CameraUnavailableController(onClose: { dismiss() })
+        }
         let picker = UIImagePickerController()
         picker.sourceType = .camera
         // Upload quality (§8.3): HD records/exports at high quality; Standard
@@ -165,6 +180,8 @@ struct CameraPicker: UIViewControllerRepresentable {
             // that uploads stream from disk (§13.15; server video cap 512MB).
             picker.videoMaximumDuration = 600
         case .photoOrVideo:
+            // Both media types → the system camera shows its Photo | Video mode
+            // switcher; either capture flows through the same delegate.
             picker.mediaTypes = [UTType.image.identifier, UTType.movie.identifier]
             picker.cameraCaptureMode = .photo
             picker.videoQuality = hd ? .typeHigh : .typeMedium
@@ -175,12 +192,14 @@ struct CameraPicker: UIViewControllerRepresentable {
         return picker
     }
 
-    func updateUIViewController(_ uiViewController: UIImagePickerController, context: Context) {}
+    func updateUIViewController(_ uiViewController: UIViewController, context: Context) {
+        context.coordinator.parent = self
+    }
 
     func makeCoordinator() -> Coordinator { Coordinator(self) }
 
     final class Coordinator: NSObject, UIImagePickerControllerDelegate, UINavigationControllerDelegate {
-        let parent: CameraPicker
+        var parent: CameraPicker
 
         init(_ parent: CameraPicker) {
             self.parent = parent
@@ -191,15 +210,74 @@ struct CameraPicker: UIViewControllerRepresentable {
             didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey: Any]
         ) {
             if let url = info[.mediaURL] as? URL {
-                parent.onVideo?(url)
+                // The picker deletes its temp recording after dismissal — hand the
+                // staging pipeline its own copy.
+                let ext = url.pathExtension.isEmpty ? "mov" : url.pathExtension
+                let copy = FileManager.default.temporaryDirectory
+                    .appendingPathComponent("cam-\(UUID().uuidString).\(ext)")
+                try? FileManager.default.copyItem(at: url, to: copy)
+                parent.onVideo?(FileManager.default.fileExists(atPath: copy.path) ? copy : url)
             } else if let image = info[.originalImage] as? UIImage {
                 parent.onImage?(image)
             }
-            picker.dismiss(animated: true)
+            // Dismiss through SwiftUI so the presentation binding resets (see above).
+            parent.dismiss()
         }
 
         func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
-            picker.dismiss(animated: true)
+            parent.dismiss()
         }
+    }
+}
+
+/// Klic-styled fallback for devices without a camera (§14.2) — shown instead of
+/// crashing when UIImagePickerController's camera source is unavailable.
+private final class CameraUnavailableController: UIViewController {
+    private let onClose: () -> Void
+
+    init(onClose: @escaping () -> Void) {
+        self.onClose = onClose
+        super.init(nibName: nil, bundle: nil)
+    }
+
+    required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
+
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        view.backgroundColor = .black
+
+        let icon = UIImageView(image: UIImage(systemName: "camera.on.rectangle"))
+        icon.tintColor = .white.withAlphaComponent(0.85)
+        icon.contentMode = .scaleAspectFit
+
+        let label = UILabel()
+        label.text = String(localized: "No camera is available on this device.")
+        label.textColor = .white.withAlphaComponent(0.85)
+        label.font = UIFont(name: "TikTokSans-Regular", size: 16) ?? .systemFont(ofSize: 16)
+        label.numberOfLines = 0
+        label.textAlignment = .center
+
+        var config = UIButton.Configuration.filled()
+        config.title = String(localized: "Close")
+        config.baseBackgroundColor = .white.withAlphaComponent(0.16)
+        config.baseForegroundColor = .white
+        config.cornerStyle = .capsule
+        config.contentInsets = NSDirectionalEdgeInsets(top: 10, leading: 26, bottom: 10, trailing: 26)
+        let button = UIButton(configuration: config, primaryAction: UIAction { [onClose] _ in onClose() })
+
+        let stack = UIStackView(arrangedSubviews: [icon, label, button])
+        stack.axis = .vertical
+        stack.alignment = .center
+        stack.spacing = 16
+        stack.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(stack)
+        NSLayoutConstraint.activate([
+            stack.centerXAnchor.constraint(equalTo: view.centerXAnchor),
+            stack.centerYAnchor.constraint(equalTo: view.centerYAnchor),
+            stack.leadingAnchor.constraint(greaterThanOrEqualTo: view.leadingAnchor, constant: 32),
+            stack.trailingAnchor.constraint(lessThanOrEqualTo: view.trailingAnchor, constant: -32),
+            icon.heightAnchor.constraint(equalToConstant: 44),
+            icon.widthAnchor.constraint(equalToConstant: 56),
+        ])
     }
 }

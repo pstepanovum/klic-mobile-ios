@@ -54,7 +54,7 @@ extension ChatView {
         }
         if asset.mediaType == .image {
             guard let image = await Self.requestFullImage(asset) else { return nil }
-            var draft = makeImageDraft(image)
+            var draft = await makeImageDraft(image)
             if asset.mediaSubtypes.contains(.photoLive) { draft?.isLivePhoto = true }
             return draft
         }
@@ -98,7 +98,7 @@ extension ChatView {
 
     @MainActor
     func stageImage(_ image: UIImage) async {
-        if let draft = makeImageDraft(image) {
+        if let draft = await makeImageDraft(image) {
             pendingMedia.append(draft)
         }
     }
@@ -110,13 +110,16 @@ extension ChatView {
         }
     }
 
-    @MainActor
-    func makeImageDraft(_ image: UIImage) -> PendingMediaDraft? {
+    /// §14.2: the JPEG re-encode of a full-resolution capture takes hundreds of ms —
+    /// it runs OFF the main actor so staging a photo never stalls a dismissal
+    /// animation (part of the camera freeze fix).
+    func makeImageDraft(_ image: UIImage) async -> PendingMediaDraft? {
         // Upload quality (§8.3): HD keeps more pixels + lighter compression.
         let quality = UploadQuality.current
-        guard let (data, w, h) = Media.encodeImage(
-            image, maxDimension: quality.imageMaxDimension, quality: quality.imageJpegQuality
-        ) else { return nil }
+        let encoded = await Task.detached(priority: .userInitiated) {
+            Media.encodeImage(image, maxDimension: quality.imageMaxDimension, quality: quality.imageJpegQuality)
+        }.value
+        guard let (data, w, h) = encoded else { return nil }
         return PendingMediaDraft(
             kind: "IMAGE",
             contentType: "image/jpeg",
@@ -212,89 +215,20 @@ extension ChatView {
     }
 
     /// Insert the optimistic pill and kick the transfer off. The chat stays fully
-    /// interactive; concurrent uploads each own their pill and progress.
+    /// interactive; concurrent uploads each own their pill and progress. §14.2: the
+    /// pill lives in the UploadCenter registry, so it survives leaving this chat.
     @MainActor
     func startUpload(items: [PendingMediaDraft], caption: String, replyToId: String?) {
-        let upload = OutgoingUpload(items: items, caption: caption, replyToId: replyToId)
-        outgoingUploads.append(upload)
+        uploadCenter.start(items: items, caption: caption, replyToId: replyToId, in: conversation.id)
         scrollToBottom()
-        Task { await performUpload(upload.id) }
     }
 
     func retryUpload(_ id: UUID) {
-        guard let idx = outgoingUploads.firstIndex(where: { $0.id == id }) else { return }
-        outgoingUploads[idx].failed = false
-        outgoingUploads[idx].errorText = nil
-        outgoingUploads[idx].progress = 0
-        Task { await performUpload(id) }
+        uploadCenter.retry(id, in: conversation.id)
     }
 
     func discardUpload(_ id: UUID) {
-        outgoingUploads.removeAll { $0.id == id }
-    }
-
-    /// Upload every item's bytes (aggregated real progress across the whole payload),
-    /// then send the message and swap the pill for the server bubble in one update.
-    func performUpload(_ id: UUID) async {
-        guard let upload = outgoingUploads.first(where: { $0.id == id }) else { return }
-        let totalBytes = max(upload.totalBytes, 1)
-        var uploadedBytes = 0
-        do {
-            var drafts: [AttachmentDraft] = []
-            for item in upload.items {
-                let base = uploadedBytes
-                let itemBytes = item.byteCount
-                // §13.15: disk-backed payloads (videos, files) STREAM from their temp
-                // file; only small in-memory payloads (images, voice) travel as Data.
-                let payload: Media.Payload
-                if let fileURL = item.fileURL {
-                    payload = .file(fileURL)
-                } else if let data = item.data {
-                    payload = .data(data)
-                } else {
-                    continue
-                }
-                let draft = try await Media.upload(
-                    conversationId: conversation.id,
-                    kind: item.kind,
-                    contentType: item.contentType,
-                    payload: payload,
-                    width: item.width,
-                    height: item.height,
-                    durationMs: item.durationMs,
-                    waveform: item.waveform,
-                    fileName: item.fileName,
-                    onProgress: { fraction in
-                        let sent = base + Int(fraction * Double(itemBytes))
-                        Task { @MainActor in
-                            self.setUploadProgress(id, Double(sent) / Double(totalBytes))
-                        }
-                    }
-                )
-                drafts.append(draft)
-                uploadedBytes += itemBytes
-                setUploadProgress(id, Double(uploadedBytes) / Double(totalBytes))
-            }
-            let msg = try await APIClient.shared.sendMessage(
-                conversationId: conversation.id,
-                body: upload.caption.isEmpty ? nil : upload.caption,
-                attachments: drafts,
-                replyToId: upload.replyToId
-            )
-            // Replace in place: pill out, server bubble in, one state turn — no flash,
-            // and the bottom-anchored list keeps its scroll position.
-            outgoingUploads.removeAll { $0.id == id }
-            upsert(msg)
-            FrequentContacts.recordSend(conversationId: conversation.id)   // §10.4
-            if atBottom { scrollToBottom(animated: false) }
-        } catch {
-            if let idx = outgoingUploads.firstIndex(where: { $0.id == id }) {
-                outgoingUploads[idx].failed = true
-                // §13.15: surface the REAL failure reason — the server's message for
-                // policy rejections (size cap etc.) vs a network explanation.
-                outgoingUploads[idx].errorText = Self.uploadFailureReason(error)
-            }
-        }
+        uploadCenter.discard(id, in: conversation.id)
     }
 
     /// Human-readable upload failure: server-provided text (size cap, bad type…)
@@ -312,11 +246,6 @@ extension ChatView {
             return String(localized: "Couldn't reach the server. Check your connection and retry.")
         }
         return String(localized: "Upload failed. Please try again.")
-    }
-
-    private func setUploadProgress(_ id: UUID, _ value: Double) {
-        guard let idx = outgoingUploads.firstIndex(where: { $0.id == id }) else { return }
-        outgoingUploads[idx].progress = min(max(value, outgoingUploads[idx].progress), 1)
     }
 
     /// Voice notes keep the direct path (they're small and the recorder bar already

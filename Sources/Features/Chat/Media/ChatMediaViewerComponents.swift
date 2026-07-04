@@ -255,7 +255,10 @@ private struct MediaViewerThumbnailStrip: View {
                         onSelectItem(item.attachmentId)
                     } label: {
                         ZStack {
-                            if let thumbnailURL = URL(string: item.thumbnailURL ?? item.url) {
+                            if item.isVideo, let attachment = item.attachment {
+                                // §14.2: first-frame thumbnail in the viewer strip too.
+                                VideoThumbnailView(attachment: attachment, showsGlyph: false)
+                            } else if let thumbnailURL = URL(string: item.thumbnailURL ?? item.url) {
                                 RemoteImage(url: thumbnailURL, cacheKey: RemoteImageStore.attachmentCacheKey(item.attachmentId)) { phase in
                                     switch phase {
                                     case .success(let image):
