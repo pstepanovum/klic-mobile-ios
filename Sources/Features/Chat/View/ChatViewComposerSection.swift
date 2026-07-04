@@ -12,6 +12,14 @@ extension ChatView {
             uploading: uploading,
             hasPendingAttachments: !pendingMedia.isEmpty,
             captureMode: $captureMode,
+            // §15.1: the reply preview renders INSIDE the input container.
+            replyPreview: replyingTo.map {
+                ComposerReplyPreview(
+                    authorName: $0.senderId == myId ? String(localized: "yourself") : title,
+                    preview: previewText(for: $0)
+                )
+            },
+            onCancelReply: { withAnimation { replyingTo = nil } },
             onAttach: { showAttachMenu = true },
             onStickers: { showStickers = true },
             onSend: { Task { await sendComposerPayload() } },

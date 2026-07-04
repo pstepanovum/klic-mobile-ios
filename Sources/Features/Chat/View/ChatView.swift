@@ -147,13 +147,8 @@ struct ChatView: View {
                             }
                         )
                     }
-                    if let target = replyingTo {
-                        ReplyComposerBar(
-                            authorName: target.senderId == myId ? String(localized: "yourself") : title,
-                            preview: previewText(for: target),
-                            onCancel: { withAnimation { replyingTo = nil } }
-                        )
-                    }
+                    // §15.1: the reply preview lives INSIDE the composer's input
+                    // container now — see MessageComposer.replyPreview.
                     // "@" typed in a group composer → member/@all suggestions (§9.5).
                     if !mentionSuggestions.isEmpty {
                         MentionSuggestionStrip(suggestions: mentionSuggestions) { insertMention($0) }

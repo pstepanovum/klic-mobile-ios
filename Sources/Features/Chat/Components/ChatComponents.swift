@@ -89,6 +89,9 @@ struct MessageBubble: View {
     /// can stretch to ~90% of the row before wrapping (§13.3 had 44 → ~85%).
     private static let bubbleGutter: CGFloat = 32
 
+    /// Body font shared by the rendered text and §15.2's line measurement.
+    static let bodyFont = UIFont(name: "TikTokSans-Regular", size: 16) ?? .systemFont(ofSize: 16)
+
     /// §14.5: reactions render INSIDE the bubble for every bubble-backed kind; only
     /// bubble-less presentations (big emoji, bare-link cards) keep the outer pills.
     private var reactionsRenderedOutside: Bool {
@@ -188,24 +191,27 @@ struct MessageBubble: View {
                             ReplyQuoteView(reply: reply, authorName: replyAuthorName, onPrimary: isMine)
                         }
                         VStack(alignment: .leading, spacing: 6) {
-                            HStack(alignment: .bottom, spacing: 6) {
+                            // §15.2: the time chip tucks into the last line's trailing
+                            // gap when it fits, and wraps to its own compact trailing
+                            // row only when it doesn't — the bubble hugs the longest
+                            // line instead of reserving an empty band beside the text.
+                            TimeTuckLayout(
+                                text: message.body,
+                                font: Self.bodyFont,
+                                highlightMentions: isGroupChat,
+                                mentionNames: mentionNames
+                            ) {
                                 RichMessageText(
                                     text: message.body,
-                                    font: UIFont(name: "TikTokSans-Regular", size: 16) ?? .systemFont(ofSize: 16),
+                                    font: Self.bodyFont,
                                     textColor: UIColor(isMine ? KlicColor.onPrimary : KlicColor.textPrimary),
                                     highlightMentions: isGroupChat,
                                     mentionNames: mentionNames,
                                     mentionColor: UIColor(isMine ? KlicColor.onPrimary : KlicColor.primary),
                                     onLongPress: onLongPress
                                 )
-                                // §14.6: the time chip sizes FIRST (fixed + higher
-                                // priority) so the text gets the whole remaining row
-                                // width — the HStack used to split the proposal 50/50
-                                // and the text view accepted the half-width, wrapping
-                                // long messages into a skinny column.
                                 inlineTimeStatus(onPrimary: isMine)
                                     .fixedSize()
-                                    .layoutPriority(1)
                             }
                             // §14.5: reaction chips INSIDE the bubble, bottom edge.
                             if !message.reactions.isEmpty {

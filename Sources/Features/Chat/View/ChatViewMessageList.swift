@@ -48,6 +48,12 @@ extension ChatView {
                                     selectedMediaAttachmentId = attachment.id
                                 }
                             )
+                            // §15.3: swipe LEFT on any bubble (own and peer, every
+                            // kind) for an interactive reply; long-press → Reply stays.
+                            .swipeToReply(enabled: !msg.isDeleted && !msg.isSystem && !msg.isCallEvent) {
+                                replyingTo = msg
+                                isComposerFocused = true
+                            }
                             .id(msg.id)
                         }
                         // Optimistic sends: byte-progress pills below the delivered

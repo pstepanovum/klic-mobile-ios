@@ -250,32 +250,7 @@ struct ReplyQuoteView: View {
     }
 }
 
-/// The "replying to …" bar shown above the composer.
-struct ReplyComposerBar: View {
-    let authorName: String
-    let preview: String
-    let onCancel: () -> Void
-
-    var body: some View {
-        HStack(spacing: 10) {
-            RoundedRectangle(cornerRadius: 2).fill(KlicColor.primary).frame(width: 3, height: 32)
-            VStack(alignment: .leading, spacing: 1) {
-                Text("Reply to \(authorName)")
-                    .font(KlicFont.caption(12)).foregroundStyle(KlicColor.primary)
-                Text(preview)
-                    .font(KlicFont.caption(12)).foregroundStyle(KlicColor.textMuted).lineLimit(1)
-            }
-            Spacer()
-            Button(action: onCancel) {
-                Image(systemName: "xmark.circle.fill")
-                    .font(.system(size: 20)).foregroundStyle(KlicColor.textMuted)
-            }
-        }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 8)
-        .background(KlicColor.surface)
-    }
-}
+// The composer's "replying to …" banner lives inside MessageComposer now (§15.1).
 
 // MARK: - Tombstone
 
