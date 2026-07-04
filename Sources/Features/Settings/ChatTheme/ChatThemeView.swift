@@ -1,11 +1,132 @@
 import SwiftUI
 import Inject
 
-/// Settings → Chat theme (§12.3): live mini-chat preview, pattern grid, pattern
-/// opacity, gradient presets + intensity, own-bubble color, and Reset.
+/// Settings → Chat theme (§12.3): the GLOBAL theme editor — live mini-chat preview,
+/// pattern grid, pattern opacity, gradient presets + intensity, own-bubble color, Reset.
 struct ChatThemeView: View {
     @ObserveInjection var inject
     @ObservedObject private var theme = ChatThemeStore.shared
+
+    var body: some View {
+        ChatThemeEditor(
+            config: Binding(
+                get: { theme.globalConfig },
+                set: { theme.globalConfig = $0 }
+            ),
+            resetTitle: String(localized: "Reset theme"),
+            onReset: { theme.reset() }
+        )
+        .navigationTitle("Chat theme")
+        .navigationBarTitleDisplayMode(.inline)
+        .enableInjection()
+    }
+}
+
+/// §14.3: the SAME theme UI scoped to one conversation. DMs store a LOCAL override
+/// (per conversation id, over the global theme); groups share the theme through the
+/// server (admin-only edit; PATCH /conversations/:id {theme}), so every member
+/// re-renders live. "Use default" resets to the global theme (null on the server).
+struct ConversationThemeView: View {
+    @ObserveInjection var inject
+    let conversationId: String
+    let isGroup: Bool
+
+    @ObservedObject private var theme = ChatThemeStore.shared
+    @State private var config: ChatThemeConfig = ChatThemeConfig()
+    @State private var loadedInitial = false
+    @State private var saveTask: Task<Void, Never>?
+    @State private var errorText: String?
+
+    var body: some View {
+        ChatThemeEditor(
+            config: Binding(
+                get: { config },
+                set: { apply($0) }
+            ),
+            resetTitle: String(localized: "Use default theme"),
+            footnote: isGroup
+                ? String(localized: "This theme is shared — every member of the group sees it.")
+                : String(localized: "This theme applies to this chat only, on this device."),
+            errorText: errorText,
+            onReset: { resetToDefault() }
+        )
+        .navigationTitle("Chat theme")
+        .navigationBarTitleDisplayMode(.inline)
+        .onAppear {
+            guard !loadedInitial else { return }
+            loadedInitial = true
+            config = theme.resolvedConfig(for: conversationId)
+        }
+        .enableInjection()
+    }
+
+    private func apply(_ newConfig: ChatThemeConfig) {
+        config = newConfig.sanitized()
+        errorText = nil
+        if isGroup {
+            // Optimistic local render; the PATCH (debounced across slider drags)
+            // makes it authoritative and fans out to every member.
+            theme.setGroupTheme(config.payload, for: conversationId)
+            scheduleGroupSave(config.payload)
+        } else {
+            theme.setOverride(config, for: conversationId)
+        }
+    }
+
+    private func resetToDefault() {
+        saveTask?.cancel()
+        errorText = nil
+        if isGroup {
+            theme.setGroupTheme(nil, for: conversationId)
+            saveTask = Task {
+                do {
+                    let updated = try await APIClient.shared.updateGroupTheme(conversationId: conversationId, theme: nil)
+                    ChatThemeStore.shared.setGroupTheme(updated.theme, for: conversationId)
+                    ChatCaches.groupDetails[conversationId] = updated
+                } catch {
+                    errorText = Self.describe(error)
+                }
+            }
+        } else {
+            theme.clearOverride(for: conversationId)
+        }
+        withAnimation(.easeInOut(duration: 0.2)) {
+            config = isGroup ? theme.globalConfig : theme.resolvedConfig(for: conversationId)
+        }
+    }
+
+    /// One PATCH per settle (sliders emit continuously) — 600ms debounce.
+    private func scheduleGroupSave(_ payload: GroupThemePayload) {
+        saveTask?.cancel()
+        saveTask = Task {
+            try? await Task.sleep(nanoseconds: 600_000_000)
+            guard !Task.isCancelled else { return }
+            do {
+                let updated = try await APIClient.shared.updateGroupTheme(conversationId: conversationId, theme: payload)
+                ChatThemeStore.shared.setGroupTheme(updated.theme, for: conversationId)
+                ChatCaches.groupDetails[conversationId] = updated
+            } catch {
+                errorText = Self.describe(error)
+            }
+        }
+    }
+
+    private static func describe(_ error: Error) -> String {
+        if let apiError = error as? APIError { return apiError.userMessage }
+        return String(localized: "Couldn't save the theme right now.")
+    }
+}
+
+// MARK: - Shared editor UI
+
+/// The theme editing surface shared by the global page and the per-conversation page
+/// (§14.3): everything operates on one bound `ChatThemeConfig`.
+private struct ChatThemeEditor: View {
+    @Binding var config: ChatThemeConfig
+    let resetTitle: String
+    var footnote: String? = nil
+    var errorText: String? = nil
+    let onReset: () -> Void
 
     // §13.1: a PROPER grid — uniform tile size/spacing/corner radius, two fixed
     // rows scrolling horizontally so the layout never jags.
@@ -25,28 +146,40 @@ struct ChatThemeView: View {
                 gradientCard
                 bubbleCard
 
+                if let footnote {
+                    Text(footnote)
+                        .font(KlicFont.caption(12))
+                        .foregroundStyle(KlicColor.textMuted)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 8)
+                }
+
+                if let errorText {
+                    Text(errorText)
+                        .font(KlicFont.caption())
+                        .foregroundStyle(KlicColor.danger)
+                        .multilineTextAlignment(.center)
+                }
+
                 PillButton(
-                    title: String(localized: "Reset theme"),
+                    title: resetTitle,
                     fill: KlicColor.surface,
                     textColor: KlicColor.danger
                 ) {
-                    withAnimation(.easeInOut(duration: 0.2)) { theme.reset() }
+                    withAnimation(.easeInOut(duration: 0.2)) { onReset() }
                 }
             }
             .padding(20)
             .adaptiveWidth()
         }
         .background(KlicColor.background.ignoresSafeArea())
-        .navigationTitle("Chat theme")
-        .navigationBarTitleDisplayMode(.inline)
-        .enableInjection()
     }
 
     // MARK: Live preview
 
     private var previewCard: some View {
         ZStack {
-            ChatThemeBackground()
+            ChatThemeBackground(config: config)
             VStack(alignment: .leading, spacing: 6) {
                 previewBubble(String(localized: "Hey! Have you seen the new themes?"), mine: false)
                 previewBubble(String(localized: "Yes — picking mine right now 🎨"), mine: true)
@@ -66,7 +199,7 @@ struct ChatThemeView: View {
                 .foregroundStyle(mine ? KlicColor.onPrimary : KlicColor.textPrimary)
                 .padding(.horizontal, 13)
                 .padding(.vertical, 8)
-                .background(mine ? theme.bubbleColor : KlicColor.surfaceRaised, in: RoundedRectangle(cornerRadius: 16))
+                .background(mine ? config.bubbleColor : KlicColor.surfaceRaised, in: RoundedRectangle(cornerRadius: 16))
             if !mine { Spacer(minLength: 40) }
         }
     }
@@ -94,12 +227,12 @@ struct ChatThemeView: View {
                         .font(KlicFont.body(14))
                         .foregroundStyle(KlicColor.textPrimary)
                     Spacer()
-                    Text(verbatim: "\(Int((theme.patternOpacity * 100).rounded()))%")
+                    Text(verbatim: "\(Int((config.patternOpacity * 100).rounded()))%")
                         .font(KlicFont.caption(12))
                         .foregroundStyle(KlicColor.textMuted)
                         .monospacedDigit()
                 }
-                Slider(value: $theme.patternOpacity, in: ChatThemeStore.patternOpacityRange)
+                Slider(value: $config.patternOpacity, in: ChatThemeStore.patternOpacityRange)
                     .tint(KlicColor.primary)
             }
         }
@@ -111,9 +244,9 @@ struct ChatThemeView: View {
     /// a small checkmark badge; unselected tiles keep a hairline neutral border so
     /// tiles read as tiles in both light and dark themes.
     private func patternSwatch(_ id: Int) -> some View {
-        let selected = theme.patternId == id
+        let selected = config.patternId == id
         return Button {
-            withAnimation(.easeInOut(duration: 0.15)) { theme.patternId = id }
+            withAnimation(.easeInOut(duration: 0.15)) { config.patternId = id }
         } label: {
             ZStack {
                 KlicColor.background
@@ -166,19 +299,19 @@ struct ChatThemeView: View {
                 .padding(.vertical, 2)
             }
 
-            if theme.gradientId != nil {
+            if config.gradientId != nil {
                 VStack(alignment: .leading, spacing: 4) {
                     HStack {
                         Text("Gradient intensity")
                             .font(KlicFont.body(14))
                             .foregroundStyle(KlicColor.textPrimary)
                         Spacer()
-                        Text(verbatim: "\(Int((theme.gradientIntensity * 100).rounded()))%")
+                        Text(verbatim: "\(Int((config.gradientIntensity * 100).rounded()))%")
                             .font(KlicFont.caption(12))
                             .foregroundStyle(KlicColor.textMuted)
                             .monospacedDigit()
                     }
-                    Slider(value: $theme.gradientIntensity, in: ChatThemeStore.gradientIntensityRange)
+                    Slider(value: $config.gradientIntensity, in: ChatThemeStore.gradientIntensityRange)
                         .tint(KlicColor.primary)
                 }
             }
@@ -188,9 +321,9 @@ struct ChatThemeView: View {
     }
 
     private func gradientSwatch(_ preset: ChatGradientPreset?, label: String) -> some View {
-        let selected = theme.gradientId == preset?.id
+        let selected = config.gradientId == preset?.id
         return Button {
-            withAnimation(.easeInOut(duration: 0.15)) { theme.gradientId = preset?.id }
+            withAnimation(.easeInOut(duration: 0.15)) { config.gradientId = preset?.id }
         } label: {
             VStack(spacing: 6) {
                 Group {
@@ -249,9 +382,9 @@ struct ChatThemeView: View {
     }
 
     private func bubbleSwatch(_ palette: ChatBubblePalette) -> some View {
-        let selected = theme.bubblePaletteId == palette.id
+        let selected = config.bubblePaletteId == palette.id
         return Button {
-            withAnimation(.easeInOut(duration: 0.15)) { theme.bubblePaletteId = palette.id }
+            withAnimation(.easeInOut(duration: 0.15)) { config.bubblePaletteId = palette.id }
         } label: {
             VStack(spacing: 6) {
                 Circle()

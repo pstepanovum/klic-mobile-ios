@@ -67,6 +67,9 @@ private struct GroupInfoContent: View {
     @State private var memberActionTarget: GroupConversationDetails.Member?
     @State private var removeConfirmTarget: GroupConversationDetails.Member?
     @State private var removingMemberIds: Set<String> = []
+    // Admin transfer flow (§14.3): action sheet → confirm sheet → POST.
+    @State private var transferConfirmTarget: GroupConversationDetails.Member?
+    @State private var transferring = false
     // Report a member (§12.1).
     @State private var reportTarget: ReportTarget?
 
@@ -136,6 +139,9 @@ private struct GroupInfoContent: View {
                         : fallbackMembers
                 )
 
+                // §14.3: the group's SHARED theme (admin-only edit) + encryption info.
+                ChatThemeEncryptionRows(conversationId: conversationId, isGroup: true, canEditTheme: isAdmin)
+
                 ChatNotificationsCard(conversationId: conversationId, isGroup: true)
 
                 dangerZone
@@ -185,6 +191,17 @@ private struct GroupInfoContent: View {
             }
         }
         .task { await load() }
+        // §14.3: live re-render when the group's shared fields change (title, cover,
+        // theme, admin) — including an admin transfer done by someone else.
+        .onReceive(SocketService.shared.$lastConversationUpdated.compactMap { $0 }) { updated in
+            guard updated.id == conversationId else { return }
+            details = updated
+            onUpdated(updated)
+            if !editing {
+                editTitle = updated.title ?? fallbackTitle
+                editDescription = updated.description ?? ""
+            }
+        }
         .sheet(isPresented: $addSheet) {
             AddGroupMembersSheet(conversationId: conversationId, currentMemberIds: Set(members.map(\.id))) { updated in
                 apply(updated)
@@ -252,11 +269,30 @@ private struct GroupInfoContent: View {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
                     removeConfirmTarget = member
                 }
+            case "transfer-admin":
+                // Chain the confirm sheet after this one fully dismisses (§14.3).
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+                    transferConfirmTarget = member
+                }
             default:
                 break
             }
         }
         .reportSheet(target: $reportTarget)
+        // §14.3: admin transfer confirmation.
+        .klicSelectionSheet(
+            isPresented: Binding(
+                get: { transferConfirmTarget != nil },
+                set: { if !$0 { transferConfirmTarget = nil } }
+            ),
+            title: String(localized: "Make \(transferConfirmTarget?.displayName ?? "member") the group admin?"),
+            message: String(localized: "They will be able to edit the group, manage members and set the chat theme. You will no longer be the admin."),
+            options: [KlicSheetOption(id: "transfer", label: String(localized: "Transfer admin"), isDestructive: true)]
+        ) { _ in
+            guard let member = transferConfirmTarget else { return }
+            transferConfirmTarget = nil
+            Task { await transferAdmin(to: member) }
+        }
         .klicSelectionSheet(
             isPresented: Binding(
                 get: { removeConfirmTarget != nil },
@@ -458,16 +494,35 @@ private struct GroupInfoContent: View {
     }
 
     /// The member action sheet's options: profile + report for any other member
-    /// (§12.1), plus the admin-only remove (§9.3).
+    /// (§12.1), plus the admin-only transfer (§14.3) and remove (§9.3).
     private var memberActionOptions: [KlicSheetOption] {
         var options = [
             KlicSheetOption(id: "profile", label: String(localized: "View profile")),
             KlicSheetOption(id: "report", label: String(localized: "Report")),
         ]
+        if let member = memberActionTarget, isAdmin, !member.isMe {
+            options.append(KlicSheetOption(id: "transfer-admin", label: String(localized: "Transfer admin")))
+        }
         if let member = memberActionTarget, canRemove(member) {
             options.append(KlicSheetOption(id: "remove", label: String(localized: "Remove from group"), isDestructive: true))
         }
         return options
+    }
+
+    /// §14.3: hand the admin role over; permissions (edit, remove, theme) follow the
+    /// fresh details shape immediately.
+    private func transferAdmin(to member: GroupConversationDetails.Member) async {
+        guard !transferring else { return }
+        transferring = true
+        defer { transferring = false }
+        do {
+            let updated = try await APIClient.shared.transferGroupAdmin(conversationId: conversationId, userId: member.id)
+            apply(updated)
+        } catch let e as APIError {
+            error = e.userMessage
+        } catch {
+            self.error = "Couldn't transfer the admin role."
+        }
     }
 
     private func memberRow(_ member: GroupConversationDetails.Member) -> some View {
@@ -709,6 +764,8 @@ private struct GroupInfoContent: View {
     private func apply(_ updated: GroupConversationDetails) {
         details = updated
         ChatCaches.groupDetails[conversationId] = updated
+        // §14.3: keep the shared theme current for precedence resolution.
+        ChatThemeStore.shared.setGroupTheme(updated.theme, for: conversationId)
         // §10.1: reflect title/cover edits into the cached conversations list so the
         // Chats tab row updates in place, no refetch needed.
         ConversationStore.shared.applyGroupDetails(updated)
@@ -730,7 +787,7 @@ private extension GroupConversationDetails {
         GroupConversationDetails(
             id: id, type: type, title: title, description: description,
             avatarUrl: avatarUrl, createdById: createdById, createdAt: createdAt,
-            isAdmin: isAdmin, members: members.filter { $0.id != memberId }
+            isAdmin: isAdmin, members: members.filter { $0.id != memberId }, theme: theme
         )
     }
 }

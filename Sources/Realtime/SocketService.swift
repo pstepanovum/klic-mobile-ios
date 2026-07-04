@@ -29,6 +29,9 @@ final class SocketService: ObservableObject {
     /// Conversation id this user was just removed from (`conversation:removed`, §9.3) —
     /// the client drops the conversation locally and dismisses the chat if it's open.
     @Published var lastConversationRemoved: String?
+    /// A group's shared fields changed (`conversation:updated`, §14.3) — title,
+    /// description, cover, theme, or admin. Members re-render live.
+    @Published var lastConversationUpdated: GroupConversationDetails?
 
     private var myUserId: String?
     /// Per-conversation token used to invalidate a pending typing auto-clear.
@@ -214,6 +217,19 @@ final class SocketService: ObservableObject {
             guard let dict = data.first as? [String: Any],
                   let conversationId = dict["conversationId"] as? String else { return }
             self?.lastConversationRemoved = conversationId
+        }
+        socket.on("conversation:updated") { [weak self] data, _ in
+            guard let self,
+                  let dict = data.first as? [String: Any],
+                  let json = try? JSONSerialization.data(withJSONObject: dict),
+                  let details = try? JSONDecoder().decode(GroupConversationDetails.self, from: json) else { return }
+            Task { @MainActor in
+                // §14.3: keep the shared theme + cached details fresh for live re-render.
+                ChatThemeStore.shared.setGroupTheme(details.theme, for: details.id)
+                ChatCaches.groupDetails[details.id] = details
+                ConversationStore.shared.applyGroupDetails(details)
+                self.lastConversationUpdated = details
+            }
         }
         socket.on("call:end") { [weak self] data, _ in
             guard let dict = data.first as? [String: Any],
