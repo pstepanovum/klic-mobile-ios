@@ -53,8 +53,24 @@ struct ChatView: View {
     /// re-entering the chat mid-upload.
     @ObservedObject var uploadCenter = UploadCenter.shared
     @State var selectedMediaAttachmentId: String?
-    @State var captureMode: MessageComposer.CaptureMode = .audio
     @State var cameraMode: CameraPicker.Mode = .photo
+    /// §16.2: hold/lock/cancel recording state (audio + round video) and the
+    /// round-video capture pipeline.
+    @StateObject var recSession = RecordingSession()
+    @StateObject var noteRecorder = VideoNoteRecorder()
+    /// §16.4: message being edited + the composer draft stashed while editing.
+    @State var editingMessage: Message?
+    @State var draftBeforeEdit = ""
+    @State var editShakeTrigger = 0
+    /// §16.3: pinned messages (oldest→newest), the bar's cycle cursor, and the
+    /// "hidden until a new pin arrives" latch.
+    @State var pinnedMessages: [ReplyPreview] = []
+    @State var pinnedCursor = 0
+    @State var hiddenNewestPinId: String?
+    @State private var pinDialogTarget: Message?
+    @State private var unpinDialogId: String?
+    /// §16.1/§16.3: brief tinted pulse on a jumped-to bubble.
+    @State var highlightedMessageId: String?
     // Message search (group info → Search; §8.4).
     @State var showMessageSearch = false
     @State var pendingSearchJump: String?
@@ -156,11 +172,23 @@ struct ChatView: View {
                     composer
                 }
             }
-            // "Join call" banner: the group has a live call we're not in yet.
+            // Top inset: pinned bar (§16.3) below the header, then the "Join call"
+            // banner when the group has a live call we're not in yet.
             .safeAreaInset(edge: .top, spacing: 0) {
-                if let info = activeCallInfo, callKit.activeCall?.id != info.callId {
-                    JoinCallBanner(info: info) {
-                        Task { await joinActiveCall(info) }
+                VStack(spacing: 0) {
+                    if showPinnedBar {
+                        PinnedMessageBar(
+                            pins: pinnedMessages,
+                            cursor: pinnedCursor,
+                            onTap: { tapPinnedBar() },
+                            onClose: { closePinnedBar() }
+                        )
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                    }
+                    if let info = activeCallInfo, callKit.activeCall?.id != info.callId {
+                        JoinCallBanner(info: info) {
+                            Task { await joinActiveCall(info) }
+                        }
                     }
                 }
             }
@@ -196,12 +224,35 @@ struct ChatView: View {
                 }
             }
         }
+        // §16.2: round-video recording overlay — an in-place overlay (NOT a
+        // presentation) so the composer button's active hold gesture survives.
+        .overlay {
+            if recSession.isActive, recSession.mode == .video {
+                VideoNoteRecordingOverlay(
+                    recorder: noteRecorder,
+                    session: recSession,
+                    onFlip: { noteRecorder.flipCamera() },
+                    onCancel: { cancelRecording() },
+                    onSend: { finishAndSendRecording() }
+                )
+                .overlay(alignment: .bottomTrailing) {
+                    if recSession.phase == .holding {
+                        RecordingPadlock(progress: recSession.lockProgress, locked: false)
+                            .padding(.trailing, 24)
+                            .padding(.bottom, 150)
+                    }
+                }
+            }
+        }
         .overlay {
             if let target = menuTarget {
                 MessageActionsOverlay(
                     message: target,
                     isMine: target.senderId == myId,
                     peerName: title,
+                    canEdit: canEdit(target),
+                    canPin: canPinHere && !target.isSystem && !target.isCallEvent,
+                    pinned: isPinnedNow(target),
                     onReact: { emoji in
                         Task { await react(target, emoji: emoji) }
                         withAnimation(.easeOut(duration: 0.15)) { menuTarget = nil }
@@ -209,6 +260,15 @@ struct ChatView: View {
                     onReply: { replyingTo = target; isComposerFocused = true },
                     onCopy: { UIPasteboard.general.string = target.body },
                     onToggleStar: { Task { await toggleStar(target) } },
+                    onEdit: { beginEdit(target) },
+                    onPin: {
+                        withAnimation(.easeOut(duration: 0.15)) { menuTarget = nil }
+                        if isPinnedNow(target) {
+                            unpinDialogId = target.id
+                        } else {
+                            pinDialogTarget = target
+                        }
+                    },
                     onReport: {
                         withAnimation(.easeOut(duration: 0.15)) { menuTarget = nil }
                         let sender = memberTargets.first { $0.id == target.senderId }
@@ -252,6 +312,28 @@ struct ChatView: View {
             else { Task { await deleteEveryone(m) } }
             dismissMenu()
         }
+        // §16.3: pin — groups choose notify/silent, DMs get a simple confirm.
+        .klicSelectionSheet(
+            isPresented: pinDialogBinding,
+            title: isDirect
+                ? String(localized: "Pin this message at the top of the chat?")
+                : String(localized: "Pin message"),
+            options: pinOptions
+        ) { option in
+            guard let m = pinDialogTarget else { return }
+            pinDialogTarget = nil
+            Task { await pin(m, notify: option.id == "notify") }
+        }
+        // §16.3: unpin always confirms.
+        .klicSelectionSheet(
+            isPresented: unpinDialogBinding,
+            title: String(localized: "Unpin this message?"),
+            options: [KlicSheetOption(id: "unpin", label: String(localized: "Unpin"), isDestructive: true)]
+        ) { _ in
+            guard let id = unpinDialogId else { return }
+            unpinDialogId = nil
+            Task { await unpin(messageId: id) }
+        }
         .task {
             hiddenIds = Self.loadHidden(conversation.id)
             // Restore this chat's saved composer draft (§10.4).
@@ -265,12 +347,24 @@ struct ChatView: View {
             }
             scrollToBottom(animated: false)
             initialLoadDone = true
+            await loadPinned()   // §16.3 — degrades to no bar on older servers
+        }
+        // §16.2: auto-lock at 59s (both modes) and the 60s round-video cap.
+        .onChange(of: recorder.elapsed) { _, elapsed in
+            guard recSession.mode == .audio else { return }
+            watchRecordingProgress(elapsed: elapsed, isVideo: false)
+        }
+        .onChange(of: noteRecorder.elapsed) { _, elapsed in
+            guard recSession.mode == .video else { return }
+            watchRecordingProgress(elapsed: elapsed, isVideo: true)
         }
         .onAppear { isComposerFocused = true }
         .onDisappear {
             emitTyping(false)
-            // Persist unsent text as this chat's draft (§10.4).
-            ChatDrafts.save(conversation.id, text: draft)
+            if recSession.isActive { cancelRecording() }
+            // Persist unsent text as this chat's draft (§10.4). Mid-edit, the
+            // stashed pre-edit draft is what belongs to the composer.
+            ChatDrafts.save(conversation.id, text: editingMessage == nil ? draft : draftBeforeEdit)
         }
         .onChange(of: draft) { _, value in emitTyping(!value.trimmingCharacters(in: .whitespaces).isEmpty) }
         // Keep the cached first page fresh so re-opening this chat paints instantly (§9.9).
@@ -347,6 +441,16 @@ struct ChatView: View {
                   let idx = messages.firstIndex(where: { $0.id == update.messageId }) else { return }
             messages[idx].reactions = update.reactions
         }
+        // §16.4: live edits — swap the refreshed payload in place, no scroll jump.
+        .onReceive(socket.$lastUpdatedMessage.compactMap { $0 }) { updated in
+            guard updated.conversationId == conversation.id else { return }
+            applyUpdatedMessage(updated)
+        }
+        // §16.3: live pin/unpin — refresh the bar + the bubble's pinned state.
+        .onReceive(socket.$lastPinEvent.compactMap { $0 }) { event in
+            guard event.conversationId == conversation.id else { return }
+            handlePinEvent(event)
+        }
         .onReceive(socket.$lastDeleted.compactMap { $0 }) { update in
             guard update.conversationId == conversation.id,
                   let idx = messages.firstIndex(where: { $0.id == update.messageId }) else { return }
@@ -410,6 +514,59 @@ struct ChatView: View {
 
     private var deleteDialogBinding: Binding<Bool> {
         Binding(get: { deleteTarget != nil }, set: { if !$0 { deleteTarget = nil } })
+    }
+
+    private var pinDialogBinding: Binding<Bool> {
+        Binding(get: { pinDialogTarget != nil }, set: { if !$0 { pinDialogTarget = nil } })
+    }
+
+    private var unpinDialogBinding: Binding<Bool> {
+        Binding(get: { unpinDialogId != nil }, set: { if !$0 { unpinDialogId = nil } })
+    }
+
+    /// §16.3: groups choose between a notifying and a silent pin; DMs just confirm.
+    private var pinOptions: [KlicSheetOption] {
+        if isDirect {
+            return [KlicSheetOption(id: "silent", label: String(localized: "Pin"))]
+        }
+        return [
+            KlicSheetOption(id: "notify", label: String(localized: "Pin and notify all members")),
+            KlicSheetOption(id: "silent", label: String(localized: "Only Pin")),
+        ]
+    }
+
+    /// Pinned per the live list (socket-fresh) or the message's own payload flag.
+    func isPinnedNow(_ message: Message) -> Bool {
+        message.isPinned || pinnedMessages.contains { $0.id == message.id }
+    }
+
+    /// §16.3: the bar shows while pins exist, unless the user hid it (the latch
+    /// clears when a different newest pin arrives).
+    var showPinnedBar: Bool {
+        guard let newest = pinnedMessages.last else { return false }
+        return hiddenNewestPinId != newest.id
+    }
+
+    /// TAP → jump to the cursor's pin (+ highlight), then step to the previous pin
+    /// for the next tap (cycling through all pins).
+    func tapPinnedBar() {
+        guard !pinnedMessages.isEmpty else { return }
+        let index = min(pinnedCursor, pinnedMessages.count - 1)
+        let target = pinnedMessages[index]
+        Task { await jumpToMessageHighlighting(target.id) }
+        pinnedCursor = (index - 1 + pinnedMessages.count) % pinnedMessages.count
+    }
+
+    /// × → unpin confirm when this user may unpin; otherwise hide the bar locally
+    /// until a new pin arrives.
+    func closePinnedBar() {
+        let current = pinnedMessages.indices.contains(pinnedCursor)
+            ? pinnedMessages[pinnedCursor] : pinnedMessages.last
+        if canPinHere, let current {
+            unpinDialogId = current.id
+        } else {
+            hiddenNewestPinId = pinnedMessages.last?.id
+        }
     }
 
     private var deleteOptions: [KlicSheetOption] {

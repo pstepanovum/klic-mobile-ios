@@ -53,6 +53,140 @@ extension ChatView {
         }
     }
 
+    /// §16.1/§16.3: scroll to a message and flash a brief tinted pulse on it.
+    func jumpToMessageHighlighting(_ id: String) async {
+        await jumpToMessage(id)
+        guard messages.contains(where: { $0.id == id }) else { return }
+        try? await Task.sleep(nanoseconds: 200_000_000)   // let the scroll land
+        withAnimation(.easeIn(duration: 0.15)) { highlightedMessageId = id }
+        try? await Task.sleep(nanoseconds: 850_000_000)
+        if highlightedMessageId == id {
+            withAnimation(.easeOut(duration: 0.35)) { highlightedMessageId = nil }
+        }
+    }
+
+    // MARK: - Edit (§16.4)
+
+    /// Own, non-deleted TEXT/caption messages can be edited within 48h.
+    func canEdit(_ message: Message) -> Bool {
+        guard message.senderId == myId, !message.isDeleted else { return false }
+        guard ["TEXT", "IMAGE", "VIDEO", "VOICE", "FILE", "VIDEO_NOTE"].contains(message.kind) else { return false }
+        guard let created = SocketService.parseDate(message.createdAt) else { return false }
+        return Date().timeIntervalSince(created) < 48 * 3600
+    }
+
+    /// Enter edit mode: stash the current draft, load the original body, focus.
+    func beginEdit(_ message: Message) {
+        draftBeforeEdit = draft
+        withAnimation {
+            replyingTo = nil
+            editingMessage = message
+        }
+        draft = message.body
+        isComposerFocused = true
+    }
+
+    /// Exit edit mode restoring whatever draft was in the composer before (§16.4).
+    func exitEdit() {
+        withAnimation { editingMessage = nil }
+        draft = draftBeforeEdit
+        draftBeforeEdit = ""
+    }
+
+    /// Apply the edit: empty → shake (no request), unchanged → silent exit,
+    /// otherwise PATCH and swap the refreshed message in place.
+    func applyEdit() async {
+        guard let target = editingMessage else { return }
+        let body = draft.trimmingCharacters(in: .whitespacesAndNewlines)
+        if body.isEmpty {
+            editShakeTrigger += 1
+            return
+        }
+        if body == target.body {
+            exitEdit()
+            return
+        }
+        do {
+            let updated = try await APIClient.shared.editMessage(
+                conversationId: conversation.id, messageId: target.id, body: body)
+            applyUpdatedMessage(updated)
+        } catch {
+            // Offline / pre-§16.4 server: keep the user's text on screen by leaving
+            // edit mode without losing their draft.
+        }
+        exitEdit()
+    }
+
+    /// §16.4: merge a full refreshed payload in place — no scroll jump. The socket
+    /// fan-out is per-conversation, not per-requester, so my star survives.
+    func applyUpdatedMessage(_ updated: Message) {
+        guard let idx = messages.firstIndex(where: { $0.id == updated.id }) else { return }
+        var merged = updated
+        merged.starred = merged.starred ?? messages[idx].starred
+        messages[idx] = merged
+    }
+
+    // MARK: - Pins (§16.3)
+
+    /// DIRECT → either participant may pin; GROUP → admin only.
+    var canPinHere: Bool {
+        isDirect || groupDetails?.isAdmin == true
+    }
+
+    func loadPinned() async {
+        if let pinned = try? await APIClient.shared.pinnedMessages(conversationId: conversation.id) {
+            setPinnedMessages(pinned)
+        }
+    }
+
+    /// Replace the pinned list (oldest→newest) and reset the cycle cursor to the
+    /// newest pin.
+    func setPinnedMessages(_ pinned: [ReplyPreview]) {
+        withAnimation(.easeInOut(duration: 0.2)) {
+            pinnedMessages = pinned
+            pinnedCursor = max(0, pinned.count - 1)
+        }
+    }
+
+    func pin(_ message: Message, notify: Bool) async {
+        do {
+            try await APIClient.shared.pinMessage(
+                conversationId: conversation.id, messageId: message.id, notify: notify)
+            if let idx = messages.firstIndex(where: { $0.id == message.id }) {
+                messages[idx].pinnedAt = ISO8601DateFormatter().string(from: Date())
+            }
+            hiddenNewestPinId = nil
+            await loadPinned()
+        } catch {
+            // Pre-§16.3 server — nothing to update.
+        }
+    }
+
+    func unpin(messageId: String) async {
+        try? await APIClient.shared.unpinMessage(conversationId: conversation.id, messageId: messageId)
+        if let idx = messages.firstIndex(where: { $0.id == messageId }) {
+            messages[idx].pinnedAt = nil
+        }
+        setPinnedMessages(pinnedMessages.filter { $0.id != messageId })
+    }
+
+    /// §16.3: apply a realtime pin/unpin event — the chosen live mechanism (no
+    /// conversation:updated refetch). Pins from others refresh the compact list.
+    func handlePinEvent(_ event: SocketService.PinEvent) {
+        if event.pinned {
+            if let idx = messages.firstIndex(where: { $0.id == event.messageId }) {
+                messages[idx].pinnedAt = ISO8601DateFormatter().string(from: Date())
+            }
+            hiddenNewestPinId = nil
+            Task { await loadPinned() }
+        } else {
+            if let idx = messages.firstIndex(where: { $0.id == event.messageId }) {
+                messages[idx].pinnedAt = nil
+            }
+            setPinnedMessages(pinnedMessages.filter { $0.id != event.messageId })
+        }
+    }
+
     func deleteEveryone(_ message: Message) async {
         try? await APIClient.shared.deleteForEveryone(conversationId: conversation.id, messageId: message.id)
         if let idx = messages.firstIndex(where: { $0.id == message.id }) {
@@ -79,10 +213,11 @@ extension ChatView {
         if message.isSticker { return "Sticker" }
         if let a = message.attachments.first {
             switch a.kind {
-            case "IMAGE": return "Photo"
-            case "VOICE": return "Voice message"
-            case "VIDEO": return "Video"
-            default:      return "File"
+            case "IMAGE":      return "Photo"
+            case "VOICE":      return "Voice message"
+            case "VIDEO":      return "Video"
+            case "VIDEO_NOTE": return "Video message"
+            default:           return "File"
             }
         }
         if message.isCallEvent { return message.call?.isVideo == true ? "Video call" : "Voice call" }

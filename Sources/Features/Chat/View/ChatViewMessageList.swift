@@ -46,6 +46,10 @@ extension ChatView {
                                 onReactionTap: { emoji in Task { await react(msg, emoji: emoji) } },
                                 onOpenAttachment: { attachment in
                                     selectedMediaAttachmentId = attachment.id
+                                },
+                                // §16.1: tap the quote card → jump to the original.
+                                onReplyTap: { replyId in
+                                    Task { await jumpToMessageHighlighting(replyId) }
                                 }
                             )
                             // §15.3: swipe LEFT on any bubble (own and peer, every
@@ -53,6 +57,15 @@ extension ChatView {
                             .swipeToReply(enabled: !msg.isDeleted && !msg.isSystem && !msg.isCallEvent) {
                                 replyingTo = msg
                                 isComposerFocused = true
+                            }
+                            // §16.1/§16.3: brief tinted pulse after a jump.
+                            .background {
+                                if highlightedMessageId == msg.id {
+                                    RoundedRectangle(cornerRadius: 14)
+                                        .fill(KlicColor.primary.opacity(0.18))
+                                        .padding(.horizontal, -6)
+                                        .transition(.opacity)
+                                }
                             }
                             .id(msg.id)
                         }
