@@ -38,8 +38,8 @@ extension ChatView {
         .sheet(isPresented: $showAttachMenu) {
             KlicAttachmentSheet(
                 onSendAssets: { assets in
-                    // §11.2: bulk selection sends one message per item, in order,
-                    // through the upload-pill pipeline.
+                    // §13.17: an all-media bulk selection sends ONE message with
+                    // multiple attachments (bento grid), via the upload-pill pipeline.
                     Task { await sendAssetsAsMessages(assets) }
                 },
                 onOpenSystemPicker: { pendingAttach = .photos; deferAttachAction() },

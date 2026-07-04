@@ -87,6 +87,8 @@ final class AppSession: ObservableObject {
         TokenStore.clear()
         Self.clearUser()
         SocketService.shared.disconnect()
+        // §13.12: the app lock belongs to the signed-in user — wipe it with the session.
+        AppLockManager.shared.clearForSignOut()
         currentUser = nil
     }
 
@@ -120,6 +122,8 @@ final class AppSession: ObservableObject {
     @objc private func handleSessionExpired() {
         Self.clearUser()
         SocketService.shared.disconnect()
+        // §13.12: any transition to signed-out wipes the app-lock state.
+        AppLockManager.shared.clearForSignOut()
         currentUser = nil
     }
 

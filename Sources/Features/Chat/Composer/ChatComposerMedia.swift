@@ -5,17 +5,31 @@ struct PendingMediaDraft: Identifiable, Equatable {
     let id = UUID()
     let kind: String
     let contentType: String
-    let data: Data
+    /// In-memory payload — images and other small items. §13.15: large payloads
+    /// (videos, arbitrary files) set `fileURL` instead and are streamed from disk
+    /// at upload time; the whole file is NEVER buffered in memory.
+    var data: Data? = nil
+    /// On-disk payload (app-owned temp copy), streamed via uploadTask(fromFile:).
+    var fileURL: URL? = nil
     /// Local preview for images/videos; nil for plain files (doc placeholder shown).
     let previewImage: UIImage?
-    var width: Int?
-    var height: Int?
-    var durationMs: Int?
-    var waveform: Data?
-    var fileName: String?
+    var width: Int? = nil
+    var height: Int? = nil
+    var durationMs: Int? = nil
+    var waveform: Data? = nil
+    var fileName: String? = nil
     /// Live-Photo motion metadata — known only for assets picked via the gallery
     /// grid (§10.9/§10.11); drives the "LIVE" pill in the pre-send flow.
     var isLivePhoto: Bool = false
+
+    /// Payload size in bytes, whichever storage backs this draft.
+    var byteCount: Int {
+        if let data { return data.count }
+        guard let fileURL,
+              let size = try? FileManager.default
+                  .attributesOfItem(atPath: fileURL.path)[.size] as? NSNumber else { return 0 }
+        return size.intValue
+    }
 }
 
 /// One optimistic in-flight attachment send (§9.1). Rendered as a message pill at the
@@ -28,8 +42,10 @@ struct OutgoingUpload: Identifiable {
     let replyToId: String?
     var progress: Double = 0
     var failed = false
+    /// §13.15: the REAL failure reason (server size cap vs network) shown in the pill.
+    var errorText: String?
 
-    var totalBytes: Int { items.reduce(0) { $0 + $1.data.count } }
+    var totalBytes: Int { items.reduce(0) { $0 + $1.byteCount } }
     var isFileOnly: Bool { items.allSatisfy { $0.previewImage == nil } }
 }
 
@@ -203,7 +219,7 @@ struct UploadingMessageBubble: View {
                         .font(KlicFont.body())
                         .lineLimit(1)
                         .foregroundStyle(KlicColor.onPrimary)
-                    Text(statusText(bytes: item.data.count))
+                    Text(statusText(bytes: item.byteCount))
                         .font(KlicFont.caption(11))
                         .foregroundStyle(KlicColor.onPrimary.opacity(0.8))
                 }
@@ -248,6 +264,20 @@ struct UploadingMessageBubble: View {
     }
 
     private var failureActions: some View {
+        VStack(alignment: .trailing, spacing: 6) {
+            // §13.15: surface the real failure reason (size cap vs network).
+            if let reason = upload.errorText {
+                Text(reason)
+                    .font(KlicFont.caption(12))
+                    .foregroundStyle(KlicColor.danger)
+                    .multilineTextAlignment(.trailing)
+                    .frame(maxWidth: cardWidth, alignment: .trailing)
+            }
+            failureButtons
+        }
+    }
+
+    private var failureButtons: some View {
         HStack(spacing: 8) {
             Button(action: onRetry) {
                 Label("Retry", systemImage: "arrow.clockwise")

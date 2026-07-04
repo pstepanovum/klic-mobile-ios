@@ -29,24 +29,20 @@ extension ChatView {
         }
     }
 
-    /// §11.2 bulk send from the attachment sheet's "Send N" pill: every selected
-    /// asset becomes its OWN message, sent through the upload-pill pipeline in the
-    /// exact pick order (pills appear immediately; uploads run sequentially so the
-    /// messages land in order).
+    /// Bulk send from the attachment sheet's "Send N" pill. §13.17: an all-media
+    /// selection (the gallery grid only offers images/videos; the sheet caps picks
+    /// at 10) travels as ONE message with multiple attachments, rendered as a bento
+    /// grid in a single bubble. Drafts are built in the exact pick order.
     @MainActor
     func sendAssetsAsMessages(_ assets: [PHAsset]) async {
-        var uploadIds: [UUID] = []
+        var drafts: [PendingMediaDraft] = []
         for asset in assets {
-            guard let draft = await makeAssetDraft(asset) else { continue }
-            let upload = OutgoingUpload(items: [draft], caption: "", replyToId: nil)
-            outgoingUploads.append(upload)
-            uploadIds.append(upload.id)
+            if let draft = await makeAssetDraft(asset) {
+                drafts.append(draft)
+            }
         }
-        guard !uploadIds.isEmpty else { return }
-        scrollToBottom()
-        for id in uploadIds {
-            await performUpload(id)
-        }
+        guard !drafts.isEmpty else { return }
+        startUpload(items: drafts, caption: "", replyToId: nil)
     }
 
     /// One PHAsset → a ready-to-send draft (image or exported video).
@@ -133,7 +129,9 @@ extension ChatView {
 
     @MainActor
     func makeVideoDraft(_ url: URL) async -> PendingMediaDraft? {
-        guard let data = try? Data(contentsOf: url) else { return nil }
+        // §13.15: videos stay on disk and are streamed at upload time — a
+        // multi-hundred-MB recording must never be buffered into memory.
+        guard FileManager.default.fileExists(atPath: url.path) else { return nil }
         let asset = AVURLAsset(url: url)
         var durationMs = 0
         if let duration = try? await asset.load(.duration) {
@@ -150,7 +148,7 @@ extension ChatView {
         return PendingMediaDraft(
             kind: "VIDEO",
             contentType: Media.mime(for: url, fallback: "video/quicktime"),
-            data: data,
+            fileURL: url,
             previewImage: previewImage,
             width: width,
             height: height,
@@ -168,14 +166,22 @@ extension ChatView {
     }
 
     /// Files go straight into the optimistic upload pipeline (doc pill with progress).
+    /// §13.15: the file is copied into the app's temp dir (the security scope on the
+    /// picked URL doesn't outlive this call) and STREAMED from disk at upload time.
     func sendFile(_ url: URL) async {
         let scoped = url.startAccessingSecurityScopedResource()
         defer { if scoped { url.stopAccessingSecurityScopedResource() } }
-        guard let data = try? Data(contentsOf: url) else { return }
+        let copy = FileManager.default.temporaryDirectory
+            .appendingPathComponent("file-\(UUID().uuidString)-\(url.lastPathComponent)")
+        do {
+            try FileManager.default.copyItem(at: url, to: copy)
+        } catch {
+            return
+        }
         let draft = PendingMediaDraft(
             kind: "FILE",
             contentType: Media.mime(for: url, fallback: "application/octet-stream"),
-            data: data,
+            fileURL: copy,
             previewImage: nil,
             fileName: url.lastPathComponent
         )
@@ -218,6 +224,7 @@ extension ChatView {
     func retryUpload(_ id: UUID) {
         guard let idx = outgoingUploads.firstIndex(where: { $0.id == id }) else { return }
         outgoingUploads[idx].failed = false
+        outgoingUploads[idx].errorText = nil
         outgoingUploads[idx].progress = 0
         Task { await performUpload(id) }
     }
@@ -236,12 +243,22 @@ extension ChatView {
             var drafts: [AttachmentDraft] = []
             for item in upload.items {
                 let base = uploadedBytes
-                let itemBytes = item.data.count
+                let itemBytes = item.byteCount
+                // §13.15: disk-backed payloads (videos, files) STREAM from their temp
+                // file; only small in-memory payloads (images, voice) travel as Data.
+                let payload: Media.Payload
+                if let fileURL = item.fileURL {
+                    payload = .file(fileURL)
+                } else if let data = item.data {
+                    payload = .data(data)
+                } else {
+                    continue
+                }
                 let draft = try await Media.upload(
                     conversationId: conversation.id,
                     kind: item.kind,
                     contentType: item.contentType,
-                    data: item.data,
+                    payload: payload,
                     width: item.width,
                     height: item.height,
                     durationMs: item.durationMs,
@@ -273,8 +290,28 @@ extension ChatView {
         } catch {
             if let idx = outgoingUploads.firstIndex(where: { $0.id == id }) {
                 outgoingUploads[idx].failed = true
+                // §13.15: surface the REAL failure reason — the server's message for
+                // policy rejections (size cap etc.) vs a network explanation.
+                outgoingUploads[idx].errorText = Self.uploadFailureReason(error)
             }
         }
+    }
+
+    /// Human-readable upload failure: server-provided text (size cap, bad type…)
+    /// when we have it, a network hint otherwise.
+    static func uploadFailureReason(_ error: Error) -> String {
+        if let apiError = error as? APIError {
+            switch apiError {
+            case .server(let message, _) where !message.isEmpty:
+                return message
+            default:
+                return String(localized: "Couldn't reach the server. Check your connection and retry.")
+            }
+        }
+        if error is URLError {
+            return String(localized: "Couldn't reach the server. Check your connection and retry.")
+        }
+        return String(localized: "Upload failed. Please try again.")
     }
 
     private func setUploadProgress(_ id: UUID, _ value: Double) {

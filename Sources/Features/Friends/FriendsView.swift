@@ -6,9 +6,11 @@ struct FriendsView: View {
     @EnvironmentObject var session: AppSession
     @StateObject private var socket = SocketService.shared
 
+    @ObservedObject private var friendLinks = FriendLinkRouter.shared
     @State private var friends: [User] = []
     @State private var requests: [FriendRequest] = []
     @State private var showAddFriend = false
+    @State private var addFriendPrefill = ""
     @State private var openedConversation: Conversation?
     @State private var selectedFriend: User?
 
@@ -35,13 +37,23 @@ struct FriendsView: View {
             .navigationTitle("Friends")
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button { showAddFriend = true } label: {
+                    Button {
+                        addFriendPrefill = ""
+                        showAddFriend = true
+                    } label: {
                         Image(systemName: "plus")
                             .font(.system(size: 17, weight: .semibold))
                     }
                 }
             }
-            .sheet(isPresented: $showAddFriend) { AddFriendSheet() }
+            .sheet(isPresented: $showAddFriend) { AddFriendSheet(prefill: addFriendPrefill) }
+            // §13.8: friend link (universal link / QR deep link) → add-friend flow.
+            .onReceive(friendLinks.$pendingUsername) { username in
+                guard let username else { return }
+                friendLinks.pendingUsername = nil
+                addFriendPrefill = username
+                showAddFriend = true
+            }
             .navigationDestination(item: $openedConversation) { ChatView(conversation: $0) }
             .navigationDestination(item: $selectedFriend) { friend in
                 ProfileView(
@@ -195,9 +207,14 @@ struct FriendsView: View {
 private struct AddFriendSheet: View {
     @ObserveInjection var inject
     @Environment(\.dismiss) private var dismiss
-    @State private var username = ""
+    @State private var username: String
     @State private var statusText: String?
     @State private var isSending = false
+
+    /// §13.8: friend links open this sheet with the username prefilled.
+    init(prefill: String = "") {
+        _username = State(initialValue: prefill)
+    }
 
     var body: some View {
         NavigationStack {

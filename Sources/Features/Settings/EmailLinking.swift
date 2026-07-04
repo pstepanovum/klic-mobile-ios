@@ -25,6 +25,8 @@ enum GoogleEmailLinkError: LocalizedError {
 /// Runs the Google sign-in flow and returns the ID token the server verifies
 /// (POST /me/email/google). The iOS OAuth client id is read from Info.plist
 /// (GIDClientID); while it's absent/placeholder the feature degrades gracefully.
+/// §13.5: the WEB client (GIDServerClientID) is passed as serverClientID so the
+/// minted ID token's audience matches the server's GOOGLE_OAUTH_CLIENT_IDS.
 @MainActor
 enum GoogleEmailLink {
     /// A usable client id, or nil when unset/placeholder.
@@ -35,12 +37,23 @@ enum GoogleEmailLink {
         return id
     }
 
+    /// The server's WEB OAuth client — the audience the ID token is minted for (§13.5).
+    static var serverClientID: String? {
+        guard let raw = Bundle.main.object(forInfoDictionaryKey: "GIDServerClientID") as? String else { return nil }
+        let id = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard id.hasSuffix(".apps.googleusercontent.com"), !id.contains("YOUR_") else { return nil }
+        return id
+    }
+
     static var isConfigured: Bool { clientID != nil }
 
     static func acquireIdToken() async throws -> String {
         guard let clientID else { throw GoogleEmailLinkError.notConfigured }
         guard let presenter = topViewController() else { throw GoogleEmailLinkError.noPresenter }
-        GIDSignIn.sharedInstance.configuration = GIDConfiguration(clientID: clientID)
+        GIDSignIn.sharedInstance.configuration = GIDConfiguration(
+            clientID: clientID,
+            serverClientID: serverClientID
+        )
         do {
             let result = try await GIDSignIn.sharedInstance.signIn(withPresenting: presenter)
             guard let token = result.user.idToken?.tokenString else {

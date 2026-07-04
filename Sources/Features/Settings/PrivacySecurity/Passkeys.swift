@@ -3,9 +3,11 @@ import AuthenticationServices
 
 /// WebAuthn passkeys (§10.4): registration + assertion via
 /// ASAuthorizationPlatformPublicKeyCredentialProvider against the Klic server's
-/// @simplewebauthn endpoints. Degrades gracefully — AltStore re-signing can strip the
-/// associated-domains entitlement, in which case the platform refuses with an error
-/// we surface as a readable message (never a crash).
+/// @simplewebauthn endpoints. The relying-party id always comes from the server's
+/// challenge options — nothing is hardcoded here; since §13.10 the RP is
+/// klic.pstepanov.dev (see the webcredentials entitlement). Degrades gracefully —
+/// AltStore re-signing can strip the associated-domains entitlement, in which case
+/// the platform refuses with an error we surface as a readable message (never a crash).
 final class PasskeyService: NSObject {
     static let shared = PasskeyService()
 

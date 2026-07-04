@@ -82,6 +82,15 @@ final class AppLockManager: ObservableObject {
         objectWillChange.send()
     }
 
+    /// §13.12: the app lock never survives a transition to the signed-out state —
+    /// logout, account deletion, or a server-rejected refresh all wipe the passcode
+    /// hash, the biometric toggle AND the auto-lock preference.
+    func clearForSignOut() {
+        removePasscode()
+        UserDefaults.standard.removeObject(forKey: Self.autoLockKey)
+        backgroundedAt = nil
+    }
+
     func verify(_ code: String) -> Bool {
         guard let saltB64 = Self.readKeychain("salt"),
               let salt = Data(base64Encoded: saltB64),

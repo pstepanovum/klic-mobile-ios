@@ -15,4 +15,6 @@ enum KlicFont {
     /// (Welcome "Get Started", Login/Sign Up titles and primary buttons).
     static func expandedMedium(_ size: CGFloat = 17) -> Font { .custom("TikTokSans24ptExpanded-Medium", size: size) }
     static func expandedBold(_ size: CGFloat = 28) -> Font { .custom("TikTokSans24ptExpanded-Bold", size: size) }
+    /// Top-level page titles — Chats, Friends, Call, Settings (§13.2).
+    static func expandedRegular(_ size: CGFloat = 24) -> Font { .custom("TikTokSans24ptExpanded-Regular", size: size) }
 }
