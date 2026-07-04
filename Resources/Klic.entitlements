@@ -11,15 +11,33 @@
         <string>group.com.klic.mobile.app</string>
     </array>
     <!-- Passkeys (§10.4/§13.10): the RP is klic.pstepanov.dev — its AASA serves
-         webcredentials for this app id (the legacy sslip.io entry stays; harmless).
-         Universal links (§13.8): applinks for /u/* and /add/* friend links.
-         AltStore re-signing may strip this — passkeys degrade with a readable error
-         and universal links simply don't open the app (QR scanning still works). -->
+         webcredentials for this app id. Universal links (§13.8): applinks for
+         /u/* and /add/* friend links.
+
+         The ?mode=developer twins bypass Apple's AASA CDN and fetch the file
+         straight from the origin. They only apply to development-signed builds
+         and only when the device opts in (Settings → Developer → Associated
+         Domains Development); production installs ignore them. Useful when the
+         CDN copy is stale or the origin isn't reachable from the CDN.
+
+         The legacy webcredentials:api.89.34.230.2.sslip.io entry is gone: the
+         RP migrated to klic.pstepanov.dev, and Apple's CDN 404s the sslip.io
+         host anyway, so that entry could never validate on release installs.
+
+         AltStore/AltServer re-signing does NOT preserve this list: the app is
+         re-signed with the provisioning profile's entitlements, which carry
+         associated-domains = "*" (an authorization wildcard, not a domain), so
+         passkeys and universal links break on AltStore installs regardless of
+         what is written here. Install the dev-signed IPA directly (Xcode,
+         devicectl, Apple Configurator) to keep the domain list intact;
+         passkeys degrade with a readable error and universal links simply
+         don't open the app (QR scanning still works). -->
     <key>com.apple.developer.associated-domains</key>
     <array>
         <string>webcredentials:klic.pstepanov.dev</string>
-        <string>webcredentials:api.89.34.230.2.sslip.io</string>
+        <string>webcredentials:klic.pstepanov.dev?mode=developer</string>
         <string>applinks:klic.pstepanov.dev</string>
+        <string>applinks:klic.pstepanov.dev?mode=developer</string>
     </array>
 </dict>
 </plist>
