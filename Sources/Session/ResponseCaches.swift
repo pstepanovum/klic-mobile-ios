@@ -29,6 +29,11 @@ final class ConversationStore: ObservableObject {
             .compactMap { $0 }
             .sink { [weak self] conversationId in self?.remove(conversationId: conversationId) }
             .store(in: &cancellables)
+        // §16.4: an edited message refreshes the row preview in place (no reorder).
+        socket.$lastUpdatedMessage
+            .compactMap { $0 }
+            .sink { [weak self] message in self?.applyUpdated(message) }
+            .store(in: &cancellables)
         NotificationCenter.default.publisher(for: .klicSessionExpired)
             .sink { [weak self] _ in
                 self?.conversations = []
@@ -68,6 +73,14 @@ final class ConversationStore: ObservableObject {
         }
         conversations.remove(at: idx)
         conversations.insert(convo, at: 0)
+    }
+
+    /// §16.4: swap an edited message into the row preview WITHOUT reordering or
+    /// bumping unread — only when it still is the conversation's last message.
+    private func applyUpdated(_ message: Message) {
+        guard let idx = conversations.firstIndex(where: { $0.id == message.conversationId }),
+              conversations[idx].lastMessage?.id == message.id else { return }
+        conversations[idx].lastMessage = message
     }
 
     /// Reflect a group's saved edits (title / description / cover) into the cached

@@ -292,6 +292,33 @@ actor APIClient {
         let _: EmptyResponse = try await delete("/conversations/\(conversationId)/messages/\(messageId)?scope=everyone")
     }
 
+    /// Edit a message's body/caption (§16.4). Sender-only, ≤48h server-side; returns
+    /// the full refreshed message (`editedAt` set unless the body was identical).
+    func editMessage(conversationId: String, messageId: String, body: String) async throws -> Message {
+        try await patch("/conversations/\(conversationId)/messages/\(messageId)", body: ["body": body])
+    }
+
+    /// Pin a message (§16.3). DIRECT → either participant; GROUP → admin only.
+    /// `notify: true` additionally fans out a SYSTEM "pinned a message" line.
+    func pinMessage(conversationId: String, messageId: String, notify: Bool) async throws {
+        let _: EmptyResponse = try await post(
+            "/conversations/\(conversationId)/messages/\(messageId)/pin", body: ["notify": notify])
+    }
+
+    /// Unpin a message (§16.3). Same permission as pin; idempotent.
+    func unpinMessage(conversationId: String, messageId: String) async throws {
+        let _: EmptyResponse = try await delete("/conversations/\(conversationId)/messages/\(messageId)/pin")
+    }
+
+    /// The conversation's pinned messages, oldest→newest (§16.3). Decoded from the
+    /// details payload through a minimal envelope so it works for DMs and groups
+    /// alike (and degrades to [] against servers without pin support).
+    func pinnedMessages(conversationId: String) async throws -> [ReplyPreview] {
+        struct Envelope: Decodable { var pinnedMessages: [ReplyPreview]? }
+        let envelope: Envelope = try await get("/conversations/\(conversationId)")
+        return envelope.pinnedMessages ?? []
+    }
+
     func recentCalls() async throws -> [RecentCall] { try await get("/calls") }
 
     func stickers() async throws -> [Sticker] {

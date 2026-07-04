@@ -168,6 +168,8 @@ struct GroupConversationDetails: Codable, Identifiable, Hashable {
     let members: [Member]
     /// §14.3: the group's shared theme (absent on DMs / older servers).
     var theme: GroupThemePayload?
+    /// §16.3: the conversation's pinned messages, oldest→newest (absent on older servers).
+    var pinnedMessages: [ReplyPreview]?
 
     struct Member: Codable, Identifiable, Hashable {
         let id: String
@@ -195,7 +197,7 @@ struct UpdateGroupConversationRequest: Codable {
 
 struct Attachment: Codable, Identifiable, Hashable {
     let id: String
-    let kind: String            // "IMAGE" | "VOICE" | "VIDEO" | "FILE"
+    let kind: String            // "IMAGE" | "VOICE" | "VIDEO" | "VIDEO_NOTE" | "FILE"
     let url: String             // presigned download URL — expires ~1h; refresh via /attachments/:id/url
     let contentType: String
     let byteSize: Int
@@ -208,6 +210,7 @@ struct Attachment: Codable, Identifiable, Hashable {
     var isImage: Bool { kind == "IMAGE" }
     var isVoice: Bool { kind == "VOICE" }
     var isVideo: Bool { kind == "VIDEO" }
+    var isVideoNote: Bool { kind == "VIDEO_NOTE" }
     var isFile:  Bool { kind == "FILE" }
 }
 
@@ -226,12 +229,61 @@ struct Reaction: Codable, Hashable {
     let mine: Bool              // whether *I* reacted with this emoji
 }
 
-/// Compact quote of the message a reply points at.
+/// Compact media stub carried inside a quote (§16.1): the parent's first attachment,
+/// presigned like AttachmentPayload (refreshable via GET /attachments/:id/url).
+struct ReplyAttachmentStub: Codable, Hashable {
+    var id: String?
+    let kind: String            // "IMAGE" | "VOICE" | "VIDEO" | "VIDEO_NOTE" | "FILE"
+    let url: String
+    let contentType: String
+    var width: Int?
+    var height: Int?
+    var durationMs: Int?
+    var fileName: String?
+
+    /// Kinds that draw a thumbnail on the quote card (§16.1).
+    var isVisual: Bool {
+        kind == "IMAGE" || kind == "VIDEO" || kind == "VIDEO_NOTE"
+            || (kind == "FILE" && contentType.hasPrefix("image/"))
+    }
+    var isVideoLike: Bool { kind == "VIDEO" || kind == "VIDEO_NOTE" }
+
+    /// Bridge to the full attachment shape (thumbnail generation reuse).
+    var asAttachment: Attachment {
+        Attachment(
+            id: id ?? url, kind: kind, url: url, contentType: contentType, byteSize: 0,
+            width: width, height: height, durationMs: durationMs, waveform: nil, fileName: fileName
+        )
+    }
+}
+
+/// Compact quote of the message a reply points at (also the shape of a pinned-message
+/// preview, §16.3). §16.1 additions decode tolerantly so older payloads still parse.
 struct ReplyPreview: Codable, Hashable {
     let id: String
     let senderId: String
     let kind: String
     let preview: String        // truncated body or a kind label ("📷 Photo", …)
+    /// The parent's first attachment — drives the quote thumbnail (§16.1).
+    var attachment: ReplyAttachmentStub?
+    /// Parent was deleted for everyone → "Deleted message", no thumb.
+    var deleted: Bool?
+
+    init(id: String, senderId: String, kind: String, preview: String,
+         attachment: ReplyAttachmentStub? = nil, deleted: Bool? = nil) {
+        self.id = id; self.senderId = senderId; self.kind = kind; self.preview = preview
+        self.attachment = attachment; self.deleted = deleted
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(String.self, forKey: .id)
+        senderId = try c.decode(String.self, forKey: .senderId)
+        kind = (try? c.decode(String.self, forKey: .kind)) ?? "TEXT"
+        preview = (try? c.decode(String.self, forKey: .preview)) ?? ""
+        attachment = try? c.decode(ReplyAttachmentStub.self, forKey: .attachment)
+        deleted = try? c.decode(Bool.self, forKey: .deleted)
+    }
 }
 
 struct MessageEnvelope: Codable, Hashable {
@@ -256,6 +308,8 @@ struct Message: Codable, Identifiable, Hashable {
     var reactions: [Reaction] = []
     var deletedAt: String?       // set when deleted for everyone
     var starred: Bool?           // whether *I* starred this message (per-requester)
+    var editedAt: String?        // §16.4 — set when the body was edited
+    var pinnedAt: String?        // §16.3 — set while the message is pinned
     // CIPHERTEXT messages (E2EE): sender's protocol device + the envelopes
     // addressed to this user's devices (this client picks its own by deviceId).
     var senderDeviceId: Int?
@@ -265,10 +319,14 @@ struct Message: Codable, Identifiable, Hashable {
     var isSticker: Bool { kind == "STICKER" }
     var isSystem: Bool { kind == "SYSTEM" }
     var isDeleted: Bool { deletedAt != nil }
+    var isVideoNote: Bool { kind == "VIDEO_NOTE" }
+    var isPinned: Bool { pinnedAt != nil }
+    var isEdited: Bool { editedAt != nil }
 
     enum CodingKeys: String, CodingKey {
         case id, conversationId, senderId, body, kind, createdAt, attachments, status
         case stickerId, stickerUrl, call, replyTo, reactions, deletedAt, starred
+        case editedAt, pinnedAt
         case senderDeviceId, envelopes
     }
 
@@ -290,6 +348,8 @@ struct Message: Codable, Identifiable, Hashable {
         reactions = (try? c.decode([Reaction].self, forKey: .reactions)) ?? []
         deletedAt = try? c.decode(String.self, forKey: .deletedAt)
         starred = try? c.decode(Bool.self, forKey: .starred)
+        editedAt = try? c.decode(String.self, forKey: .editedAt)
+        pinnedAt = try? c.decode(String.self, forKey: .pinnedAt)
         senderDeviceId = try? c.decode(Int.self, forKey: .senderDeviceId)
         envelopes = try? c.decode([MessageEnvelope].self, forKey: .envelopes)
     }
@@ -299,13 +359,14 @@ struct Message: Codable, Identifiable, Hashable {
          kind: String, createdAt: String, attachments: [Attachment] = [], status: String? = nil,
          stickerId: String? = nil, stickerUrl: String? = nil, call: CallEvent? = nil,
          replyTo: ReplyPreview? = nil, reactions: [Reaction] = [], deletedAt: String? = nil,
-         starred: Bool? = nil, senderDeviceId: Int? = nil, envelopes: [MessageEnvelope]? = nil) {
+         starred: Bool? = nil, editedAt: String? = nil, pinnedAt: String? = nil,
+         senderDeviceId: Int? = nil, envelopes: [MessageEnvelope]? = nil) {
         self.id = id; self.conversationId = conversationId; self.senderId = senderId
         self.body = body; self.kind = kind; self.createdAt = createdAt
         self.attachments = attachments; self.status = status
         self.stickerId = stickerId; self.stickerUrl = stickerUrl; self.call = call
         self.replyTo = replyTo; self.reactions = reactions; self.deletedAt = deletedAt
-        self.starred = starred
+        self.starred = starred; self.editedAt = editedAt; self.pinnedAt = pinnedAt
         self.senderDeviceId = senderDeviceId; self.envelopes = envelopes
     }
 }
