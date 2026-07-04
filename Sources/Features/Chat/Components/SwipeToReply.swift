@@ -52,7 +52,14 @@ struct SwipeToReplyModifier: ViewModifier {
             content
                 .offset(x: translation)
         }
-        .gesture(dragGesture, including: enabled ? .all : .subviews)
+        // §19.2: attach the swipe as a SIMULTANEOUS gesture so the enclosing
+        // ScrollView's pan always recognizes alongside it — the list keeps scrolling
+        // even when the drag starts on a media/file bubble (which fills the row).
+        // A plain `.gesture` competed with the scroll pan for the touch, and because
+        // media bubbles occupy nearly the whole row width/height, drags almost always
+        // began on the bubble and the list wouldn't scroll. The axis-lock below still
+        // restricts this gesture to horizontal, so vertical drags only scroll.
+        .simultaneousGesture(dragGesture, including: enabled ? .all : .subviews)
     }
 
     private var replyBadge: some View {
