@@ -2874,19 +2874,19 @@
         }
       }
     },
-    "End-to-end encryption keeps your personal messages and calls between you and the people you choose. No one outside — not even Klic — can read, listen to, or share them.": {
+    "Your messages, calls and media are encrypted in transit and stored encrypted on our servers. Klic runs these servers to deliver your conversations across your devices. We're working toward end-to-end encryption.": {
       "extractionState": "manual",
       "localizations": {
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Сквозное шифрование защищает ваши сообщения и звонки. Никто посторонний — даже Klic — не может их прочитать, прослушать или переслать."
+            "value": "Ваши сообщения, звонки и медиа шифруются при передаче и хранятся в зашифрованном виде на наших серверах. Klic использует эти серверы, чтобы доставлять ваши переписки на все ваши устройства. Мы работаем над сквозным шифрованием."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "端到端加密确保您的私人消息和通话只属于您和您选择的人。任何外人——包括 Klic——都无法读取、收听或分享它们。"
+            "value": "您的消息、通话和媒体在传输过程中加密，并以加密形式存储在我们的服务器上。Klic 运营这些服务器，以便在您的各个设备之间传递您的对话。我们正在努力实现端到端加密。"
           }
         }
       }
@@ -7277,19 +7277,19 @@
         }
       }
     },
-    "This includes your:": {
+    "Protected in transit and at rest:": {
       "extractionState": "manual",
       "localizations": {
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Это касается ваших:"
+            "value": "Защищено при передаче и хранении:"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "这包括您的："
+            "value": "在传输和存储过程中受保护："
           }
         }
       }
@@ -8552,19 +8552,19 @@
         }
       }
     },
-    "Your chats and calls are private": {
+    "Your chats and calls are protected": {
       "extractionState": "manual",
       "localizations": {
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ваши чаты и звонки приватны"
+            "value": "Ваши чаты и звонки защищены"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "您的聊天和通话是私密的"
+            "value": "您的聊天和通话受到保护"
           }
         }
       }

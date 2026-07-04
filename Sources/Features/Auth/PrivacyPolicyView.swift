@@ -8,7 +8,7 @@ struct PrivacyPolicyView: View {
     private let sections: [(title: String, body: String)] = [
         (
             "What we collect",
-            "Account data — username, display name, and a hashed password. We never store passwords in plain text.\n\nMessages & calls — content is encrypted in transit. We do not read your conversations.\n\nDevice & usage data — anonymous crash reports and usage statistics to improve the app."
+            "Account data — username, display name, and a hashed password. We never store passwords in plain text.\n\nMessages & calls — content is encrypted in transit and stored encrypted at rest on our servers, which Klic operates to deliver your conversations.\n\nDevice & usage data — anonymous crash reports and usage statistics to improve the app."
         ),
         (
             "How we use it",
