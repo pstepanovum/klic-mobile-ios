@@ -67,7 +67,7 @@ final class CallKitManager: NSObject, ObservableObject {
         config.maximumCallsPerCallGroup = 1
         config.supportedHandleTypes = [.generic]
         // Show finished calls in the native Phone app's Recents (All / Missed), labeled
-        // "Klic Audio" / "Klic Video" — the WhatsApp/Telegram behavior. Missed/declined calls show
+        // "Klic Audio" / "Klic Video" — standard messenger behavior. Missed/declined calls show
         // in red. (Tapping an entry's call-back triggers a CXStartCallAction with the stored generic
         // handle; see provider(perform: CXStartCallAction) for how a Recents call-back is handled.)
         config.includesCallsInRecents = true

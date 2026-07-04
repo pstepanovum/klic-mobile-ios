@@ -1,6 +1,6 @@
 import SwiftUI
 
-// Quick-reaction palette shown on the long-press menu (Telegram-style).
+// Quick-reaction palette shown on the long-press menu.
 let quickReactions = ["❤️", "👍", "👎", "😂", "😮", "😢", "🔥"]
 
 // MARK: - Long-press actions overlay

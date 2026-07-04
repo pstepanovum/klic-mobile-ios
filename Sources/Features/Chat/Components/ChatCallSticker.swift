@@ -1,6 +1,6 @@
 import SwiftUI
 
-// MARK: - Call event (a chat record of a finished call, like Telegram/WhatsApp)
+// MARK: - Call event (a chat record of a finished call, like other messengers)
 
 /// A centered, tappable call-log row. Tap calls the peer back with the same kind.
 struct CallEventRow: View {

@@ -1,7 +1,7 @@
 import Foundation
 import SwiftUI
 
-/// Unpacks Telegram's 5-bit packed waveform format into amplitudes in [0, 1].
+/// Unpacks the 5-bit packed waveform format into amplitudes in [0, 1].
 /// Each input byte contributes 8 bits of an LSB-first bit stream; every 5 bits
 /// form one 0…31 amplitude. Trailing bits that don't form a complete sample
 /// are dropped. An empty `Data` returns an empty array.
@@ -32,7 +32,7 @@ func unpackWaveform(_ data: Data) -> [Float] {
     return out
 }
 
-/// Packs an array of amplitudes in [0, 1] into Telegram's 5-bit LSB-first format.
+/// Packs an array of amplitudes in [0, 1] into the 5-bit LSB-first format.
 func packWaveform(_ amplitudes: [Float]) -> Data {
     var bitBuffer: UInt32 = 0
     var bitCount = 0
