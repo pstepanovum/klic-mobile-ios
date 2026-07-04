@@ -83,7 +83,7 @@ struct MessageSearchSheet: View {
                         }
                     }
                     .padding(16)
-                    .adaptiveWidth()
+                    .frame(maxWidth: .infinity)
                 }
             }
             .background(KlicColor.background.ignoresSafeArea())

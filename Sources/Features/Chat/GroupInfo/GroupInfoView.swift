@@ -170,7 +170,7 @@ private struct GroupInfoContent: View {
                 }
             }
             .padding(20)
-            .adaptiveWidth()
+            .frame(maxWidth: .infinity)
         }
         .background(KlicColor.background.ignoresSafeArea())
         .navigationTitle("Group Info")
@@ -871,7 +871,7 @@ private struct GroupMemberListView: View {
                 .background(KlicColor.surface, in: RoundedRectangle(cornerRadius: 20))
             }
             .padding(20)
-            .adaptiveWidth()
+            .frame(maxWidth: .infinity)
         }
         .background(KlicColor.background.ignoresSafeArea())
         .navigationTitle("Members")

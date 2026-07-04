@@ -174,7 +174,6 @@ struct ProfileView: View {
                         .multilineTextAlignment(.center)
                 }
             }
-            .frame(maxWidth: 520)
             .frame(maxWidth: .infinity)
             .padding(20)
         }

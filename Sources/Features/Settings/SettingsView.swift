@@ -38,7 +38,7 @@ struct SettingsView: View {
                     .padding(.top, 8)
                 }
                 .padding(20)
-                .adaptiveWidth()
+                .frame(maxWidth: .infinity)
             }
             .background(KlicColor.background.ignoresSafeArea())
             .navigationTitle("Settings")
@@ -238,7 +238,7 @@ private struct AppearanceView: View {
                 .background(KlicColor.surface, in: RoundedRectangle(cornerRadius: 20))
             }
             .padding(20)
-            .adaptiveWidth()
+            .frame(maxWidth: .infinity)
         }
         .background(KlicColor.background.ignoresSafeArea())
         .navigationTitle("Appearance")
@@ -290,7 +290,7 @@ private struct AutoNightModeView: View {
             }
             .background(KlicColor.surface, in: RoundedRectangle(cornerRadius: 20))
             .padding(20)
-            .adaptiveWidth()
+            .frame(maxWidth: .infinity)
         }
         .background(KlicColor.background.ignoresSafeArea())
         .navigationTitle("Auto-Night Mode")
@@ -340,7 +340,7 @@ private struct AppUpdateInfoView: View {
                     .padding(.horizontal, 8)
             }
             .padding(20)
-            .adaptiveWidth()
+            .frame(maxWidth: .infinity)
         }
         .background(KlicColor.background.ignoresSafeArea())
         .navigationTitle("Updates")

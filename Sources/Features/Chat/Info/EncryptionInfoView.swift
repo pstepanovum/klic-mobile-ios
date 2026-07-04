@@ -64,7 +64,7 @@ struct EncryptionInfoView: View {
                 .padding(.top, 4)
             }
             .padding(20)
-            .adaptiveWidth()
+            .frame(maxWidth: .infinity)
         }
         .background(KlicColor.background.ignoresSafeArea())
         .navigationTitle("Encryption")

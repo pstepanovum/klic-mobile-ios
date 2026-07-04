@@ -87,7 +87,8 @@ struct KlicCheckbox: View {
     }
 }
 
-/// Constrains width to `max` and centers within parent — keeps content readable on large screens.
+/// Constrains width to `max` and centers within parent. Auth-flow only (its scaled
+/// large-canvas design is deliberate) — app pages lay out full-width, the native way.
 extension View {
     func adaptiveWidth(_ max: CGFloat = 680) -> some View {
         self

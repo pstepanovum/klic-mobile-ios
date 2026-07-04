@@ -428,7 +428,7 @@ struct PasscodeSettingsView: View {
                     .padding(.horizontal, 8)
             }
             .padding(20)
-            .adaptiveWidth()
+            .frame(maxWidth: .infinity)
         }
         .background(KlicColor.background.ignoresSafeArea())
         // §11.3: while the set/change sheet is up the page behind is fully blurred.

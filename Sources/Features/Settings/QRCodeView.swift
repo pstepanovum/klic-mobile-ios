@@ -53,7 +53,6 @@ struct QRCodeView: View {
 
             Spacer(minLength: 0)
         }
-        .frame(maxWidth: 520)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(KlicColor.background.ignoresSafeArea())
         .navigationTitle("QR Code")

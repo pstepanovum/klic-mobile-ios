@@ -169,7 +169,6 @@ struct ChatView: View {
                     }
                 }
             }
-        .frame(maxWidth: 760)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         // §12.3: background color → gradient → low-opacity pattern → messages.
         // §13.4: the background stack is anchored to the SCREEN, not the keyboard-

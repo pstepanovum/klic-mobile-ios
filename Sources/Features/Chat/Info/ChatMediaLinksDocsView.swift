@@ -187,7 +187,7 @@ struct ChatMediaLinksDocsView: View {
                 }
             }
             .padding(16)
-            .adaptiveWidth()
+            .frame(maxWidth: .infinity)
         }
     }
 
@@ -210,7 +210,7 @@ struct ChatMediaLinksDocsView: View {
                 if loadingAttachments { ProgressView().padding(.vertical, 14) }
             }
             .padding(16)
-            .adaptiveWidth()
+            .frame(maxWidth: .infinity)
         }
     }
 
