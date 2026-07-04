@@ -19,14 +19,17 @@ struct VideoNoteBubbleView: View {
 
     var body: some View {
         ZStack {
-            if player.isActive {
-                VideoNotePlayerLayerView(player: player.avPlayer)
-            } else if let thumbnail {
+            // The thumbnail (or a dark disc) always backs the circle so the bubble
+            // never reads empty while the player is still loading its first frame.
+            if let thumbnail {
                 Image(uiImage: thumbnail)
                     .resizable()
                     .scaledToFill()
             } else {
                 Color.black.opacity(0.85)
+            }
+            if player.isActive {
+                VideoNotePlayerLayerView(player: player.avPlayer)
             }
 
             if !player.isPlaying {
@@ -42,7 +45,7 @@ struct VideoNoteBubbleView: View {
             // Thin progress ring around the circle while playing (§16.2).
             if player.isActive {
                 Circle()
-                    .trim(from: 0, to: max(player.progress, 0.003))
+                    .trim(from: 0, to: max(player.progress, 0.02))
                     .stroke(KlicColor.primary, style: StrokeStyle(lineWidth: 3, lineCap: .round))
                     .rotationEffect(.degrees(-90))
                     .padding(1.5)

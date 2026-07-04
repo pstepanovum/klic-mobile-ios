@@ -348,6 +348,9 @@ struct ChatView: View {
             scrollToBottom(animated: false)
             initialLoadDone = true
             await loadPinned()   // §16.3 — degrades to no bar on older servers
+            #if DEBUG
+            applyDebugSeedIfRequested()
+            #endif
         }
         // §16.2: auto-lock at 59s (both modes) and the 60s round-video cap.
         .onChange(of: recorder.elapsed) { _, elapsed in
