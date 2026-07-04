@@ -2398,6 +2398,23 @@
         }
       }
     },
+    "Deleted message": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сообщение удалено"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已删除的消息"
+          }
+        }
+      }
+    },
     "Deleting…": {
       "extractionState": "manual",
       "localizations": {
@@ -2564,6 +2581,40 @@
           "stringUnit": {
             "state": "translated",
             "value": "黄昏"
+          }
+        }
+      }
+    },
+    "Edit": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Изменить"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "编辑"
+          }
+        }
+      }
+    },
+    "Edit Message": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Изменить сообщение"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "编辑消息"
           }
         }
       }
@@ -3163,6 +3214,23 @@
         }
       }
     },
+    "GIF": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "GIF"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "GIF"
+          }
+        }
+      }
+    },
     "Gallery": {
       "extractionState": "manual",
       "localizations": {
@@ -3397,6 +3465,40 @@
           "stringUnit": {
             "state": "translated",
             "value": "嘿！你看到新主题了吗？"
+          }
+        }
+      }
+    },
+    "Hold to record audio. Tap to switch to video.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Удерживайте для записи аудио. Нажмите для переключения на видео."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "按住录制语音。轻点切换至视频。"
+          }
+        }
+      }
+    },
+    "Hold to record video. Tap to switch to audio.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Удерживайте для записи видео. Нажмите для переключения на аудио."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "按住录制视频。轻点切换至语音。"
           }
         }
       }
@@ -4319,6 +4421,23 @@
         }
       }
     },
+    "No camera on this device": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "На устройстве нет камеры"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此设备没有摄像头"
+          }
+        }
+      }
+    },
     "No contacts match your search.": {
       "extractionState": "manual",
       "localizations": {
@@ -4625,6 +4744,23 @@
         }
       }
     },
+    "Only Pin": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Только закрепить"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "仅置顶"
+          }
+        }
+      }
+    },
     "Open in %@": {
       "extractionState": "manual",
       "localizations": {
@@ -4863,6 +4999,23 @@
         }
       }
     },
+    "Photo": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Фото"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "照片"
+          }
+        }
+      }
+    },
     "Photo Library": {
       "extractionState": "manual",
       "localizations": {
@@ -4914,6 +5067,74 @@
         }
       }
     },
+    "Pin": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Закрепить"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "置顶"
+          }
+        }
+      }
+    },
+    "Pin and notify all members": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Закрепить и уведомить всех"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "置顶并通知所有成员"
+          }
+        }
+      }
+    },
+    "Pin message": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Закрепить сообщение"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "置顶消息"
+          }
+        }
+      }
+    },
+    "Pin this message at the top of the chat?": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Закрепить сообщение вверху чата?"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "将此消息置顶？"
+          }
+        }
+      }
+    },
     "Pinch to zoom, drag to position": {
       "extractionState": "manual",
       "localizations": {
@@ -4927,6 +5148,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "双指缩放，拖动调整位置"
+          }
+        }
+      }
+    },
+    "Pinned Message": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Закреплённое сообщение"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "置顶消息"
           }
         }
       }
@@ -6308,6 +6546,23 @@
         }
       }
     },
+    "Slide to cancel": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Смахните для отмены"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "滑动取消"
+          }
+        }
+      }
+    },
     "Slow to respond": {
       "extractionState": "manual",
       "localizations": {
@@ -7141,6 +7396,40 @@
         }
       }
     },
+    "Unpin": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Открепить"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "取消置顶"
+          }
+        }
+      }
+    },
+    "Unpin this message?": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Открепить сообщение?"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "取消置顶此消息？"
+          }
+        }
+      }
+    },
     "Unstar": {
       "extractionState": "manual",
       "localizations": {
@@ -7498,6 +7787,23 @@
         }
       }
     },
+    "Video message": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Видеосообщение"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "视频消息"
+          }
+        }
+      }
+    },
     "Videos": {
       "extractionState": "manual",
       "localizations": {
@@ -7596,6 +7902,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "语音通话"
+          }
+        }
+      }
+    },
+    "Voice message": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Голосовое сообщение"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "语音消息"
           }
         }
       }
@@ -8123,6 +8446,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "arrowshape.turn.up.right"
+          }
+        }
+      }
+    },
+    "edited": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "изменено"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已编辑"
           }
         }
       }
