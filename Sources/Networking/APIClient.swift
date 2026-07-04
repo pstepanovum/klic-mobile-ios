@@ -182,6 +182,30 @@ actor APIClient {
         let _: EmptyResponse = try await delete("/me/email")
     }
 
+    // MARK: Account recovery (§18.2)
+
+    /// Change the account password (204 on success, 401 on wrong current). Also updates the
+    /// Firebase Auth shadow password server-side when a shadow exists.
+    func changePassword(currentPassword: String, newPassword: String) async throws {
+        let _: EmptyResponse = try await post(
+            "/auth/change-password",
+            body: ["currentPassword": currentPassword, "newPassword": newPassword]
+        )
+    }
+
+    /// Set an UNVERIFIED recovery email and trigger Firebase's verification email; returns the
+    /// updated selfUser. `password` is the user's current plaintext — passing it lets the server
+    /// create the Firebase shadow with a MATCHING password so a Firebase-side reset syncs back to
+    /// login. 409 if the email is already verified on another account.
+    func setRecoveryEmail(_ email: String, password: String) async throws -> User {
+        try await post("/me/email", body: ["email": email, "password": password])
+    }
+
+    /// Poll the verification state of the pending recovery email (read from Firebase Admin).
+    func emailStatus() async throws -> EmailStatus {
+        try await get("/me/email/status")
+    }
+
     // MARK: Blocks (§10.4)
 
     func blockedUsers() async throws -> [BlockedUser] { try await get("/blocks") }
@@ -382,7 +406,9 @@ actor APIClient {
     }
 
     func registerDevice(pushToken: String?, voipToken: String?) async throws -> EmptyResponse {
-        var body: [String: Any] = ["platform": "IOS"]
+        // installId lets the server upsert ONE device row per install and merge the APNs +
+        // VoIP tokens onto it, instead of racing parallel inserts that lose the VoIP token (H1).
+        var body: [String: Any] = ["platform": "IOS", "installId": InstallIdentity.current]
         if let pushToken { body["pushToken"] = pushToken }
         if let voipToken { body["voipToken"] = voipToken }
         return try await post("/me/devices", body: body)
@@ -640,6 +666,28 @@ actor APIClient {
 
     func sendCiphertext(conversationId: String, body: CipherSendRequest) async throws -> Message {
         try await post("/conversations/\(conversationId)/messages", encodable: body)
+    }
+
+    // MARK: Message search (§18.4)
+
+    /// Global full-text search across every conversation the caller is a member of.
+    func searchMessages(query: String, limit: Int = 30, cursor: String? = nil) async throws -> GlobalSearchResponse {
+        var path = "/search/messages?q=\(query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? "")&limit=\(limit)"
+        if let cursor, let encoded = cursor.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) {
+            path += "&cursor=\(encoded)"
+        }
+        return try await get(path)
+    }
+
+    /// In-chat search scoped to one conversation — returns match ids + timestamps for jump-to.
+    func searchMessagesInConversation(
+        conversationId: String, query: String, limit: Int = 30, cursor: String? = nil
+    ) async throws -> ScopedSearchResponse {
+        var path = "/conversations/\(conversationId)/messages/search?q=\(query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? "")&limit=\(limit)"
+        if let cursor, let encoded = cursor.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) {
+            path += "&cursor=\(encoded)"
+        }
+        return try await get(path)
     }
 
     // MARK: - Core

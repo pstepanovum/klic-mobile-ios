@@ -253,6 +253,13 @@ final class CallService: NSObject, ObservableObject {
     func activateAudioSession() {
         audioSessionActive = true
         let callId = currentCallId
+        // M2: after a didDeactivate→didActivate cycle mid-call (e.g. a native-call
+        // interruption), the mic is already published so publishMicIfReady no-ops — but the
+        // engine was gated .none by deactivateAudioSession() and nothing turns it back on,
+        // leaving a silent call. Re-enable the engine here on the now-active session, mirroring
+        // the LiveKit CallKit didActivate recipe. (No-op work when the mic isn't published yet:
+        // publishMicIfReady enables the engine itself once it publishes.)
+        if micPublished { try? AudioManager.shared.setEngineAvailability(.default) }
         Task { @MainActor in
             if let callId { await publishMicIfReady(callId: callId) }
         }

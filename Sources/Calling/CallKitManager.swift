@@ -87,11 +87,24 @@ final class CallKitManager: NSObject, ObservableObject {
 
     // MARK: Incoming (from socket or VoIP push)
 
-    func reportIncoming(_ invite: SocketService.CallInvite, completion: (() -> Void)? = nil) {
+    /// `fromPushKit` marks a VoIP-push-originated report. PushKit's "must report" contract (H2)
+    /// requires `reportNewIncomingCall` to fire for EVERY delivered VoIP push before the push's
+    /// completion handler — skipping it (even on a dedup/stale path) makes iOS terminate the app
+    /// and eventually stop launching it for VoIP pushes, which is itself a cause of missed rings.
+    /// So on the push path the early-return branches still report: a stale/dead call is reported
+    /// then immediately ended, and a duplicate of an already-reported call is re-reported on the
+    /// same UUID (a harmless "already exists" that still satisfies the contract). The socket path
+    /// (fromPushKit == false) keeps its quiet dedup — no push to answer to.
+    func reportIncoming(_ invite: SocketService.CallInvite, fromPushKit: Bool = false, completion: (() -> Void)? = nil) {
         APIClient.mobileDiagnostic(event: "callkit.reportIncoming", callId: invite.id, detail: invite.fromDisplayName)
         if recentlyEndedCallIds.contains(invite.id) {
             APIClient.mobileDiagnostic(event: "callkit.reportIncoming.ignoredEnded", callId: invite.id)
-            completion?()
+            if fromPushKit {
+                // Dead call, but the push must be reported — report then end immediately.
+                reportEndedForCompliance(callId: invite.id, invite: invite, completion: completion)
+            } else {
+                completion?()
+            }
             return
         }
         let uuid = uuid(for: invite.id)
@@ -101,7 +114,17 @@ final class CallKitManager: NSObject, ObservableObject {
                 callId: invite.id,
                 detail: uuid.uuidString
             )
-            completion?()
+            if fromPushKit {
+                // Already reported (typically via the socket copy); re-report on the SAME UUID
+                // to satisfy must-report. CallKit returns "already exists" without re-ringing.
+                let update = CXCallUpdate()
+                update.remoteHandle = CXHandle(type: .generic, value: invite.displayTitle)
+                update.hasVideo = invite.kind == "VIDEO"
+                update.supportsHolding = true
+                provider.reportNewIncomingCall(with: uuid, update: update) { _ in completion?() }
+            } else {
+                completion?()
+            }
             return
         }
         pendingInvites[invite.id] = invite
@@ -490,17 +513,21 @@ final class CallKitManager: NSObject, ObservableObject {
     /// Satisfy PushKit's `mustReport` contract for a `call.end` push that arrived with no live
     /// call to dismiss (e.g. the invite push was missed): report a call to CallKit and end it
     /// immediately. Prevents app termination on iOS 26.4+; only ever runs in that rare edge case.
-    func reportEndedForCompliance(callId: String) {
+    func reportEndedForCompliance(callId: String, invite: SocketService.CallInvite? = nil, completion: (() -> Void)? = nil) {
         let uuid = uuid(for: callId)
         let update = CXCallUpdate()
-        update.remoteHandle = CXHandle(type: .generic, value: pendingInvites[callId]?.fromDisplayName ?? "Call")
+        update.remoteHandle = CXHandle(
+            type: .generic,
+            value: invite?.displayTitle ?? pendingInvites[callId]?.fromDisplayName ?? "Call"
+        )
         recentlyEndedCallIds.insert(callId)
         APIClient.mobileDiagnostic(event: "callkit.reportEndedForCompliance", callId: callId)
         provider.reportNewIncomingCall(with: uuid, update: update) { [weak self] _ in
             Task { @MainActor in
-                guard let self else { return }
+                guard let self else { completion?(); return }
                 self.provider.reportCall(with: uuid, endedAt: Date(), reason: .remoteEnded)
                 self.clear(callId)
+                completion?()
             }
         }
     }
@@ -549,6 +576,18 @@ extension CallKitManager: CXProviderDelegate {
                 return
             }
             APIClient.mobileDiagnostic(event: "callkit.answer.fulfill", callId: callId)
+            // M4: configure the call audio category/mode SYNCHRONOUSLY before fulfilling. On a
+            // slow (background/cold) answer, CallKit can fire didActivate during the joinToken
+            // round-trip below — if the session is still on ChatAudio's category from a voice
+            // note, the call comes up with no/wrong audio. The kind is known from the pending
+            // invite; CallService.join() re-applies this same configuration idempotently once
+            // media is up. We only set the category (LiveKit/CallKit own activation).
+            let answeringVideo = (pendingInvites[callId]?.kind ?? "AUDIO") == "VIDEO"
+            try? AVAudioSession.sharedInstance().setCategory(
+                .playAndRecord,
+                mode: answeringVideo ? .videoChat : .voiceChat,
+                options: [.allowBluetoothHFP, .allowBluetoothA2DP, .allowAirPlay]
+            )
             action.fulfill()
             // Answering this call means giving up any other one we had going (e.g. our own
             // outgoing call to someone else). End it server-side and in CallKit so it can't

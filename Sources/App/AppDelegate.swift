@@ -134,7 +134,7 @@ extension AppDelegate: PKPushRegistryDelegate {
             APIClient.mobileDiagnostic(event: "pushkit.received", callId: invite.id, detail: invite.kind)
             // iOS requires reporting the call synchronously here (the registry runs on .main),
             // otherwise the app can be terminated and future VoIP pushes blocked.
-            CallKitManager.shared.reportIncoming(invite, completion: completion)
+            CallKitManager.shared.reportIncoming(invite, fromPushKit: true, completion: completion)
         }
     }
 }

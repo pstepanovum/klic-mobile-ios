@@ -12,6 +12,10 @@ final class AudioRecorder: ObservableObject {
     private var samples: [Float] = []
 
     func start() {
+        // H4: never record a voice note while a call is active. Recording sets/activates the
+        // shared AVAudioSession (playAndRecord/.defaultToSpeaker) and would fight LiveKit for
+        // the call's session — the "background answer → no audio" bug. The call owns the mic.
+        guard CallKitManager.shared.activeCall == nil else { return }
         AVAudioApplication.requestRecordPermission { [weak self] granted in
             guard granted else { return }
             Task { @MainActor in self?.begin() }
@@ -62,7 +66,12 @@ final class AudioRecorder: ObservableObject {
         self.recorder = nil
         isRecording = false
         samples = []
-        try? AVAudioSession.sharedInstance().setActive(false)
+        // H4: only deactivate the shared session when NO call is live. Deactivating it mid-call
+        // would tear down the CallKit-owned call session (silent call). start() already blocks
+        // recording during a call, so this is a defensive guard for the interleaved case.
+        if CallKitManager.shared.activeCall == nil {
+            try? AVAudioSession.sharedInstance().setActive(false)
+        }
         guard duration > 0.4, let data = try? Data(contentsOf: fileURL) else { return nil }
         return (data, Int(duration * 1000), packWaveform(captured))
     }
@@ -99,6 +108,9 @@ final class AudioPlaybackManager: NSObject, ObservableObject, AVAudioPlayerDeleg
     }
 
     private func play(id: String, url: String) async {
+        // H4: don't play voice notes while a call is active — switching the shared session to
+        // .playback and re-activating it would steal the call's audio session and drop call audio.
+        guard CallKitManager.shared.activeCall == nil else { return }
         stop()
         guard let url = URL(string: url),
               let (data, _) = try? await URLSession.shared.data(from: url),
