@@ -6,6 +6,7 @@ struct CallView: View {
     @ObserveInjection var inject
     let call: CallKitManager.ActiveCall
 
+    @EnvironmentObject private var session: AppSession
     @ObservedObject private var service = CallService.shared
     @ObservedObject private var callKit = CallKitManager.shared
 
@@ -75,12 +76,11 @@ struct CallView: View {
                 .padding(.horizontal, 16)
                 .padding(.top, 56)
 
-                // Draggable picture-in-picture card: in the 1:1 layout it holds the secondary
-                // feed (swap on tap when both sides have video, my lone camera preview
-                // otherwise); in the grid it's always the local camera preview.
-                if isGrid, let local {
-                    pipCard(track: local, geo: geo, allowSwap: false)
-                } else if !isGrid, let secondaryTrack {
+                // Draggable picture-in-picture card — 1:1 layout ONLY (§17.1: in the group
+                // grid my feed is a regular tile instead, so no floating card there). It
+                // holds the secondary feed: swap on tap when both sides have video, my lone
+                // camera preview otherwise.
+                if !isGrid, let secondaryTrack {
                     pipCard(track: secondaryTrack, geo: geo, allowSwap: local != nil && remote != nil)
                 }
             }
@@ -92,23 +92,30 @@ struct CallView: View {
         .enableInjection()
     }
 
-    /// 2-column grid of remote participants (video tile, or avatar + name; dimmed while a
-    /// participant rides out their reconnect grace window). Local preview stays in the PiP card.
+    /// Group-call grid (§17.1): every participant gets a tile — remotes first in their
+    /// existing order, ME last (mirrored selfie feed when my camera is on, the same
+    /// avatar/mute chrome as remote tiles when it's off). The grid NEVER scrolls: all
+    /// tiles always fit between the header and the controls, shrinking as the call grows.
     private var participantGrid: some View {
-        ScrollView {
-            LazyVGrid(
-                columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)],
-                spacing: 10
-            ) {
-                ForEach(service.participants) { participant in
-                    ParticipantTile(participant: participant)
-                }
-            }
+        CallTileGrid(tiles: gridTiles)
             .padding(.horizontal, 12)
             .padding(.top, 140)
             .padding(.bottom, 170)
-        }
-        .scrollIndicators(.hidden)
+    }
+
+    private var gridTiles: [CallGridTile] {
+        var tiles = service.participants.map(CallGridTile.init(remote:))
+        tiles.append(CallGridTile(
+            id: CallGridTile.localTileId,
+            label: "You",
+            avatarUserId: session.currentUser?.id,
+            avatarName: session.currentUser?.displayName ?? "You",
+            videoTrack: service.cameraEnabled ? service.localVideoTrack : nil,
+            micMuted: !service.micEnabled,
+            isSpeaking: service.localIsSpeaking,
+            isInGrace: false
+        ))
+        return tiles
     }
 
     /// Draggable, side-snapping PiP card; `allowSwap` enables the 1:1 tap-to-swap behavior.
@@ -295,33 +302,111 @@ struct CallView: View {
     }
 }
 
-/// One remote member in the group-call grid: their video, or an avatar + name fallback,
-/// with a mute badge and a speaking highlight. A participant in their reconnect grace
-/// window renders dimmed with a "Reconnecting…" label.
+/// One tile of the group-call grid — a remote participant, or my own local feed. Both
+/// render the exact same chrome: name label, mute badge, camera-off avatar, speaking glow.
+struct CallGridTile: Identifiable {
+    static let localTileId = "local"
+
+    let id: String
+    let label: String          // display label ("You" for the local tile)
+    let avatarUserId: String?  // avatar source for the camera-off state
+    let avatarName: String     // initials fallback for the avatar
+    var videoTrack: VideoTrack?
+    var micMuted: Bool
+    var isSpeaking: Bool
+    var isInGrace: Bool
+
+    init(
+        id: String, label: String, avatarUserId: String?, avatarName: String,
+        videoTrack: VideoTrack?, micMuted: Bool, isSpeaking: Bool, isInGrace: Bool
+    ) {
+        self.id = id
+        self.label = label
+        self.avatarUserId = avatarUserId
+        self.avatarName = avatarName
+        self.videoTrack = videoTrack
+        self.micMuted = micMuted
+        self.isSpeaking = isSpeaking
+        self.isInGrace = isInGrace
+    }
+
+    init(remote p: CallService.RemoteCallParticipant) {
+        self.init(
+            id: p.id, label: p.name, avatarUserId: p.id, avatarName: p.name,
+            videoTrack: p.videoTrack, micMuted: p.micMuted,
+            isSpeaking: p.isSpeaking, isInGrace: p.isInGrace
+        )
+    }
+}
+
+/// Non-scrolling, Zoom-style fitting grid (§17.1): the row/column split comes from the
+/// tile count — 2 tiles stack 1×2 full-width, 3–4 flow 2×2, 5–6 → 2×3, 7–9 → 3×3 — and
+/// every tile's size is computed so the whole call always fits the available bounds.
+/// An odd last row centers its tiles at the same size as everyone else's.
+struct CallTileGrid: View {
+    let tiles: [CallGridTile]
+
+    private let spacing: CGFloat = 10
+
+    var body: some View {
+        GeometryReader { geo in
+            let count = max(tiles.count, 1)
+            let columns = count <= 2 ? 1 : (count <= 6 ? 2 : 3)
+            let rows = (count + columns - 1) / columns
+            let tileWidth = (geo.size.width - CGFloat(columns - 1) * spacing) / CGFloat(columns)
+            let tileHeight = (geo.size.height - CGFloat(rows - 1) * spacing) / CGFloat(rows)
+            VStack(spacing: spacing) {
+                ForEach(0..<rows, id: \.self) { row in
+                    HStack(spacing: spacing) {
+                        ForEach(rowTiles(row, columns: columns)) { tile in
+                            ParticipantTile(tile: tile)
+                                .frame(width: tileWidth, height: tileHeight)
+                        }
+                    }
+                }
+            }
+            .frame(width: geo.size.width, height: geo.size.height)
+        }
+    }
+
+    private func rowTiles(_ row: Int, columns: Int) -> [CallGridTile] {
+        let start = row * columns
+        return Array(tiles[start..<min(start + columns, tiles.count)])
+    }
+}
+
+/// One tile in the group-call grid: video, or an avatar + name fallback, with a mute badge.
+/// The active speaker's tile carries an accent glow that appears live and lingers ~400ms
+/// after they stop, so brief speech pauses don't flicker (works in the avatar state too).
+/// A participant in their reconnect grace window renders dimmed with a "Reconnecting…" label.
 private struct ParticipantTile: View {
-    let participant: CallService.RemoteCallParticipant
+    let tile: CallGridTile
+
+    @State private var speakingGlow = false
+    @State private var glowFadeTask: Task<Void, Never>?
+
+    private var showsSpeaking: Bool { tile.isSpeaking && !tile.isInGrace }
 
     var body: some View {
         ZStack {
-            if let track = participant.videoTrack, !participant.isInGrace {
+            KlicColor.surfaceRaised
+            if let track = tile.videoTrack, !tile.isInGrace {
                 CallVideoView(track: track)
             } else {
-                KlicColor.surfaceRaised
                 AvatarView(
-                    url: APIClient.avatarURL(forUserId: participant.id),
-                    name: participant.name,
+                    url: tile.avatarUserId.map { APIClient.avatarURL(forUserId: $0) },
+                    name: tile.avatarName,
                     size: 64
                 )
             }
         }
-        .aspectRatio(3 / 4, contentMode: .fill)
         .overlay(alignment: .bottomLeading) {
             HStack(spacing: 5) {
-                Text(participant.name)
+                Text(tile.label)
                     .font(KlicFont.caption(12))
                     .foregroundStyle(.white)
                     .lineLimit(1)
-                if participant.micMuted {
+                if tile.micMuted {
                     Image(systemName: "mic.slash.fill")
                         .font(.system(size: 10, weight: .semibold))
                         .foregroundStyle(.white.opacity(0.85))
@@ -333,7 +418,7 @@ private struct ParticipantTile: View {
             .padding(8)
         }
         .overlay {
-            if participant.isInGrace {
+            if tile.isInGrace {
                 ZStack {
                     Color.black.opacity(0.55)
                     Text("Reconnecting…")
@@ -346,10 +431,88 @@ private struct ParticipantTile: View {
         .overlay(
             RoundedRectangle(cornerRadius: 18)
                 .stroke(
-                    participant.isSpeaking && !participant.isInGrace
-                        ? KlicColor.primary : Color.white.opacity(0.15),
-                    lineWidth: participant.isSpeaking && !participant.isInGrace ? 2 : 1
+                    speakingGlow ? KlicColor.primary : Color.white.opacity(0.15),
+                    lineWidth: speakingGlow ? 2.5 : 1
                 )
         )
+        .shadow(
+            color: speakingGlow ? KlicColor.primary.opacity(0.5) : .clear,
+            radius: speakingGlow ? 9 : 0
+        )
+        .onAppear { speakingGlow = showsSpeaking }
+        .onChange(of: showsSpeaking) { _, speaking in
+            glowFadeTask?.cancel()
+            glowFadeTask = nil
+            if speaking {
+                withAnimation(.easeIn(duration: 0.15)) { speakingGlow = true }
+            } else {
+                // Linger before fading so natural mid-sentence pauses don't flicker the glow.
+                glowFadeTask = Task { @MainActor in
+                    try? await Task.sleep(nanoseconds: 400_000_000)
+                    guard !Task.isCancelled else { return }
+                    withAnimation(.easeOut(duration: 0.35)) { speakingGlow = false }
+                }
+            }
+        }
+        .onDisappear { glowFadeTask?.cancel() }
     }
 }
+
+#if DEBUG
+/// Simulator harness for eyeballing the call layouts, where live group media isn't
+/// available: launch with `-callLayoutDemo grid:N` to render the real CallView over a
+/// seeded group call with N total tiles (mine last; one remote speaking, one muted,
+/// the largest layout also gets a reconnecting tile), or `-callLayoutDemo oneToOne`
+/// for the untouched 1:1 screen. Debug builds only; inert without the argument.
+struct CallLayoutDemoView: View {
+    static var requestedMode: String? {
+        let args = ProcessInfo.processInfo.arguments
+        guard let index = args.firstIndex(of: "-callLayoutDemo"), index + 1 < args.count else {
+            return nil
+        }
+        return args[index + 1]
+    }
+
+    static var isRequested: Bool { requestedMode != nil }
+
+    let mode: String
+
+    init(mode: String? = nil) {
+        self.mode = mode ?? Self.requestedMode ?? "grid:3"
+    }
+
+    private var isGroup: Bool { mode.hasPrefix("grid:") }
+
+    private var demoCall: CallKitManager.ActiveCall {
+        CallKitManager.ActiveCall(
+            id: "layout-demo", roomName: "layout-demo", livekitUrl: "", token: "",
+            kind: "AUDIO", peerName: isGroup ? "Design Crew" : "Alex Rivera",
+            peerId: nil, peerAvatarUrl: nil, isOutgoing: true,
+            conversationId: nil, isGroup: isGroup
+        )
+    }
+
+    var body: some View {
+        CallView(call: demoCall)
+            .environmentObject(AppSession())
+            .onAppear { seed() }
+    }
+
+    private func seed() {
+        guard isGroup else { return }
+        let total = max(Int(mode.dropFirst("grid:".count)) ?? 3, 3)
+        let names = ["Alice", "Ben", "Chloe", "Dana", "Eli", "Fiona", "Gus", "Hana"]
+        let remotes = (0..<(total - 1)).map { i in
+            CallService.RemoteCallParticipant(
+                id: "demo-\(i)",
+                name: names[i % names.count],
+                videoTrack: nil,
+                micMuted: i == 1,                       // one muted badge
+                isSpeaking: i == 0,                     // one active speaker
+                isInGrace: total >= 6 && i == total - 2 // one reconnecting tile on big grids
+            )
+        }
+        CallService.shared.debugSeedParticipants(remotes)
+    }
+}
+#endif

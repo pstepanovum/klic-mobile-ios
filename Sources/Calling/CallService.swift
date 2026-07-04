@@ -33,6 +33,9 @@ final class CallService: NSObject, ObservableObject {
     @Published private(set) var remoteVideoTrack: VideoTrack?
     /// Remote members of the call (live from the room, plus peers inside their grace window).
     @Published private(set) var participants: [RemoteCallParticipant] = []
+    /// Whether MY mic is registering speech — drives the local tile's speaking glow in the
+    /// group grid. Updated by the same speaker-change delegate events as the remote flags.
+    @Published private(set) var localIsSpeaking = false
 
     /// Set while we're tearing the room down on purpose, so the resulting `.disconnected`
     /// state change isn't mistaken for a network drop that should end the call.
@@ -306,6 +309,7 @@ final class CallService: NSObject, ObservableObject {
         localVideoTrack = nil
         remoteVideoTrack = nil
         participants = []
+        localIsSpeaking = false
         currentCallId = nil
         // Reset the audio gate for the next call. Re-enable engine availability so any non-call
         // audio isn't left disabled; the next join() re-gates it off until CallKit activates.
@@ -375,6 +379,7 @@ final class CallService: NSObject, ObservableObject {
             ))
         }
         participants = list.sorted { ($0.name, $0.id) < ($1.name, $1.id) }
+        localIsSpeaking = room.localParticipant.isSpeaking
     }
 
     // MARK: Remote-drop grace (per-participant, 60s)
@@ -492,6 +497,15 @@ final class CallService: NSObject, ObservableObject {
         videoRouteActive = videoActive
         setSpeaker(videoActive)
     }
+
+#if DEBUG
+    /// Layout-demo seam: live group media isn't available on a simulator, so the
+    /// launch-argument demo seeds fake participants to render the group-call grid.
+    func debugSeedParticipants(_ list: [RemoteCallParticipant], localSpeaking: Bool = false) {
+        participants = list
+        localIsSpeaking = localSpeaking
+    }
+#endif
 }
 
 extension CallService: RoomDelegate {
