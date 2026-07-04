@@ -76,6 +76,12 @@ actor APIClient {
         try await post("/friends/requests/\(id)/decline", body: [:])
     }
 
+    /// §16.6: remove an accepted friendship (404 when there is none). The DM
+    /// conversation and its history remain. Body-less DELETE — no Content-Type header.
+    func removeFriend(userId: String) async throws {
+        let _: EmptyResponse = try await delete("/friends/\(userId)")
+    }
+
     func openConversation(userId: String) async throws -> Conversation {
         try await post("/conversations", encodable: CreateConversationRequest(userId: userId, title: nil, userIds: nil))
     }
@@ -141,7 +147,9 @@ actor APIClient {
         let _: EmptyResponse = try await delete("/conversations/\(conversationId)/members/\(userId)")
     }
 
-    func deleteGroup(conversationId: String) async throws -> EmptyResponse {
+    /// Delete a conversation for everyone (admin-only for groups). Also the §16.5
+    /// chat-list Delete and the §16.6 block-and-delete follow-up.
+    func deleteConversation(conversationId: String) async throws -> EmptyResponse {
         try await delete("/conversations/\(conversationId)")
     }
 
@@ -558,17 +566,21 @@ actor APIClient {
     }
 
     /// Partial update; a double-optional set to `.some(nil)` sends an explicit null (unmute).
+    /// `pinned` (§16.5) stamps/clears the chat-list pin — only sent when provided so
+    /// mute updates stay compatible with pre-§16.5 servers.
     @discardableResult
     func updateConversationPrefs(
         conversationId: String,
         messagesMutedUntil: String?? = nil,
         muteMentions: Bool? = nil,
-        callsMutedUntil: String?? = nil
+        callsMutedUntil: String?? = nil,
+        pinned: Bool? = nil
     ) async throws -> ConversationPrefs {
         var body: [String: Any] = [:]
         if let value = messagesMutedUntil { body["messagesMutedUntil"] = value ?? NSNull() }
         if let muteMentions { body["muteMentions"] = muteMentions }
         if let value = callsMutedUntil { body["callsMutedUntil"] = value ?? NSNull() }
+        if let pinned { body["pinned"] = pinned }
         return try await put("/conversations/\(conversationId)/prefs", body: body)
     }
 

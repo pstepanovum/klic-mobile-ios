@@ -783,6 +783,23 @@
         }
       }
     },
+    "Also delete the chat": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Также удалить чат"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "同时删除聊天"
+          }
+        }
+      }
+    },
     "Always": {
       "extractionState": "manual",
       "localizations": {
@@ -1633,6 +1650,23 @@
         }
       }
     },
+    "Couldn't delete": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не удалось удалить"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法删除"
+          }
+        }
+      }
+    },
     "Couldn't delete synced contacts.": {
       "extractionState": "manual",
       "localizations": {
@@ -1663,6 +1697,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "暂时无法注销账号。"
+          }
+        }
+      }
+    },
+    "Couldn't delete this chat right now.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не удалось удалить этот чат прямо сейчас."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "目前无法删除此聊天。"
           }
         }
       }
@@ -1820,6 +1871,23 @@
         }
       }
     },
+    "Couldn't remove this friend right now.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не удалось удалить этого друга прямо сейчас."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "目前无法删除此好友。"
+          }
+        }
+      }
+    },
     "Couldn't remove your email. Please try again.": {
       "extractionState": "manual",
       "localizations": {
@@ -1884,6 +1952,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "无法保存，请重试。"
+          }
+        }
+      }
+    },
+    "Couldn't send": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не удалось отправить"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法发送"
           }
         }
       }
@@ -2211,6 +2296,23 @@
         }
       }
     },
+    "Delete Chat": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Удалить чат"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "删除聊天"
+          }
+        }
+      }
+    },
     "Delete Forever": {
       "extractionState": "manual",
       "localizations": {
@@ -2360,6 +2462,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "删除已同步联系人？"
+          }
+        }
+      }
+    },
+    "Delete this chat?": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Удалить этот чат?"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "删除此聊天？"
           }
         }
       }
@@ -4064,6 +4183,23 @@
         }
       }
     },
+    "Mark as Read": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Прочитать"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "标记为已读"
+          }
+        }
+      }
+    },
     "Meadow": {
       "extractionState": "manual",
       "localizations": {
@@ -4162,6 +4298,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "未接"
+          }
+        }
+      }
+    },
+    "Mute": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Без звука"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "静音"
           }
         }
       }
@@ -5424,23 +5577,6 @@
         }
       }
     },
-    "Recording…": {
-      "extractionState": "manual",
-      "localizations": {
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Запись…"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "正在录音…"
-          }
-        }
-      }
-    },
     "Remove": {
       "extractionState": "manual",
       "localizations": {
@@ -5458,6 +5594,23 @@
         }
       }
     },
+    "Remove %@ from your friends?": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Удалить %@ из друзей?"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "将 %@ 从好友列表中删除？"
+          }
+        }
+      }
+    },
     "Remove %@?": {
       "extractionState": "manual",
       "localizations": {
@@ -5471,6 +5624,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "移除 %@？"
+          }
+        }
+      }
+    },
+    "Remove Friend": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Удалить из друзей"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "删除好友"
           }
         }
       }
@@ -5624,6 +5794,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "移除 Klic 为您的帐户存储的所有联系人哈希值并关闭同步。"
+          }
+        }
+      }
+    },
+    "Removing…": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Удаление…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在删除…"
           }
         }
       }
@@ -6954,6 +7141,23 @@
         }
       }
     },
+    "The chat and its history stay in your list.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Чат и история останутся в вашем списке."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "聊天及其历史记录将保留在列表中。"
+          }
+        }
+      }
+    },
     "The cover uploaded but couldn't be saved: ": {
       "extractionState": "manual",
       "localizations": {
@@ -7120,6 +7324,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "这将永久删除您的账号、消息和媒体文件（对所有人）。此操作无法撤销。"
+          }
+        }
+      }
+    },
+    "This removes the chat and its messages.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Это удалит чат и все сообщения."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这将删除聊天及其消息。"
           }
         }
       }
@@ -7341,6 +7562,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "取消屏蔽"
+          }
+        }
+      }
+    },
+    "Unblocking…": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Разблокировка…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在解除封锁…"
           }
         }
       }
@@ -8242,6 +8480,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "你"
+          }
+        }
+      }
+    },
+    "You blocked %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Вы заблокировали %@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "您已封锁 %@"
           }
         }
       }

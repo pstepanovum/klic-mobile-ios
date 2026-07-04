@@ -272,19 +272,28 @@ extension ChatView {
         let replyId = replyingTo?.id
         draft = ""
         withAnimation { replyingTo = nil }
-        if let msg = try? await APIClient.shared.send(conversationId: conversation.id, body: body, replyToId: replyId) {
+        do {
+            let msg = try await APIClient.shared.send(conversationId: conversation.id, body: body, replyToId: replyId)
             upsert(msg)
             scrollToBottom()
             FrequentContacts.recordSend(conversationId: conversation.id)   // §10.4
+        } catch {
+            // §16.6: a rejected send (403 when the peer blocked me, offline, …)
+            // surfaces quietly — the text returns to the composer, no crash.
+            if draft.isEmpty { draft = body }
+            showSendFailedNotice()
         }
     }
 
     func sendSticker(_ id: String) async {
         let replyId = replyingTo?.id
         withAnimation { replyingTo = nil }
-        if let msg = try? await APIClient.shared.sendSticker(conversationId: conversation.id, stickerId: id, replyToId: replyId) {
+        do {
+            let msg = try await APIClient.shared.sendSticker(conversationId: conversation.id, stickerId: id, replyToId: replyId)
             upsert(msg)
             scrollToBottom()
+        } catch {
+            showSendFailedNotice()   // §16.6
         }
     }
 

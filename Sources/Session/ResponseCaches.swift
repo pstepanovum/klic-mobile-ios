@@ -17,6 +17,11 @@ final class ConversationStore: ObservableObject {
     private var refreshing = false
     private var cancellables: Set<AnyCancellable> = []
 
+    /// §16.5: local pin decisions (conversationId → chatPinnedAt or nil) that outrank
+    /// the fetched list until the server confirms it persisted them — so a pin made
+    /// against a pre-§16.5 server still survives refreshes for the session.
+    private var pinOverrides: [String: String?] = [:]
+
     private var myUserId: String? { AccessToken.subject(of: TokenStore.accessToken) }
 
     private init() {
@@ -38,6 +43,7 @@ final class ConversationStore: ObservableObject {
             .sink { [weak self] _ in
                 self?.conversations = []
                 self?.loaded = false
+                self?.pinOverrides = [:]
                 ChatCaches.clear()
             }
             .store(in: &cancellables)
@@ -48,8 +54,12 @@ final class ConversationStore: ObservableObject {
         guard !refreshing else { return }
         refreshing = true
         defer { refreshing = false }
-        if let list = try? await APIClient.shared.conversations() {
-            conversations = list
+        if var list = try? await APIClient.shared.conversations() {
+            // §16.5: unconfirmed local pins outrank the payload.
+            for i in list.indices {
+                if let override = pinOverrides[list[i].id] { list[i].chatPinnedAt = override }
+            }
+            conversations = Self.pinSorted(list)
             loaded = true
             // §14.3: seed each group's shared theme for precedence resolution.
             for convo in list where convo.type == "GROUP" {
@@ -73,6 +83,42 @@ final class ConversationStore: ObservableObject {
         }
         conversations.remove(at: idx)
         conversations.insert(convo, at: 0)
+        // §16.5: pinned chats stay above the recency order.
+        conversations = Self.pinSorted(conversations)
+    }
+
+    // MARK: §16.5 chat-list pins
+
+    /// Pinned chats first (newest pin highest), the rest in their existing recency
+    /// order. Stable for the unpinned block — element order is preserved.
+    static func pinSorted(_ list: [Conversation]) -> [Conversation] {
+        let pinned = list.filter(\.isChatPinned)
+            .sorted { pinDate($0) > pinDate($1) }
+        return pinned + list.filter { !$0.isChatPinned }
+    }
+
+    private static func pinDate(_ convo: Conversation) -> Date {
+        convo.chatPinnedAt.flatMap(SocketService.parseDate) ?? .distantPast
+    }
+
+    /// Pin/unpin a chat (§16.5): optimistic — the row moves immediately — then
+    /// persisted via PUT /conversations/:id/prefs {pinned}. A pre-§16.5 server
+    /// rejects the key; the pin then lives locally for this session.
+    func setPinned(conversationId: String, pinned: Bool) {
+        let stamp = pinned ? ISO8601DateFormatter().string(from: Date()) : nil
+        pinOverrides[conversationId] = .some(stamp)
+        if let idx = conversations.firstIndex(where: { $0.id == conversationId }) {
+            conversations[idx].chatPinnedAt = stamp
+            conversations = Self.pinSorted(conversations)
+        }
+        Task {
+            if let prefs = try? await APIClient.shared.updateConversationPrefs(
+                conversationId: conversationId, pinned: pinned),
+               (prefs.pinnedAt != nil) == pinned {
+                // Persisted — the fetched list is authoritative again.
+                pinOverrides[conversationId] = nil
+            }
+        }
     }
 
     /// §16.4: swap an edited message into the row preview WITHOUT reordering or

@@ -750,7 +750,7 @@ private struct GroupInfoContent: View {
         leaving = true
         defer { leaving = false }
         do {
-            _ = try await APIClient.shared.deleteGroup(conversationId: conversationId)
+            _ = try await APIClient.shared.deleteConversation(conversationId: conversationId)
             ConversationStore.shared.remove(conversationId: conversationId)
             onDeleted()
             dismiss()

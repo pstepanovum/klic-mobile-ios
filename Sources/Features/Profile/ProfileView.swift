@@ -29,10 +29,15 @@ struct ProfileView: View {
     /// resolved via POST /conversations {userId} so both entry points show the SAME
     /// full sections.
     @State private var resolvedConversationId: String?
-    // Block flow (§10.4): confirm sheet → POST /blocks.
+    // Block flow (§10.4, §16.6 confirm polish): confirm sheet → POST /blocks,
+    // optionally followed by the existing delete-conversation flow.
     @State private var showBlockConfirm = false
     @State private var blocking = false
     @State private var blockError: String?
+    // Remove Friend (§16.6): confirm → DELETE /friends/:userId.
+    @State private var showRemoveFriendConfirm = false
+    @State private var removingFriend = false
+    @State private var removeFriendError: String?
     // Report flow (§12.1).
     @State private var reportTarget: ReportTarget?
     // §14.3: friendship state — drives the "Add friend" button on non-friend profiles.
@@ -146,6 +151,19 @@ struct ProfileView: View {
                     groupsInCommonCard
                 }
 
+                // Remove Friend (§16.6) — with confirm; the chat stays in the list.
+                if friendshipKnown, isFriend {
+                    PillButton(
+                        title: removingFriend ? String(localized: "Removing…") : String(localized: "Remove Friend"),
+                        fill: KlicColor.surface,
+                        textColor: KlicColor.danger
+                    ) {
+                        showRemoveFriendConfirm = true
+                    }
+                    .disabled(removingFriend)
+                    .padding(.top, 8)
+                }
+
                 // Block (§10.4) — with confirm; blocked users are managed in
                 // Settings → Privacy and Security → Blocked Users.
                 PillButton(
@@ -167,8 +185,8 @@ struct ProfileView: View {
                     reportTarget = .user(id: userId, username: username, displayName: displayName)
                 }
 
-                if let blockError {
-                    Text(blockError)
+                if let inlineError = removeFriendError ?? blockError {
+                    Text(inlineError)
                         .font(KlicFont.caption())
                         .foregroundStyle(KlicColor.danger)
                         .multilineTextAlignment(.center)
@@ -207,13 +225,21 @@ struct ProfileView: View {
                 resolvedConversationId = (try? await APIClient.shared.openConversation(userId: userId))?.id
             }
         }
+        // §16.6: block confirm explains the effect and offers "Also delete the chat"
+        // inline (off by default) — the delete runs after a successful block.
+        .sheet(isPresented: $showBlockConfirm) {
+            BlockConfirmSheet(displayName: displayName) { alsoDeleteChat in
+                Task { await blockUser(alsoDeleteChat: alsoDeleteChat) }
+            }
+        }
+        // §16.6: Remove Friend confirm — the chat and its history stay.
         .klicSelectionSheet(
-            isPresented: $showBlockConfirm,
-            title: String(localized: "Block \(displayName)?"),
-            message: String(localized: "They won't be able to message or call you. You can unblock them from Settings → Privacy and Security."),
-            options: [KlicSheetOption(id: "block", label: String(localized: "Block User"), isDestructive: true)]
+            isPresented: $showRemoveFriendConfirm,
+            title: String(localized: "Remove \(displayName) from your friends?"),
+            message: String(localized: "The chat and its history stay in your list."),
+            options: [KlicSheetOption(id: "remove", label: String(localized: "Remove Friend"), isDestructive: true)]
         ) { _ in
-            Task { await blockUser() }
+            Task { await removeFriend() }
         }
         .reportSheet(target: $reportTarget)
         .enableInjection()
@@ -337,14 +363,41 @@ struct ProfileView: View {
         }
     }
 
-    // MARK: Block (§10.4)
+    // MARK: Remove Friend (§16.6)
 
-    private func blockUser() async {
+    private func removeFriend() async {
+        removingFriend = true
+        defer { removingFriend = false }
+        removeFriendError = nil
+        do {
+            try await APIClient.shared.removeFriend(userId: userId)
+            ChatCaches.friends.removeAll { $0.id == userId }
+            // The profile flips to the non-friend "Add friend" state; the chat stays.
+            isFriend = false
+            friendRequestSent = false
+        } catch let e as APIError {
+            removeFriendError = e.userMessage
+        } catch {
+            removeFriendError = String(localized: "Couldn't remove this friend right now.")
+        }
+    }
+
+    // MARK: Block (§10.4, §16.6)
+
+    private func blockUser(alsoDeleteChat: Bool) async {
         blocking = true
         defer { blocking = false }
         do {
-            _ = try await APIClient.shared.blockUser(userId: userId)
+            try await BlockStore.shared.block(userId: userId)
             ChatCaches.friends.removeAll { $0.id == userId }
+            isFriend = false
+            if alsoDeleteChat, let chatId = effectiveConversationId {
+                // The existing delete-conversation flow, after the block succeeded.
+                // Best-effort: a failure leaves the (now blocked) chat in the list.
+                if (try? await APIClient.shared.deleteConversation(conversationId: chatId)) != nil {
+                    ConversationStore.shared.remove(conversationId: chatId)
+                }
+            }
             dismiss()
         } catch let e as APIError {
             blockError = e.userMessage
@@ -371,6 +424,76 @@ struct ProfileView: View {
         if cal.isDateInToday(date) { f.dateFormat = "HH:mm"; return String(localized: "last seen today at \(f.string(from: date))") }
         if cal.isDateInYesterday(date) { f.dateFormat = "HH:mm"; return String(localized: "last seen yesterday at \(f.string(from: date))") }
         f.dateFormat = "MMM d"; return String(localized: "last seen \(f.string(from: date))")
+    }
+}
+
+/// §16.6 block confirm: explains the effect, offers "Also delete the chat" inline
+/// (off by default), destructive Block action + Cancel — styled like the shared
+/// Klic bottom sheet (§9.2).
+private struct BlockConfirmSheet: View {
+    let displayName: String
+    let onBlock: (_ alsoDeleteChat: Bool) -> Void
+
+    @State private var alsoDeleteChat = false
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        VStack(spacing: 14) {
+            VStack(spacing: 4) {
+                Text("Block \(displayName)?")
+                    .font(KlicFont.headline(16))
+                    .foregroundStyle(KlicColor.textPrimary)
+                Text("They won't be able to message or call you. You can unblock them from Settings → Privacy and Security.")
+                    .font(KlicFont.caption(12))
+                    .foregroundStyle(KlicColor.textMuted)
+                    .multilineTextAlignment(.center)
+            }
+            .padding(.top, 22)
+            .padding(.horizontal, 24)
+
+            VStack(spacing: 0) {
+                HStack(spacing: 12) {
+                    Toggle(isOn: $alsoDeleteChat) {
+                        Text("Also delete the chat")
+                            .font(KlicFont.body())
+                            .foregroundStyle(KlicColor.textPrimary)
+                    }
+                    .tint(KlicColor.primary)
+                }
+                .padding(.horizontal, 20)
+                .padding(.vertical, 12)
+
+                Divider().padding(.leading, 20).opacity(0.4)
+
+                Button {
+                    let deleteChat = alsoDeleteChat
+                    dismiss()
+                    onBlock(deleteChat)
+                } label: {
+                    HStack {
+                        Text("Block User")
+                            .font(KlicFont.body())
+                            .foregroundStyle(KlicColor.danger)
+                        Spacer()
+                    }
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 14)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+            }
+            .background(KlicColor.surface, in: RoundedRectangle(cornerRadius: 20))
+            .padding(.horizontal, 16)
+
+            PillButton(title: String(localized: "Cancel"), fill: KlicColor.surfaceRaised, textColor: KlicColor.textMuted) {
+                dismiss()
+            }
+            .padding(.horizontal, 16)
+            .padding(.bottom, 12)
+        }
+        .presentationDetents([.height(320)])
+        .presentationDragIndicator(.visible)
+        .presentationBackground(KlicColor.background)
     }
 }
 

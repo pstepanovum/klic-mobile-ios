@@ -246,6 +246,17 @@ enum ChatLocalPrefs {
         else { defaults.removeObject(forKey: key) }
     }
 
+    /// The cached mirror as a prefs value — lets callers update one field and
+    /// re-cache without wiping the others (§16.5 chat-list mute).
+    static func cachedMutes(_ conversationId: String) -> ConversationPrefs {
+        let defaults = UserDefaults.standard
+        return ConversationPrefs(
+            messagesMutedUntil: defaults.string(forKey: "chat.mute.messages.\(conversationId)"),
+            muteMentions: defaults.bool(forKey: "chat.mute.mentions.\(conversationId)"),
+            callsMutedUntil: defaults.string(forKey: "chat.mute.calls.\(conversationId)")
+        )
+    }
+
     static func messagesMuted(_ conversationId: String) -> Bool {
         isMuted(UserDefaults.standard.string(forKey: "chat.mute.messages.\(conversationId)"))
     }

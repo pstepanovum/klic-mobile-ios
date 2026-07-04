@@ -149,6 +149,11 @@ struct Conversation: Codable, Identifiable, Hashable {
     var unreadCount: Int?   // present on the conversations list; absent elsewhere
     /// §14.3: the group's shared theme (absent on DMs / older servers).
     var theme: GroupThemePayload?
+    /// §16.5: when *I* pinned this chat to the top of my list (per-viewer; absent
+    /// on unpinned chats and on older servers).
+    var chatPinnedAt: String?
+
+    var isChatPinned: Bool { chatPinnedAt != nil }
 
     struct Member: Codable, Hashable {
         let id: String; let username: String; let displayName: String
@@ -469,6 +474,8 @@ struct ConversationPrefs: Codable, Equatable {
     var messagesMutedUntil: String?
     var muteMentions: Bool?
     var callsMutedUntil: String?
+    /// §16.5: when this chat was pinned to the top of my list (absent pre-§16.5).
+    var pinnedAt: String?
 }
 
 /// One row from GET /conversations/:id/attachments — attachment fields plus the
