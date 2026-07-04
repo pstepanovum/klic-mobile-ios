@@ -1,5 +1,6 @@
 import SwiftUI
 import CryptoKit
+import ImageIO
 
 enum RemoteImagePhase {
     case empty
@@ -43,6 +44,7 @@ actor RemoteImageStore {
     private let memory = NSCache<NSString, UIImage>()
     private let directory: URL
     private var inFlight: [String: Task<UIImage?, Never>] = [:]
+    private var inFlightData: [String: Task<Data?, Never>] = [:]
     private let maxDiskEntryBytes = 16 * 1024 * 1024
 
     init() {
@@ -104,6 +106,96 @@ actor RemoteImageStore {
             return image
         }
         return nil
+    }
+
+    // MARK: - Display images (downsampled, fully decoded off-main) — §19.1
+
+    /// A fully-decoded, downsampled bitmap sized for on-screen display. The scroll
+    /// hitch in the message list came from `UIImage(data:)` deferring its decode to
+    /// the first draw on the MAIN thread; here the decode + downsample runs on this
+    /// actor (off-main) via ImageIO, and the result is cached ready-to-composite.
+    /// `maxPixelSize` is the longest displayed edge in PIXELS.
+    func displayImage(for url: URL, cacheKey: String, maxPixelSize: CGFloat) async -> UIImage? {
+        let bucket = Self.sizeBucket(maxPixelSize)
+        let key = Self.displayKey(cacheKey, bucket)
+        if let cached = memory.object(forKey: key as NSString) { return cached }
+        if let ondisk = try? Data(contentsOf: fileURL(for: key)), let image = UIImage(data: ondisk) {
+            remember(image, for: key)
+            return image
+        }
+        guard let data = await sourceData(for: url, cacheKey: cacheKey) else { return nil }
+        guard let image = Self.downsample(data: data, maxPixelSize: bucket) ?? UIImage(data: data) else { return nil }
+        remember(image, for: key)
+        if let encoded = image.jpegData(compressionQuality: 0.9), encoded.count <= maxDiskEntryBytes {
+            try? encoded.write(to: fileURL(for: key), options: .atomic)
+        }
+        return image
+    }
+
+    /// Cached-only downsampled display image (no network) — the auto-download gate's
+    /// "already have the bytes" path. Falls back to downsampling the cached original.
+    func cachedDisplayImage(for url: URL, cacheKey: String, maxPixelSize: CGFloat) -> UIImage? {
+        let bucket = Self.sizeBucket(maxPixelSize)
+        let key = Self.displayKey(cacheKey, bucket)
+        if let cached = memory.object(forKey: key as NSString) { return cached }
+        if let ondisk = try? Data(contentsOf: fileURL(for: key)), let image = UIImage(data: ondisk) {
+            remember(image, for: key)
+            return image
+        }
+        // Fall back to the cached full-resolution bytes, downsampled once.
+        guard let original = try? Data(contentsOf: fileURL(for: cacheKey)) else { return nil }
+        guard let image = Self.downsample(data: original, maxPixelSize: bucket) else { return nil }
+        remember(image, for: key)
+        return image
+    }
+
+    /// Raw bytes for a URL: the disk cache when present, otherwise a coalesced fetch
+    /// that also seeds the original-bytes disk cache (shared by every display size).
+    private func sourceData(for url: URL, cacheKey: String) async -> Data? {
+        if let data = try? Data(contentsOf: fileURL(for: cacheKey)) { return data }
+        if let task = inFlightData[cacheKey] { return await task.value }
+        let entryLimit = maxDiskEntryBytes
+        let destination = fileURL(for: cacheKey)
+        let task = Task<Data?, Never> {
+            do {
+                let (data, response) = try await URLSession.shared.data(from: url)
+                guard let http = response as? HTTPURLResponse, (200 ... 299).contains(http.statusCode) else { return nil }
+                DataUsageTracker.shared.record(type: .photos, sent: 0, received: data.count)
+                if data.count <= entryLimit { try? data.write(to: destination, options: .atomic) }
+                return data
+            } catch {
+                return nil
+            }
+        }
+        inFlightData[cacheKey] = task
+        let data = await task.value
+        inFlightData[cacheKey] = nil
+        return data
+    }
+
+    /// Buckets the requested pixel size so a handful of variants are cached rather
+    /// than one per pixel — keeps the memory/disk cache bounded.
+    private static func sizeBucket(_ maxPixelSize: CGFloat) -> CGFloat {
+        max(128, (maxPixelSize / 128).rounded(.up) * 128)
+    }
+
+    private static func displayKey(_ cacheKey: String, _ bucket: CGFloat) -> String {
+        "\(cacheKey)#d\(Int(bucket))"
+    }
+
+    /// ImageIO thumbnail decode: produces a downsampled CGImage that is decoded
+    /// IMMEDIATELY (off the calling thread), so no lazy main-thread decode remains.
+    nonisolated static func downsample(data: Data, maxPixelSize: CGFloat) -> UIImage? {
+        let sourceOptions = [kCGImageSourceShouldCache: false] as CFDictionary
+        guard let source = CGImageSourceCreateWithData(data as CFData, sourceOptions) else { return nil }
+        let options: [CFString: Any] = [
+            kCGImageSourceCreateThumbnailFromImageAlways: true,
+            kCGImageSourceCreateThumbnailWithTransform: true,
+            kCGImageSourceShouldCacheImmediately: true,
+            kCGImageSourceThumbnailMaxPixelSize: maxPixelSize,
+        ]
+        guard let cgImage = CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary) else { return nil }
+        return UIImage(cgImage: cgImage)
     }
 
     private func fetch(_ url: URL, key: String) async -> UIImage? {
