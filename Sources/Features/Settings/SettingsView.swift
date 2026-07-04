@@ -81,6 +81,14 @@ struct SettingsView: View {
 
             Divider().padding(.leading, 64).opacity(0.4)
 
+            // Saved messages (§14.4): everything the user starred, across chats.
+            NavigationLink { SavedMessagesView() } label: {
+                SettingsRow(icon: "star", title: String(localized: "Saved messages"))
+            }
+            .buttonStyle(.plain)
+
+            Divider().padding(.leading, 64).opacity(0.4)
+
             // Chat theme lives under Appearance only (§13.6) — no duplicate row here.
             NavigationLink { AppearanceView() } label: {
                 SettingsRow(icon: "sun.max", title: String(localized: "Appearance"))
@@ -321,11 +329,11 @@ private struct AppUpdateInfoView: View {
                     Divider().padding(.leading, 20).opacity(0.4)
                     infoRow(label: String(localized: "Platform"), value: "iOS")
                     Divider().padding(.leading, 20).opacity(0.4)
-                    infoRow(label: String(localized: "Distribution"), value: "TestFlight")
+                    infoRow(label: String(localized: "Distribution"), value: "AltStore / TestFlight")
                 }
                 .background(KlicColor.surface, in: RoundedRectangle(cornerRadius: 20))
 
-                Text("iOS updates are delivered via TestFlight. Android users can update directly from Settings → App updates.")
+                Text("Klic checks for new releases automatically and shows an update page when one is available. iOS updates install via AltStore or TestFlight.")
                     .font(KlicFont.caption(12))
                     .foregroundStyle(KlicColor.textMuted)
                     .multilineTextAlignment(.center)

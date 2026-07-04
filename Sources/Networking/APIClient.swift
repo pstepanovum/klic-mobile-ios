@@ -103,6 +103,26 @@ actor APIClient {
         )
     }
 
+    /// §14.3: set or clear the group's SHARED theme (admin-only; null clears).
+    func updateGroupTheme(conversationId: String, theme: GroupThemePayload?) async throws -> GroupConversationDetails {
+        var body: [String: Any] = [:]
+        if let theme {
+            var dict: [String: Any] = ["pattern": theme.pattern, "patternOpacity": theme.patternOpacity]
+            if let gradientId = theme.gradientId { dict["gradientId"] = gradientId }
+            if let intensity = theme.gradientIntensity { dict["gradientIntensity"] = intensity }
+            if let bubble = theme.bubbleColorId { dict["bubbleColorId"] = bubble }
+            body["theme"] = dict
+        } else {
+            body["theme"] = NSNull()
+        }
+        return try await patch("/conversations/\(conversationId)", body: body)
+    }
+
+    /// §14.3: hand the group admin role to another member (current admin only).
+    func transferGroupAdmin(conversationId: String, userId: String) async throws -> GroupConversationDetails {
+        try await post("/conversations/\(conversationId)/transfer-admin", body: ["userId": userId])
+    }
+
     func requestGroupAvatarUpload(conversationId: String, contentType: String, byteSize: Int) async throws -> UploadTicket {
         try await post("/conversations/\(conversationId)/avatar-upload", body: ["contentType": contentType, "byteSize": byteSize])
     }
@@ -535,17 +555,22 @@ actor APIClient {
         let _: EmptyResponse = try await delete("/messages/\(id)/star")
     }
 
-    /// Starred messages (same payload shape as GET messages), optionally scoped to one chat.
+    /// Starred messages (message payloads + §14.4 sender/conversation enrichment),
+    /// optionally scoped to one chat.
     func starredMessages(
         conversationId: String? = nil, cursor: String? = nil, limit: Int = 50
-    ) async throws -> (items: [Message], nextCursor: String?) {
+    ) async throws -> (items: [StarredMessageItem], nextCursor: String?) {
         var path = "/me/starred?limit=\(limit)"
         if let conversationId { path += "&conversationId=\(conversationId)" }
         if let cursor, let encoded = cursor.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) {
             path += "&cursor=\(encoded)"
         }
-        let page: Page<Message> = try await get(path)
-        return (await E2eeMessaging.shared.materializeAll(page.items), page.nextCursor)
+        let page: Page<StarredMessageItem> = try await get(path)
+        let materialized = await E2eeMessaging.shared.materializeAll(page.items.map(\.message))
+        let items = zip(page.items, materialized).map { item, message in
+            StarredMessageItem(message: message, sender: item.sender, conversation: item.conversation)
+        }
+        return (items, page.nextCursor)
     }
 
     // MARK: - E2EE key distribution (E2EE.md §6.2)
