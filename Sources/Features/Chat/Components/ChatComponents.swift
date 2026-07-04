@@ -4,6 +4,9 @@ import UIKit
 // MARK: - Message bubble
 
 struct MessageBubble: View {
+    // §12.3: own bubbles take the user's chosen accent color. Not private — a
+    // private stored property would make the memberwise init private too.
+    @ObservedObject var chatTheme = ChatThemeStore.shared
     let message: Message
     let isMine: Bool
     let isFirst: Bool
@@ -172,7 +175,7 @@ struct MessageBubble: View {
                         .padding(.horizontal, 14)
                         .padding(.vertical, 10)
                         .background(
-                            isMine ? KlicColor.primary : KlicColor.surfaceRaised,
+                            isMine ? chatTheme.bubbleColor : KlicColor.surfaceRaised,
                             in: UnevenRoundedRectangle(
                                 topLeadingRadius:     isMine ? 18 : topRadius,
                                 bottomLeadingRadius:  isMine ? 18 : bottomRadius,

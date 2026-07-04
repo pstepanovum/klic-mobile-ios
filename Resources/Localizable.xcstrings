@@ -341,6 +341,23 @@
         }
       }
     },
+    "@%@ is blocked. Manage blocked users in Settings → Privacy and Security.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "@%@ заблокирован. Управляйте заблокированными пользователями в разделе Настройки → Конфиденциальность."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "@%@ 已被屏蔽。请前往“设置”→“隐私与安全”管理已屏蔽的用户。"
+          }
+        }
+      }
+    },
     "About": {
       "extractionState": "manual",
       "localizations": {
@@ -456,6 +473,40 @@
           "stringUnit": {
             "state": "translated",
             "value": "添加个人简介"
+          }
+        }
+      }
+    },
+    "Add details (optional)": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Добавить подробности (необязательно)"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "添加详情（可选）"
+          }
+        }
+      }
+    },
+    "Add email": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Добавить эл. почту"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "添加电子邮件"
           }
         }
       }
@@ -868,6 +919,40 @@
         }
       }
     },
+    "Background gradient": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Градиент фона"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "背景渐变"
+          }
+        }
+      }
+    },
+    "Background pattern": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Фоновый узор"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "背景图案"
+          }
+        }
+      }
+    },
     "Based on ambient light": {
       "extractionState": "manual",
       "localizations": {
@@ -932,6 +1017,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "屏蔽 %@？"
+          }
+        }
+      }
+    },
+    "Block @%@": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Заблокировать @%@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "屏蔽 @%@"
           }
         }
       }
@@ -1106,6 +1208,23 @@
         }
       }
     },
+    "Change": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Изменить"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更改"
+          }
+        }
+      }
+    },
     "Change Passcode": {
       "extractionState": "manual",
       "localizations": {
@@ -1157,13 +1276,13 @@
         }
       }
     },
-    "Chat Themes": {
+    "Chat theme": {
       "extractionState": "manual",
       "localizations": {
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Темы чатов"
+            "value": "Тема чата"
           }
         },
         "zh-Hans": {
@@ -1187,6 +1306,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "聊天"
+          }
+        }
+      }
+    },
+    "Child safety": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Безопасность детей"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "儿童安全"
           }
         }
       }
@@ -1429,6 +1565,23 @@
         }
       }
     },
+    "Couldn't complete Google sign-in. Please try again.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не удалось войти через Google. Попробуйте еще раз."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法完成 Google 登录。请重试。"
+          }
+        }
+      }
+    },
     "Couldn't delete synced contacts.": {
       "extractionState": "manual",
       "localizations": {
@@ -1476,6 +1629,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "无法转发该媒体文件。"
+          }
+        }
+      }
+    },
+    "Couldn't link your email. Please try again.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не удалось привязать эл. почту. Попробуйте еще раз."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法绑定您的电子邮件。请重试。"
           }
         }
       }
@@ -1582,6 +1752,23 @@
         }
       }
     },
+    "Couldn't remove your email. Please try again.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не удалось удалить эл. почту. Попробуйте еще раз."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法移除您的电子邮件。请重试。"
+          }
+        }
+      }
+    },
     "Couldn't save the setting.": {
       "extractionState": "manual",
       "localizations": {
@@ -1612,6 +1799,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "无法保存，请重试。"
+          }
+        }
+      }
+    },
+    "Couldn't send the report. Please try again.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не удалось отправить жалобу. Попробуйте еще раз."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法发送举报。请重试。"
           }
         }
       }
@@ -1684,19 +1888,19 @@
         }
       }
     },
-    "Create your account": {
+    "Create an account": {
       "extractionState": "manual",
       "localizations": {
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Создайте свой аккаунт"
+            "value": "Создать аккаунт"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "创建您的账号"
+            "value": "创建账号"
           }
         }
       }
@@ -1816,6 +2020,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "数据与存储"
+          }
+        }
+      }
+    },
+    "Dawn": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Рассвет"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "黎明"
           }
         }
       }
@@ -2228,6 +2449,23 @@
         }
       }
     },
+    "Dusk": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сумерки"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "黄昏"
+          }
+        }
+      }
+    },
     "Edit group": {
       "extractionState": "manual",
       "localizations": {
@@ -2292,6 +2530,57 @@
           "stringUnit": {
             "state": "translated",
             "value": "生效日期：2026年6月28日"
+          }
+        }
+      }
+    },
+    "Email": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Эл. почта"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "电子邮件"
+          }
+        }
+      }
+    },
+    "Email linking isn't set up yet. Please try again after the next update.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Привязка эл. почты еще не настроена. Попробуйте еще раз после следующего обновления."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "电子邮件绑定功能尚未就绪。请在下次更新后重试。"
+          }
+        }
+      }
+    },
+    "Ember": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Уголь"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "余烬"
           }
         }
       }
@@ -2534,6 +2823,23 @@
         }
       }
     },
+    "Forest": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Лес"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "森林"
+          }
+        }
+      }
+    },
     "Forward": {
       "extractionState": "manual",
       "localizations": {
@@ -2721,6 +3027,40 @@
         }
       }
     },
+    "Gradient intensity": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Интенсивность градиента"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "渐变强度"
+          }
+        }
+      }
+    },
+    "Graphite": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Графит"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "石墨"
+          }
+        }
+      }
+    },
     "Group": {
       "extractionState": "manual",
       "localizations": {
@@ -2840,6 +3180,57 @@
         }
       }
     },
+    "Harassment or bullying": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Травля или преследование"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "骚扰或欺凌"
+          }
+        }
+      }
+    },
+    "Hate speech": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Враждебные высказывания"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "仇恨言论"
+          }
+        }
+      }
+    },
+    "Hey! Have you seen the new themes?": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Привет! Вы видели новые темы?"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "嘿！你看到新主题了吗？"
+          }
+        }
+      }
+    },
     "I agree to the": {
       "extractionState": "manual",
       "localizations": {
@@ -2853,6 +3244,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "我同意"
+          }
+        }
+      }
+    },
+    "I already have an account": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "У меня уже есть аккаунт"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "我已有账号"
           }
         }
       }
@@ -2891,6 +3299,23 @@
         }
       }
     },
+    "Illegal activity": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Незаконные действия"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "非法活动"
+          }
+        }
+      }
+    },
     "Immediately": {
       "extractionState": "manual",
       "localizations": {
@@ -2904,6 +3329,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "立即"
+          }
+        }
+      }
+    },
+    "Impersonation": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Выдача себя за другого"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "冒充他人"
           }
         }
       }
@@ -2989,6 +3431,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "Klic (应用内)"
+          }
+        }
+      }
+    },
+    "Klic Red": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Klic Красный"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Klic 红"
           }
         }
       }
@@ -3214,6 +3673,40 @@
         }
       }
     },
+    "Login": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Вход"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "登录"
+          }
+        }
+      }
+    },
+    "Looks great!": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Выглядит отлично!"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "看起来很棒！"
+          }
+        }
+      }
+    },
     "Manage storage": {
       "extractionState": "manual",
       "localizations": {
@@ -3227,6 +3720,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "管理存储空间"
+          }
+        }
+      }
+    },
+    "Meadow": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Луг"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "草地"
           }
         }
       }
@@ -3431,6 +3941,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "个人资料"
+          }
+        }
+      }
+    },
+    "My bubble color": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Цвет моих сообщений"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "我的气泡颜色"
           }
         }
       }
@@ -3690,6 +4217,23 @@
         }
       }
     },
+    "None": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Нет"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无"
+          }
+        }
+      }
+    },
     "Notifications": {
       "extractionState": "manual",
       "localizations": {
@@ -3720,6 +4264,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "确定"
+          }
+        }
+      }
+    },
+    "Ocean": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Океан"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "海洋"
           }
         }
       }
@@ -3979,19 +4540,19 @@
         }
       }
     },
-    "Password": {
+    "Pattern opacity": {
       "extractionState": "manual",
       "localizations": {
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Пароль"
+            "value": "Прозрачность узора"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "密码"
+            "value": "图案不透明度"
           }
         }
       }
@@ -4387,6 +4948,40 @@
         }
       }
     },
+    "Remove email": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Удалить эл. почту"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "移除电子邮件"
+          }
+        }
+      }
+    },
+    "Remove email?": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Удалить эл. почту?"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "移除电子邮件吗？"
+          }
+        }
+      }
+    },
     "Remove from group": {
       "extractionState": "manual",
       "localizations": {
@@ -4506,6 +5101,91 @@
         }
       }
     },
+    "Report": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Пожаловаться"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "举报"
+          }
+        }
+      }
+    },
+    "Report User": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Пожаловаться на пользователя"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "举报用户"
+          }
+        }
+      }
+    },
+    "Report a problem": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сообщить о проблеме"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "报告问题"
+          }
+        }
+      }
+    },
+    "Report message": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Пожаловаться на сообщение"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "举报消息"
+          }
+        }
+      }
+    },
+    "Report submitted": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Жалоба отправлена"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "举报已提交"
+          }
+        }
+      }
+    },
     "Request sent to %@.": {
       "extractionState": "manual",
       "localizations": {
@@ -4608,6 +5288,23 @@
         }
       }
     },
+    "Reset theme": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сбросить тему"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重置主题"
+          }
+        }
+      }
+    },
     "Reset usage statistics?": {
       "extractionState": "manual",
       "localizations": {
@@ -4672,6 +5369,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "铃声"
+          }
+        }
+      }
+    },
+    "Rose": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Роза"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "玫瑰"
           }
         }
       }
@@ -4808,6 +5522,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "介绍一下你自己"
+          }
+        }
+      }
+    },
+    "Scam or fraud": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Мошенничество"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "欺诈或诈骗"
           }
         }
       }
@@ -5084,6 +5815,23 @@
         }
       }
     },
+    "Sexual content": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Контент сексуального характера"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "色情内容"
+          }
+        }
+      }
+    },
     "Share": {
       "extractionState": "manual",
       "localizations": {
@@ -5152,6 +5900,23 @@
         }
       }
     },
+    "Sign Up": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Регистрация"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "注册"
+          }
+        }
+      }
+    },
     "Sign in with a passkey": {
       "extractionState": "manual",
       "localizations": {
@@ -5165,6 +5930,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "使用通行密钥登录"
+          }
+        }
+      }
+    },
+    "Sign up": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Регистрация"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "注册"
           }
         }
       }
@@ -5216,6 +5998,40 @@
           "stringUnit": {
             "state": "translated",
             "value": "更小、更快"
+          }
+        }
+      }
+    },
+    "Something else": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Другое"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "其他"
+          }
+        }
+      }
+    },
+    "Spam": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Спам"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "垃圾信息"
           }
         }
       }
@@ -5305,6 +6121,23 @@
         }
       }
     },
+    "Submit report": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Отправить жалобу"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "提交举报"
+          }
+        }
+      }
+    },
     "Suggest Frequent Contacts": {
       "extractionState": "manual",
       "localizations": {
@@ -5318,6 +6151,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "建议常用联系人"
+          }
+        }
+      }
+    },
+    "Sunset": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Закат"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "日落"
           }
         }
       }
@@ -5420,6 +6270,40 @@
           "stringUnit": {
             "state": "translated",
             "value": "交谈。聊天。连接。"
+          }
+        }
+      }
+    },
+    "Tell us what went wrong. Reports are anonymous to other users.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Расскажите, что случилось. Жалобы анонимны для других пользователей."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请告诉我们发生了什么。举报对其他用户匿名。"
+          }
+        }
+      }
+    },
+    "Thanks for letting us know. Our team will review your report.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Спасибо, что сообщили. Наша команда рассмотрит вашу жалобу."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "感谢您的反馈。我们的团队将审核您的举报。"
           }
         }
       }
@@ -5985,6 +6869,23 @@
         }
       }
     },
+    "Verified": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Подтверждено"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已认证"
+          }
+        }
+      }
+    },
     "Version": {
       "extractionState": "manual",
       "localizations": {
@@ -6087,6 +6988,40 @@
         }
       }
     },
+    "Violence or threats": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Насилие или угрозы"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "暴力或威胁"
+          }
+        }
+      }
+    },
+    "Violet": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Фиолетовый"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "紫罗兰"
+          }
+        }
+      }
+    },
     "Waiting for passkey…": {
       "extractionState": "manual",
       "localizations": {
@@ -6104,19 +7039,19 @@
         }
       }
     },
-    "Welcome back": {
+    "Welcome back — sign in to keep chatting.": {
       "extractionState": "manual",
       "localizations": {
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "С возвращением"
+            "value": "С возвращением — войдите, чтобы продолжить общение."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "欢迎回来"
+            "value": "欢迎回来 — 登录以继续聊天。"
           }
         }
       }
@@ -6257,6 +7192,40 @@
         }
       }
     },
+    "Why are you reporting @%@?": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Почему вы жалуетесь на @%@?"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "您为什么要举报 @%@？"
+          }
+        }
+      }
+    },
+    "Why are you reporting this message?": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Почему вы жалуетесь на это сообщение?"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "您为什么要举报这条消息？"
+          }
+        }
+      }
+    },
     "Wi-Fi": {
       "extractionState": "manual",
       "localizations": {
@@ -6274,6 +7243,23 @@
         }
       }
     },
+    "Yes — picking mine right now 🎨": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Да — выбираю прямо сейчас 🎨"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "是的 — 马上选一个 🎨"
+          }
+        }
+      }
+    },
     "Yesterday": {
       "extractionState": "manual",
       "localizations": {
@@ -6287,6 +7273,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "昨天"
+          }
+        }
+      }
+    },
+    "Yo! Let's create an account for you": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Привет! Давайте создадим вам аккаунт"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "嘿！为您创建一个账号"
           }
         }
       }
@@ -6355,6 +7358,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "如果你在此期间未上线，你的账号将被删除。"
+          }
+        }
+      }
+    },
+    "Your email will no longer be linked to this account.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ваша почта больше не будет привязана к этому аккаунту."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "您的电子邮件将不再与此账号绑定。"
           }
         }
       }
@@ -6580,6 +7600,23 @@
         }
       }
     },
+    "password": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "пароль"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "密码"
+          }
+        }
+      }
+    },
     "pencil.tip": {
       "extractionState": "manual",
       "localizations": {
@@ -6766,81 +7803,7 @@
           }
         }
       }
-    },
-    "": {},
-    "@%@": {},
-    "%lld": {},
-    "%lld people in the call": {},
-    "%lld%%": {},
-    "99+": {},
-    "Choose Photo": {},
-    "Couldn't reach the server — showing nothing to clear.": {},
-    "Create an account": {},
-    "Edit": {},
-    "I already have an account": {},
-    "If turned off, you won't see anyone else's last seen.": {
-      "extractionState": "manual",
-      "localizations": {
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Если отключить, вы не будете видеть время последнего входа других пользователей."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "如果关闭，您将无法查看他人的最后上线时间。"
-          }
-        }
-      }
-    },
-    "Last seen": {
-      "extractionState": "manual",
-      "localizations": {
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Был(а) в сети"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "最后上线"
-          }
-        }
-      }
-    },
-    "Login": {},
-    "Media from this chat stored on this device": {},
-    "Network": {},
-    "No starred messages yet.\nLong-press a message and tap Star.": {},
-    "password": {},
-    "SD": {},
-    "Search contacts": {},
-    "Send (%lld)": {
-      "extractionState": "manual",
-      "localizations": {
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Отправить (%lld)"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "发送 (%lld)"
-          }
-        }
-      }
-    },
-    "Sign up": {},
-    "Sign Up": {},
-    "Starred messages need the latest server.": {},
-    "Welcome back — sign in to keep chatting.": {},
-    "Yo! Let's create an account for you": {}
+    }
   },
   "version": "1.0"
 }

@@ -34,6 +34,8 @@ struct ChatView: View {
     @State var replyingTo: Message?
     @State var menuTarget: Message?
     @State private var deleteTarget: Message?
+    /// §12.1: message being reported via the long-press menu.
+    @State private var reportTarget: ReportTarget?
     @State var hiddenIds: Set<String> = []
     @State var lastTypingSent = Date.distantPast
     @State var isStartingCall = false
@@ -165,7 +167,8 @@ struct ChatView: View {
             }
         .frame(maxWidth: 760)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(KlicColor.background.ignoresSafeArea())
+        // §12.3: background color → gradient → low-opacity pattern → messages.
+        .background(ChatThemeBackground().ignoresSafeArea())
         .navigationBarTitleDisplayMode(.inline)
         .toolbar(.hidden, for: .tabBar)
         .toolbar {
@@ -196,12 +199,23 @@ struct ChatView: View {
                     onReply: { replyingTo = target; isComposerFocused = true },
                     onCopy: { UIPasteboard.general.string = target.body },
                     onToggleStar: { Task { await toggleStar(target) } },
+                    onReport: {
+                        withAnimation(.easeOut(duration: 0.15)) { menuTarget = nil }
+                        let sender = memberTargets.first { $0.id == target.senderId }
+                        reportTarget = .message(
+                            id: target.id,
+                            senderId: sender?.id ?? target.senderId,
+                            senderUsername: sender?.username,
+                            senderDisplayName: sender?.displayName
+                        )
+                    },
                     onDelete: { deleteTarget = target },
                     onDismiss: { withAnimation(.easeOut(duration: 0.15)) { menuTarget = nil } }
                 )
                 .transition(.opacity)
             }
         }
+        .reportSheet(target: $reportTarget)
         .sheet(isPresented: $showMessageSearch, onDismiss: {
             if let target = pendingSearchJump {
                 pendingSearchJump = nil

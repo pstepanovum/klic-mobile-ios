@@ -19,6 +19,10 @@ packages:
   Inject:
     url: https://github.com/krzysztofzablocki/Inject.git
     from: "1.5.2"
+  # Email linking (§12.2): Google sign-in for POST /me/email/google.
+  GoogleSignIn:
+    url: https://github.com/google/GoogleSignIn-iOS.git
+    from: "8.0.0"
 
 settings:
   base:
@@ -58,6 +62,7 @@ targets:
       - package: SocketIO
       - package: Lottie
       - package: Inject
+      - package: GoogleSignIn
       - target: KlicWidgets
       - target: KlicShare
 

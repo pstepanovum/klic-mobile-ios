@@ -115,6 +115,35 @@ actor APIClient {
         try await delete("/conversations/\(conversationId)")
     }
 
+    // MARK: Reports (§12.1)
+
+    /// File a safety/problem report. Exactly one of `targetUserId`/`messageId`, or
+    /// neither (a target-less report = app/system problem report). 201 → {id}.
+    func submitReport(
+        targetUserId: String? = nil,
+        messageId: String? = nil,
+        category: String,
+        details: String? = nil
+    ) async throws -> CreatedReport {
+        var body: [String: Any] = ["category": category]
+        if let targetUserId { body["targetUserId"] = targetUserId }
+        if let messageId { body["messageId"] = messageId }
+        if let details, !details.isEmpty { body["details"] = details }
+        return try await post("/reports", body: body)
+    }
+
+    // MARK: Email linking (§12.2)
+
+    /// Link + verify an email via a Google ID token; returns the updated selfUser.
+    func linkGoogleEmail(idToken: String) async throws -> User {
+        try await post("/me/email/google", body: ["idToken": idToken])
+    }
+
+    /// Remove the linked email. Body-less DELETE — no Content-Type header.
+    func removeEmail() async throws {
+        let _: EmptyResponse = try await delete("/me/email")
+    }
+
     // MARK: Blocks (§10.4)
 
     func blockedUsers() async throws -> [BlockedUser] { try await get("/blocks") }

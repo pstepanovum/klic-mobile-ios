@@ -8,6 +8,7 @@ let quickReactions = ["❤️", "👍", "👎", "😂", "😮", "😢", "🔥"]
 /// A dimmed full-screen menu shown when a bubble is long-pressed: a reaction bar on
 /// top, a compact preview of the message, and the action list below.
 struct MessageActionsOverlay: View {
+    @ObservedObject var chatTheme = ChatThemeStore.shared
     let message: Message
     let isMine: Bool
     let peerName: String
@@ -15,6 +16,8 @@ struct MessageActionsOverlay: View {
     let onReply: () -> Void
     let onCopy: () -> Void
     var onToggleStar: () -> Void = {}
+    /// §12.1 "Report message" — shown for other people's messages only.
+    var onReport: () -> Void = {}
     let onDelete: () -> Void
     let onDismiss: () -> Void
 
@@ -64,7 +67,7 @@ struct MessageActionsOverlay: View {
             .lineLimit(6)
             .padding(.horizontal, 14)
             .padding(.vertical, 10)
-            .background(isMine ? KlicColor.primary : KlicColor.surfaceRaised, in: RoundedRectangle(cornerRadius: 18))
+            .background(isMine ? chatTheme.bubbleColor : KlicColor.surfaceRaised, in: RoundedRectangle(cornerRadius: 18))
             .frame(maxWidth: 300, alignment: isMine ? .trailing : .leading)
     }
 
@@ -94,6 +97,12 @@ struct MessageActionsOverlay: View {
                 title: message.starred == true ? "Unstar" : "Star",
                 systemImage: message.starred == true ? "star.slash" : "star"
             ) { onToggleStar(); onDismiss() }
+            if !isMine {
+                Divider().overlay(KlicColor.surfaceRaised)
+                ActionRow(title: String(localized: "Report message"), systemImage: "exclamationmark.bubble") {
+                    onReport()
+                }
+            }
             Divider().overlay(KlicColor.surfaceRaised)
             ActionRow(title: String(localized: "Delete"), systemImage: "trash", destructive: true) { onDelete() }
         }
