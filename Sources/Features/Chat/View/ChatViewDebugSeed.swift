@@ -66,6 +66,38 @@ extension ChatView {
             status: "read", editedAt: now
         ))
 
+        // §19.3/§19.4: synthetic multi-image (bento) messages so the grid layout and
+        // the long-press image pager can be verified without a live multi-attachment
+        // send. Each tile reuses a real image URL (distinct ids → real fetches).
+        if let image {
+            func bentoAttachments(_ count: Int) -> [Attachment] {
+                (0..<count).map { index in
+                    Attachment(
+                        id: "debug-bento-\(count)-\(index)", kind: "IMAGE", url: image.url,
+                        contentType: image.contentType, byteSize: image.byteSize,
+                        width: image.width, height: image.height, durationMs: nil,
+                        waveform: nil, fileName: nil
+                    )
+                }
+            }
+            seeded.append(Message(
+                id: "debug-bento-2", conversationId: conversation.id, senderId: myId,
+                body: "", kind: "TEXT", createdAt: now,
+                attachments: bentoAttachments(2), status: "read"
+            ))
+            seeded.append(Message(
+                id: "debug-bento-3", conversationId: conversation.id,
+                senderId: conversation.members.first?.id ?? myId,
+                body: "trip highlights", kind: "TEXT", createdAt: now,
+                attachments: bentoAttachments(3)
+            ))
+            seeded.append(Message(
+                id: "debug-bento-5", conversationId: conversation.id, senderId: myId,
+                body: "", kind: "TEXT", createdAt: now,
+                attachments: bentoAttachments(5), status: "read"
+            ))
+        }
+
         messages.append(contentsOf: seeded)
 
         // §16.3: pinned bar with multiple pins built from real history.

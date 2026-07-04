@@ -365,11 +365,15 @@ struct MessageBubble: View {
     }
 
     private var detectedURL: URL? {
-        guard let detector = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.link.rawValue) else { return nil }
+        // §19.1: a fresh NSDataDetector per call was allocated several times per row
+        // on every scroll frame; the detector is stateless, so share one.
+        guard let detector = Self.linkDetector else { return nil }
         let text = message.body
         let match = detector.firstMatch(in: text, range: NSRange(text.startIndex..., in: text))
         return match?.url
     }
+
+    private static let linkDetector = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.link.rawValue)
 
     private var isBareLink: Bool {
         guard let url = detectedURL else { return false }
@@ -377,14 +381,44 @@ struct MessageBubble: View {
     }
 
     private func shortTime(_ iso: String) -> String {
-        let df = ISO8601DateFormatter()
-        df.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        let df2 = ISO8601DateFormatter()
-        df2.formatOptions = [.withInternetDateTime]
-        guard let date = df.date(from: iso) ?? df2.date(from: iso) else { return "" }
-        let f = DateFormatter()
-        f.dateFormat = "h:mm a"
-        return f.string(from: date)
+        // §19.1: these formatters were reallocated on every render (and shortTime is
+        // called several times per bubble). Share them — DateFormatter/ISO8601 are
+        // reused read-only on the main thread.
+        guard let date = ChatTimeFormat.date(from: iso) else { return "" }
+        return ChatTimeFormat.hourMinute.string(from: date)
+    }
+}
+
+/// §19.1: shared, lazily-built date formatters for the message list. Allocating an
+/// ISO8601DateFormatter / DateFormatter is expensive; the list parses timestamps on
+/// every row on every scroll frame, so they must not be created per call.
+enum ChatTimeFormat {
+    static let isoFractional: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return formatter
+    }()
+
+    static let iso: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime]
+        return formatter
+    }()
+
+    static let hourMinute: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "h:mm a"
+        return formatter
+    }()
+
+    static let monthDay: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "MMMM d"
+        return formatter
+    }()
+
+    static func date(from iso: String) -> Date? {
+        isoFractional.date(from: iso) ?? Self.iso.date(from: iso)
     }
 }
 
@@ -425,15 +459,9 @@ struct DateSeparator: View {
     }
 
     private var label: String {
-        let df = ISO8601DateFormatter()
-        df.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        let df2 = ISO8601DateFormatter()
-        df2.formatOptions = [.withInternetDateTime]
-        guard let date = df.date(from: dateString) ?? df2.date(from: dateString) else { return dateString }
-        let f = DateFormatter()
+        guard let date = ChatTimeFormat.date(from: dateString) else { return dateString }
         if Calendar.current.isDateInToday(date)     { return String(localized: "Today") }
         if Calendar.current.isDateInYesterday(date) { return String(localized: "Yesterday") }
-        f.dateFormat = "MMMM d"
-        return f.string(from: date)
+        return ChatTimeFormat.monthDay.string(from: date)
     }
 }

@@ -23,6 +23,15 @@ enum MediaAutoSaver {
         UserDefaults.standard.set(ids, forKey: savedKey(conversationId))
     }
 
+    /// Whether an incoming image is still eligible for auto-save — lets the caller
+    /// avoid decoding a full-resolution copy (§19.1: the list only decodes a small
+    /// downsampled bitmap) unless it will actually be written to the gallery.
+    static func shouldAutoSave(attachmentId: String, conversationId: String, isMine: Bool) -> Bool {
+        !isMine
+            && ChatLocalPrefs.saveToPhotos(conversationId) == .always
+            && !alreadySaved(attachmentId, conversationId)
+    }
+
     /// Save an incoming downloaded image when this chat's pref is "Always".
     static func autoSave(image: UIImage, attachmentId: String, conversationId: String, isMine: Bool) {
         guard !isMine,

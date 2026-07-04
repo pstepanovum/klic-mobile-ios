@@ -32,6 +32,14 @@ struct MessageActionsOverlay: View {
     private var mineEmojis: Set<String> { Set(message.reactions.filter { $0.mine }.map { $0.emoji }) }
     private var hasBody: Bool { !message.body.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
 
+    /// §19.4: the message's images — a multi-image message gets a paged preview so the
+    /// user can swipe through them without leaving the action sheet.
+    private var previewImages: [Attachment] { message.attachments.filter { $0.isImage } }
+    private var isMultiImage: Bool { previewImages.count > 1 }
+
+    /// §19.4: which image the paged preview is showing.
+    @State private var previewPage = 0
+
     var body: some View {
         ZStack {
             Color.black.opacity(0.45).ignoresSafeArea()
@@ -40,12 +48,59 @@ struct MessageActionsOverlay: View {
 
             VStack(alignment: isMine ? .trailing : .leading, spacing: 12) {
                 reactionBar
-                previewBubble
+                if isMultiImage {
+                    mediaPreviewPager
+                } else {
+                    previewBubble
+                }
                 actionsCard
             }
             .padding(.horizontal, 28)
             .frame(maxWidth: 420)
         }
+    }
+
+    /// §19.4: a mini paged media viewer embedded in the preview. Swiping LEFT/RIGHT
+    /// pages through the message's images (paged, with a dot indicator) without
+    /// dismissing the sheet — the reaction bar and action list stay live above/below.
+    private var mediaPreviewPager: some View {
+        let side: CGFloat = 264
+        return VStack(spacing: 10) {
+            TabView(selection: $previewPage) {
+                ForEach(Array(previewImages.enumerated()), id: \.element.id) { index, attachment in
+                    RemoteImage(
+                        url: URL(string: attachment.url),
+                        cacheKey: RemoteImageStore.attachmentCacheKey(attachment.id)
+                    ) { phase in
+                        switch phase {
+                        case .success(let image):
+                            image.resizable().scaledToFill()
+                        case .failure:
+                            KlicColor.surfaceRaised
+                                .overlay(Image(systemName: "photo").foregroundStyle(KlicColor.textMuted))
+                        default:
+                            KlicColor.surfaceRaised.overlay(LoadingCircle())
+                        }
+                    }
+                    .frame(width: side, height: side)
+                    .clipped()
+                    .tag(index)
+                }
+            }
+            .tabViewStyle(.page(indexDisplayMode: .never))
+            .frame(width: side, height: side)
+            .clipShape(RoundedRectangle(cornerRadius: 18))
+
+            // Dot indicator — current page highlighted.
+            HStack(spacing: 6) {
+                ForEach(previewImages.indices, id: \.self) { index in
+                    Circle()
+                        .fill(index == previewPage ? KlicColor.textPrimary : KlicColor.textMuted.opacity(0.4))
+                        .frame(width: 6, height: 6)
+                }
+            }
+        }
+        .frame(maxWidth: 300, alignment: isMine ? .trailing : .leading)
     }
 
     private var reactionBar: some View {

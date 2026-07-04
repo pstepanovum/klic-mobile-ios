@@ -286,14 +286,12 @@ private struct MediaBentoGrid: View {
         switch media.count {
         case 1:
             let attachment = media[0]
-            MediaTile(attachment: attachment, conversationId: conversationId, isMine: isMine, onTap: { onOpen(attachment) })
-                .frame(width: width, height: singleHeight(for: attachment))
+            MediaTile(attachment: attachment, size: CGSize(width: width, height: singleHeight(for: attachment)), conversationId: conversationId, isMine: isMine, onTap: { onOpen(attachment) })
         case 2:
             let tile = (width - spacing) / 2
             HStack(spacing: spacing) {
                 ForEach(media) { attachment in
-                    MediaTile(attachment: attachment, conversationId: conversationId, isMine: isMine, onTap: { onOpen(attachment) })
-                        .frame(width: tile, height: tile * 1.3)
+                    MediaTile(attachment: attachment, size: CGSize(width: tile, height: tile * 1.3), conversationId: conversationId, isMine: isMine, onTap: { onOpen(attachment) })
                 }
             }
         case 3:
@@ -303,12 +301,10 @@ private struct MediaBentoGrid: View {
             let smallWidth = width - spacing - largeWidth
             let smallHeight = (height - spacing) / 2
             HStack(spacing: spacing) {
-                MediaTile(attachment: media[0], conversationId: conversationId, isMine: isMine, onTap: { onOpen(media[0]) })
-                    .frame(width: largeWidth, height: height)
+                MediaTile(attachment: media[0], size: CGSize(width: largeWidth, height: height), conversationId: conversationId, isMine: isMine, onTap: { onOpen(media[0]) })
                 VStack(spacing: spacing) {
                     ForEach(media[1...]) { attachment in
-                        MediaTile(attachment: attachment, conversationId: conversationId, isMine: isMine, onTap: { onOpen(attachment) })
-                            .frame(width: smallWidth, height: smallHeight)
+                        MediaTile(attachment: attachment, size: CGSize(width: smallWidth, height: smallHeight), conversationId: conversationId, isMine: isMine, onTap: { onOpen(attachment) })
                     }
                 }
             }
@@ -323,8 +319,7 @@ private struct MediaBentoGrid: View {
                         ForEach(0..<2, id: \.self) { col in
                             let index = row * 2 + col
                             let attachment = visible[index]
-                            MediaTile(attachment: attachment, conversationId: conversationId, isMine: isMine, onTap: { onOpen(attachment) })
-                                .frame(width: tile, height: tile)
+                            MediaTile(attachment: attachment, size: CGSize(width: tile, height: tile), conversationId: conversationId, isMine: isMine, onTap: { onOpen(attachment) })
                                 .overlay {
                                     if index == 3, extra > 0 {
                                         ZStack {
@@ -363,6 +358,12 @@ private struct MediaBentoGrid: View {
 /// tile shows a placeholder with a manual download button instead of fetching.
 private struct MediaTile: View {
     let attachment: Attachment
+    /// The tile's final on-screen size. §19.3: the tile is framed + clipped HERE, in
+    /// the correct order (frame → clip → hit-test). Framing the image externally while
+    /// clipping internally let a `scaledToFill` tile overflow its slot and bleed over
+    /// neighbouring tiles/gutters in the bento grid. §19.1: the size also drives the
+    /// downsample target so only a small bitmap is decoded for the list.
+    let size: CGSize
     var conversationId: String = ""
     var isMine: Bool = false
     let onTap: () -> Void
@@ -374,31 +375,45 @@ private struct MediaTile: View {
     @State private var state: LoadState = .idle
 
     var body: some View {
-        Group {
-            if attachment.isVideo {
-                // §14.2: a real first-frame thumbnail behind the play glyph (sent
-                // videos are seeded at send time; received ones generate from the
-                // cached/remote asset). Full videos still stream on demand.
-                ZStack {
-                    VideoThumbnailView(attachment: attachment)
-                    if let milliseconds = attachment.durationMs, milliseconds > 0 {
-                        Text(durationText(milliseconds))
-                            .font(KlicFont.caption(11))
-                            .foregroundStyle(.white)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
-                            .background(.black.opacity(0.5), in: Capsule())
-                            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
-                            .padding(6)
-                    }
+        content
+            .frame(width: size.width, height: size.height)
+            .clipped()
+            .contentShape(Rectangle())
+            .onTapGesture(perform: handleTap)
+    }
+
+    @ViewBuilder private var content: some View {
+        if attachment.isVideo {
+            // §14.2: a real first-frame thumbnail behind the play glyph (sent
+            // videos are seeded at send time; received ones generate from the
+            // cached/remote asset). Full videos still stream on demand.
+            ZStack {
+                VideoThumbnailView(attachment: attachment)
+                if let milliseconds = attachment.durationMs, milliseconds > 0 {
+                    Text(durationText(milliseconds))
+                        .font(KlicFont.caption(11))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(.black.opacity(0.5), in: Capsule())
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
+                        .padding(6)
                 }
-                .contentShape(Rectangle())
-                .onTapGesture(perform: onTap)
-            } else {
-                imageBody
             }
+        } else {
+            imageBody
         }
-        .clipped()
+    }
+
+    /// Routes the single tile-level tap: open the viewer for a ready image/video, or
+    /// (re)trigger a manual download when the tile is a placeholder.
+    private func handleTap() {
+        if attachment.isVideo { onTap(); return }
+        switch state {
+        case .loaded: onTap()
+        case .blocked, .failed: Task { await load(force: true) }
+        default: break
+        }
     }
 
     @ViewBuilder private var imageBody: some View {
@@ -407,8 +422,6 @@ private struct MediaTile: View {
             Image(uiImage: image)
                 .resizable()
                 .scaledToFill()
-                .contentShape(Rectangle())
-                .onTapGesture(perform: onTap)
         case .blocked:
             KlicColor.surfaceRaised
                 .overlay {
@@ -421,18 +434,21 @@ private struct MediaTile: View {
                             .foregroundStyle(KlicColor.textMuted)
                     }
                 }
-                .contentShape(Rectangle())
-                .onTapGesture { Task { await load(force: true) } }
         case .failed:
             KlicColor.surfaceRaised
                 .overlay(Image(systemName: "photo").foregroundStyle(KlicColor.textMuted))
-                .contentShape(Rectangle())
-                .onTapGesture { Task { await load(force: true) } }
         default:
             KlicColor.surfaceRaised
                 .overlay(LoadingCircle())
-                .task(id: attachment.url) { await load(force: false) }
+                // §9.9/§19.1: keyed by the STABLE attachment id (the presigned URL
+                // rotates on every fetch — keying on it re-ran the decode needlessly).
+                .task(id: attachment.id) { await load(force: false) }
         }
+    }
+
+    /// Longest displayed edge in pixels (capped) — the downsample target for §19.1.
+    private var maxPixelSize: CGFloat {
+        min(max(size.width, size.height) * UIScreen.main.scale, 1280)
     }
 
     private func load(force: Bool) async {
@@ -443,8 +459,10 @@ private struct MediaTile: View {
         // §9.9: cache by attachment id, not the (rotating) presigned URL, so
         // re-entering a chat never re-downloads media.
         let cacheKey = RemoteImageStore.attachmentCacheKey(attachment.id)
-        // Already cached → always show (no network involved).
-        if let cached = await RemoteImageStore.shared.cachedImage(for: url, cacheKey: cacheKey) {
+        let target = maxPixelSize
+        // Already cached → always show (no network involved). §19.1: a downsampled,
+        // fully-decoded bitmap so the scroll path never decodes on the main thread.
+        if let cached = await RemoteImageStore.shared.cachedDisplayImage(for: url, cacheKey: cacheKey, maxPixelSize: target) {
             state = .loaded(cached)
             return
         }
@@ -453,15 +471,19 @@ private struct MediaTile: View {
             return
         }
         state = .loading
-        guard let image = await RemoteImageStore.shared.image(for: url, cacheKey: cacheKey) else {
+        guard let image = await RemoteImageStore.shared.displayImage(for: url, cacheKey: cacheKey, maxPixelSize: target) else {
             state = .failed
             return
         }
         state = .loaded(image)
         // "Save to Photos: Always" — incoming photos save when their bytes arrive.
-        if !conversationId.isEmpty {
+        // The display copy is downsampled, so decode the FULL-resolution image (from
+        // the bytes just cached — no extra network) only when a save will happen.
+        if !conversationId.isEmpty,
+           MediaAutoSaver.shouldAutoSave(attachmentId: attachment.id, conversationId: conversationId, isMine: isMine),
+           let full = await RemoteImageStore.shared.image(for: url, cacheKey: cacheKey) {
             MediaAutoSaver.autoSave(
-                image: image, attachmentId: attachment.id,
+                image: full, attachmentId: attachment.id,
                 conversationId: conversationId, isMine: isMine
             )
         }
