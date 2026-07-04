@@ -101,6 +101,9 @@ struct PrivacySecurityView: View {
                 }
                 .background(KlicColor.surface, in: RoundedRectangle(cornerRadius: 20))
 
+                // Account security (§18.2): change password + recovery email.
+                AccountSecurityCard()
+
                 // Open links in
                 OpenLinksCard()
 
