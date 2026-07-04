@@ -18,6 +18,9 @@ struct MessageAttachmentsView: View {
     var mentionNames: [String] = []
     /// Conversation context for the auto-download gate + "Save to Photos" auto-save.
     var conversationId: String = ""
+    /// §14.5: the message's reactions, rendered INSIDE the hosting bubble.
+    var reactions: [Reaction] = []
+    var onReactionTap: (String) -> Void = { _ in }
     var onOpenAttachment: (Attachment) -> Void = { _ in }
     var onLongPress: () -> Void = {}
 
@@ -37,14 +40,17 @@ struct MessageAttachmentsView: View {
                     highlightMentions: highlightMentions,
                     mentionNames: mentionNames,
                     conversationId: conversationId,
+                    reactions: reactions,
+                    onReactionTap: onReactionTap,
                     onOpen: onOpenAttachment,
                     onLongPress: onLongPress
                 )
             }
             ForEach(Array(others.enumerated()), id: \.1.id) { index, attachment in
                 // Time/ticks ride on the media card when there is one; otherwise on the
-                // last non-media row (same as before).
+                // last non-media row (same as before). §14.5: reactions too.
                 let isTimedRow = media.isEmpty && showTime && index == others.count - 1
+                let hostsReactions = media.isEmpty && index == others.count - 1
                 switch attachment.kind {
                 case "VOICE":
                     VoiceAttachmentView(
@@ -52,7 +58,10 @@ struct MessageAttachmentsView: View {
                         isMine: isMine,
                         time: isTimedRow ? time : nil,
                         status: isTimedRow ? status : nil,
-                        starred: isTimedRow && starred
+                        starred: isTimedRow && starred,
+                        conversationId: conversationId,
+                        reactions: hostsReactions ? reactions : [],
+                        onReactionTap: onReactionTap
                     )
                 default:
                     FileAttachmentView(
@@ -60,7 +69,10 @@ struct MessageAttachmentsView: View {
                         isMine: isMine,
                         time: isTimedRow ? time : nil,
                         status: isTimedRow ? status : nil,
-                        starred: isTimedRow && starred
+                        starred: isTimedRow && starred,
+                        conversationId: conversationId,
+                        reactions: hostsReactions ? reactions : [],
+                        onReactionTap: onReactionTap
                     )
                 }
             }
@@ -96,6 +108,10 @@ private struct MediaMessageCard: View {
     var highlightMentions: Bool = false
     var mentionNames: [String] = []
     var conversationId: String = ""
+    /// §14.5: reactions hosted by the card — inside it (caption card) or scrim-backed
+    /// on the media's bottom edge (bare grid).
+    var reactions: [Reaction] = []
+    var onReactionTap: (String) -> Void = { _ in }
     let onOpen: (Attachment) -> Void
     var onLongPress: () -> Void = {}
 
@@ -110,6 +126,12 @@ private struct MediaMessageCard: View {
                 conversationId: conversationId, isMine: isMine, onOpen: onOpen
             )
             .overlay(alignment: .bottomTrailing) { overlayPill }
+            .overlay(alignment: .bottomLeading) {
+                if !reactions.isEmpty {
+                    InlineReactionChips(reactions: reactions, onMedia: true, onTap: onReactionTap)
+                        .padding(8)
+                }
+            }
         } else {
             VStack(alignment: .leading, spacing: 0) {
                 MediaBentoGrid(
@@ -132,6 +154,8 @@ private struct MediaMessageCard: View {
                         mentionColor: UIColor(isMine ? KlicColor.onPrimary : KlicColor.primary),
                         onLongPress: onLongPress
                     )
+                    // §14.6: time chip sizes first so the caption gets the full
+                    // remaining card width (see the text-bubble note).
                     HStack(spacing: 3) {
                         if starred { StarIndicator(onPrimary: isMine) }
                         Text(time)
@@ -141,14 +165,23 @@ private struct MediaMessageCard: View {
                             MessageTicks(status: status, onPrimary: isMine)
                         }
                     }
+                    .fixedSize()
+                    .layoutPriority(1)
                 }
                 .padding(.horizontal, 10)
                 .padding(.top, 6)
-                .padding(.bottom, 9)
+                .padding(.bottom, reactions.isEmpty ? 9 : 4)
+
+                // §14.5: reaction chips inside the card, at its bottom edge.
+                if !reactions.isEmpty {
+                    InlineReactionChips(reactions: reactions, onPrimary: isMine, onTap: onReactionTap)
+                        .padding(.horizontal, 10)
+                        .padding(.bottom, 9)
+                }
             }
             .frame(width: mediaWidth)
             .background(
-                isMine ? chatTheme.bubbleColor : KlicColor.surfaceRaised,
+                isMine ? chatTheme.bubbleColor(for: conversationId) : KlicColor.surfaceRaised,
                 in: RoundedRectangle(cornerRadius: cardRadius)
             )
         }
@@ -284,13 +317,11 @@ private struct MediaTile: View {
     var body: some View {
         Group {
             if attachment.isVideo {
-                // Videos never auto-fetch (they stream on demand from the viewer),
-                // so the placeholder-with-tap contract already holds for them.
+                // §14.2: a real first-frame thumbnail behind the play glyph (sent
+                // videos are seeded at send time; received ones generate from the
+                // cached/remote asset). Full videos still stream on demand.
                 ZStack {
-                    Color.black.opacity(0.85)
-                    Image(systemName: "play.circle.fill")
-                        .font(.system(size: 40))
-                        .foregroundStyle(.white.opacity(0.95))
+                    VideoThumbnailView(attachment: attachment)
                     if let milliseconds = attachment.durationMs, milliseconds > 0 {
                         Text(durationText(milliseconds))
                             .font(KlicFont.caption(11))
@@ -392,6 +423,10 @@ private struct VoiceAttachmentView: View {
     var time: String? = nil
     var status: String? = nil
     var starred: Bool = false
+    var conversationId: String = ""
+    /// §14.5: reactions hosted inside the voice pill.
+    var reactions: [Reaction] = []
+    var onReactionTap: (String) -> Void = { _ in }
 
     @ObservedObject private var player = AudioPlaybackManager.shared
 
@@ -438,10 +473,16 @@ private struct VoiceAttachmentView: View {
                     }
                 }
             }
+
+            // §14.5: reaction chips inside the voice pill, at its bottom edge.
+            if !reactions.isEmpty {
+                InlineReactionChips(reactions: reactions, onPrimary: isMine, onTap: onReactionTap)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
-        .background(isMine ? chatTheme.bubbleColor : KlicColor.surfaceRaised, in: RoundedRectangle(cornerRadius: 18))
+        .background(isMine ? chatTheme.bubbleColor(for: conversationId) : KlicColor.surfaceRaised, in: RoundedRectangle(cornerRadius: 18))
         .onAppear {
             // Auto-download matrix (§8.3): pre-cache voice notes when allowed on this network.
             if AutoDownloadPrefs.allowedNow(.audio), !AttachmentFileStore.shared.isCached(attachment) {
@@ -476,6 +517,10 @@ private struct FileAttachmentView: View {
     var time: String? = nil
     var status: String? = nil
     var starred: Bool = false
+    var conversationId: String = ""
+    /// §14.5: reactions hosted inside the file pill / PDF card.
+    var reactions: [Reaction] = []
+    var onReactionTap: (String) -> Void = { _ in }
 
     @ObservedObject private var store = AttachmentFileStore.shared
     @State private var previewFile: LocalFile?
@@ -571,10 +616,17 @@ private struct FileAttachmentView: View {
             }
             .padding(.horizontal, 10)
             .padding(.top, 4)
-            .padding(.bottom, 9)
+            .padding(.bottom, reactions.isEmpty ? 9 : 4)
+
+            // §14.5: reaction chips inside the PDF card, at its bottom edge.
+            if !reactions.isEmpty {
+                InlineReactionChips(reactions: reactions, onPrimary: isMine, onTap: onReactionTap)
+                    .padding(.horizontal, 10)
+                    .padding(.bottom, 9)
+            }
         }
         .frame(width: 240)
-        .background(isMine ? chatTheme.bubbleColor : KlicColor.surfaceRaised, in: RoundedRectangle(cornerRadius: 18))
+        .background(isMine ? chatTheme.bubbleColor(for: conversationId) : KlicColor.surfaceRaised, in: RoundedRectangle(cornerRadius: 18))
     }
 
     private func pdfPreviewHeight(_ image: UIImage) -> CGFloat {
@@ -619,10 +671,16 @@ private struct FileAttachmentView: View {
                         }
                     }
                 }
+
+                // §14.5: reaction chips inside the file pill, at its bottom edge.
+                if !reactions.isEmpty {
+                    InlineReactionChips(reactions: reactions, onPrimary: isMine, onTap: onReactionTap)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
             }
             .padding(12)
             .frame(maxWidth: 240, alignment: .leading)
-            .background(isMine ? chatTheme.bubbleColor : KlicColor.surfaceRaised, in: RoundedRectangle(cornerRadius: 16))
+            .background(isMine ? chatTheme.bubbleColor(for: conversationId) : KlicColor.surfaceRaised, in: RoundedRectangle(cornerRadius: 16))
     }
 
     /// Render (or reuse) the PDF's first page, cached by attachment id (§10.10).
