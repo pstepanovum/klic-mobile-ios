@@ -7,7 +7,13 @@ struct RootView: View {
     @EnvironmentObject var session: AppSession
     @StateObject private var callKit = CallKitManager.shared
     @StateObject private var appLock = AppLockManager.shared
+    @StateObject private var friendLinks = FriendLinkRouter.shared
     @State private var didGetStarted = false
+    @State private var selectedTab: RootTab = .chats
+
+    private enum RootTab: Hashable {
+        case chats, friends, call, settings
+    }
 
     /// Ask for mic + camera the moment the user is signed in — never mid-call. Asking when LiveKit
     /// first touches the devices is jarring and, for a callee, too late: an un-granted mic means the
@@ -32,30 +38,39 @@ struct RootView: View {
         ZStack {
             Group {
                 if session.isAuthenticated {
-                    TabView {
+                    TabView(selection: $selectedTab) {
                         ConversationsView()
                             .tabItem {
                                 Image("ic_line_message_3").renderingMode(.template)
                                 Text("Chats")
                             }
+                            .tag(RootTab.chats)
                         FriendsView()
                             .tabItem {
                                 Image(KlicIcon.user.line).renderingMode(.template)
                                 Text("Friends")
                             }
+                            .tag(RootTab.friends)
                         CallDialView()
                             .tabItem {
                                 Image(KlicIcon.phone.line).renderingMode(.template)
                                 Text("Call")
                             }
+                            .tag(RootTab.call)
                         SettingsView()
                             .tabItem {
                                 Image(KlicIcon.settings.line).renderingMode(.template)
                                 Text("Settings")
                             }
+                            .tag(RootTab.settings)
                     }
                     .tint(KlicColor.primary)
                     .onAppear { requestCallPermissions() }
+                    // §13.8: an incoming friend link jumps to the Friends tab, where
+                    // FriendsView opens the add-friend flow prefilled.
+                    .onReceive(friendLinks.$pendingUsername) { username in
+                        if username != nil { selectedTab = .friends }
+                    }
                 } else if didGetStarted {
                     AuthView()
                         .transition(.identity)

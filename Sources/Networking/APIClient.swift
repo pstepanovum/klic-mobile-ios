@@ -25,6 +25,16 @@ actor APIClient {
 
     private let session = URLSession.shared
 
+    /// §13.15: attachment uploads run on their own session with a generous resource
+    /// timeout — a multi-hundred-MB video on a slow connection must be allowed to
+    /// finish (the server's upload presigns last 2h to match).
+    private let uploadSession: URLSession = {
+        let config = URLSessionConfiguration.default
+        config.timeoutIntervalForRequest = 120            // inactivity, resets on bytes sent
+        config.timeoutIntervalForResource = 2 * 60 * 60   // whole-transfer ceiling
+        return URLSession(configuration: config)
+    }()
+
     /// Coalesces concurrent refreshes so a burst of 401s triggers exactly one
     /// rotation + retry instead of N competing rotations.
     private var refreshTask: Task<Bool, Never>?
@@ -376,7 +386,7 @@ actor APIClient {
         var req = URLRequest(url: url)
         req.httpMethod = "PUT"
         req.setValue(contentType, forHTTPHeaderField: "Content-Type")
-        let (_, resp) = try await session.upload(for: req, from: data)
+        let (_, resp) = try await uploadSession.upload(for: req, from: data)
         guard let http = resp as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
             throw APIError.server(message: String(localized: "Upload failed"), status: (resp as? HTTPURLResponse)?.statusCode ?? 0)
         }
@@ -398,13 +408,36 @@ actor APIClient {
         req.httpMethod = "PUT"
         req.setValue(contentType, forHTTPHeaderField: "Content-Type")
         let delegate = UploadProgressDelegate(onProgress: onProgress)
-        let (_, resp) = try await session.upload(for: req, from: data, delegate: delegate)
+        let (_, resp) = try await uploadSession.upload(for: req, from: data, delegate: delegate)
         guard let http = resp as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
             throw APIError.server(message: String(localized: "Upload failed"), status: (resp as? HTTPURLResponse)?.statusCode ?? 0)
         }
         DataUsageTracker.shared.record(
             type: DataUsageTracker.mediaType(forContentType: contentType),
             sent: data.count, received: 0
+        )
+    }
+
+    /// Step 2, streamed from disk (§13.15): PUT a FILE's bytes without ever loading
+    /// them into memory — URLSession streams uploadTask(fromFile:) chunk by chunk.
+    /// Same progress contract as the Data variant.
+    func uploadFile(
+        _ fileURL: URL, to uploadUrl: String, contentType: String,
+        onProgress: @escaping @Sendable (Double) -> Void
+    ) async throws {
+        guard let url = URL(string: uploadUrl) else { throw APIError.noData }
+        var req = URLRequest(url: url)
+        req.httpMethod = "PUT"
+        req.setValue(contentType, forHTTPHeaderField: "Content-Type")
+        let delegate = UploadProgressDelegate(onProgress: onProgress)
+        let (_, resp) = try await uploadSession.upload(for: req, fromFile: fileURL, delegate: delegate)
+        guard let http = resp as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
+            throw APIError.server(message: String(localized: "Upload failed"), status: (resp as? HTTPURLResponse)?.statusCode ?? 0)
+        }
+        let size = (try? FileManager.default.attributesOfItem(atPath: fileURL.path)[.size] as? NSNumber)?.intValue ?? 0
+        DataUsageTracker.shared.record(
+            type: DataUsageTracker.mediaType(forContentType: contentType),
+            sent: size, received: 0
         )
     }
 

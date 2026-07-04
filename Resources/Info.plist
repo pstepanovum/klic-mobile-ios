@@ -27,13 +27,26 @@
         <string>ru</string>
         <string>zh-Hans</string>
     </array>
-    <!-- Google sign-in for email linking (§12.2). The iOS OAuth client id does not
-         exist yet — the app degrades gracefully while this stays empty. Once the
-         Firebase iOS app (bundle com.klic.mobile.app) exists, put its client id here
-         AND add the reversed client id (com.googleusercontent.apps.…) as a
-         CFBundleURLTypes URL scheme. -->
+    <!-- Google sign-in for email linking (§12.2/§13.5). GIDClientID is the Firebase
+         iOS OAuth client; GIDServerClientID is the WEB client — GoogleSignIn mints the
+         ID token with the server client as its audience so it matches the server's
+         GOOGLE_OAUTH_CLIENT_IDS. The reversed iOS client id is registered as a
+         CFBundleURLTypes URL scheme for the sign-in redirect. -->
     <key>GIDClientID</key>
-    <string></string>
+    <string>444745876755-qgktppdhful52dijjqfmia0i8hh3u8ph.apps.googleusercontent.com</string>
+    <key>GIDServerClientID</key>
+    <string>444745876755-7ju3vooupt27va2n2o55p0sgko7sm69k.apps.googleusercontent.com</string>
+    <key>CFBundleURLTypes</key>
+    <array>
+        <dict>
+            <key>CFBundleTypeRole</key>
+            <string>Editor</string>
+            <key>CFBundleURLSchemes</key>
+            <array>
+                <string>com.googleusercontent.apps.444745876755-qgktppdhful52dijjqfmia0i8hh3u8ph</string>
+            </array>
+        </dict>
+    </array>
     <key>UIApplicationSceneManifest</key>
     <dict>
         <key>UIApplicationSupportsMultipleScenes</key>
@@ -98,6 +111,7 @@
         <string>Bangers-Regular.ttf</string>
         <string>TikTokSans24ptExpanded-Medium.ttf</string>
         <string>TikTokSans24ptExpanded-Bold.ttf</string>
+        <string>TikTokSans24ptExpanded-Regular.ttf</string>
     </array>
 </dict>
 </plist>

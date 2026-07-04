@@ -21,6 +21,12 @@ struct AuthScaffold<Content: View>: View {
 
     @Environment(\.colorScheme) private var colorScheme
 
+    /// §13.9: how far the art/circle/content group is risen while the keyboard is up.
+    /// Driven by the keyboard-frame notifications and applied as a pure `.offset`
+    /// (a render-time translation) — the heavy circle/art layers are laid out ONCE
+    /// and never re-layout during the transition, so the shift stays at 60fps.
+    @State private var keyboardShift: CGFloat = 0
+
     var body: some View {
         GeometryReader { geo in
             let widthScale = geo.size.width / AuthStyle.referenceWidth
@@ -30,13 +36,7 @@ struct AuthScaffold<Content: View>: View {
             // iPad/iPhone) the dome is flattened toward the top to guarantee
             // enough room for it, rather than letting it run under the fold.
             let effectiveTipFraction = geo.size.height < 700 ? tipFraction * 0.6 : tipFraction
-            // Keyboard avoidance: SwiftUI reports an open keyboard as extra bottom
-            // safe-area inset rather than resizing the frame (the GeometryReader is
-            // deliberately NOT told to ignore that region below). Rise the sheet,
-            // art and content by that amount so the fields never end up hidden
-            // under the keyboard instead of just sitting still.
-            let keyboardShift = max(0, geo.safeAreaInsets.bottom - 34)
-            let tipY = max(60, geo.size.height * effectiveTipFraction - keyboardShift)
+            let tipY = max(60, geo.size.height * effectiveTipFraction)
             let topInset = tipY + 44
             // Space available for the form between the circle's tip and the
             // bottom edge. On a compact iPhone this is barely more than the
@@ -49,37 +49,56 @@ struct AuthScaffold<Content: View>: View {
                 KlicColor.background
                     .ignoresSafeArea()
 
-                Image(artworkName)
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: artSide)
-                    .position(x: geo.size.width / 2, y: tipY * 0.5)
-                    .allowsHitTesting(false)
+                // The whole scene (art + sheet circle + form) rises as ONE offset
+                // group while the keyboard animates in/out — no per-frame layout.
+                Group {
+                    Image(artworkName)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: artSide)
+                        .position(x: geo.size.width / 2, y: tipY * 0.5)
+                        .allowsHitTesting(false)
 
-                Circle()
-                    .fill(AuthStyle.circleFill(colorScheme))
-                    .frame(width: scaledRadius * 2, height: scaledRadius * 2)
-                    .position(x: geo.size.width / 2, y: tipY + scaledRadius)
-                    .allowsHitTesting(false)
+                    Circle()
+                        .fill(AuthStyle.circleFill(colorScheme))
+                        .frame(width: scaledRadius * 2, height: scaledRadius * 2)
+                        .position(x: geo.size.width / 2, y: tipY + scaledRadius)
+                        .allowsHitTesting(false)
 
-                VStack(spacing: 0) {
-                    content()
+                    VStack(spacing: 0) {
+                        content()
+                    }
+                    .frame(maxWidth: AuthStyle.contentMaxWidth)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: contentRegionHeight, alignment: .center)
+                    .padding(.top, topInset)
                 }
-                .frame(maxWidth: AuthStyle.contentMaxWidth)
-                .frame(maxWidth: .infinity)
-                .frame(height: contentRegionHeight, alignment: .center)
-                .padding(.top, topInset)
+                .offset(y: -keyboardShift)
             }
             .frame(width: geo.size.width, height: geo.size.height)
             .clipped()
-            .animation(.easeOut(duration: 0.25), value: keyboardShift)
         }
-        // Container safe area (status bar + home indicator) is ignored on both
-        // edges so the art/circle/background bleed fully to the screen edges —
-        // the KEYBOARD safe-area region is deliberately left alone (a bare
-        // `.ignoresSafeArea()` would swallow that too and break the keyboard
-        // avoidance above).
+        // Container safe area (status bar + home indicator) is ignored on both edges
+        // so the art/circle/background bleed fully to the screen edges. The keyboard
+        // region is ALSO ignored (§13.9): SwiftUI's inset-driven avoidance re-layouts
+        // the whole scaffold every frame of the keyboard animation (the visible
+        // freeze/jump) — instead the keyboard notifications below drive a matched,
+        // offset-only rise.
         .ignoresSafeArea(.container, edges: .all)
+        .ignoresSafeArea(.keyboard, edges: .bottom)
+        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillChangeFrameNotification)) { note in
+            guard let end = note.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect else { return }
+            let screen = UIScreen.main.bounds
+            // Rise by the keyboard overlap minus the home-indicator band the form
+            // already clears — same travel the safe-area path used to produce.
+            let target = max(0, (screen.maxY - end.origin.y) - 34)
+            guard target != keyboardShift else { return }
+            // UIKit's keyboard animation is a spring with these exact parameters —
+            // matching it keeps the form glued to the keyboard's own curve.
+            withAnimation(.interpolatingSpring(mass: 3, stiffness: 1000, damping: 500, initialVelocity: 0)) {
+                keyboardShift = target
+            }
+        }
         .toolbar(.hidden, for: .navigationBar)
         .toolbarBackground(.hidden, for: .navigationBar)
         .enableInjection()

@@ -46,15 +46,28 @@ struct KlicApp: App {
                 .onContinueUserActivity("INStartVideoCallIntent") { activity in
                     CallIntents.startCall(from: activity)
                 }
-                // Google sign-in callback for email linking (§12.2).
+                // Friend links (§13.8) + Google sign-in callback for email linking (§12.2).
                 .onOpenURL { url in
+                    if FriendLinkRouter.shared.handle(url) { return }
                     _ = GIDSignIn.sharedInstance.handle(url)
+                }
+                // Universal links (§13.8): /u/* and /add/* → the add-friend flow.
+                .onContinueUserActivity(NSUserActivityTypeBrowsingWeb) { activity in
+                    if let url = activity.webpageURL {
+                        FriendLinkRouter.shared.handle(url)
+                    }
                 }
         }
     }
 
     private func configureNavigationBar() {
         UINavigationBar.appearance().tintColor = UIColor(KlicColor.primary)
+        // §13.2: top-level page titles (Chats / Friends / Call / Settings — the large
+        // navigation titles) render in TikTok Sans 24pt Expanded Regular. Only the
+        // large-title font changes; inline titles on sub-pages keep the system face.
+        if let titleFont = UIFont(name: "TikTokSans24ptExpanded-Regular", size: 34) {
+            UINavigationBar.appearance().largeTitleTextAttributes = [.font: titleFont]
+        }
     }
 
     private func configureTabBar() {

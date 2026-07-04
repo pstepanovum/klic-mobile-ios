@@ -71,9 +71,13 @@ struct MessageBubble: View {
         .frame(maxWidth: .infinity, alignment: isMine ? .trailing : .leading)
     }
 
+    /// §13.3: the gutter reserved opposite a bubble. Small enough that text pills can
+    /// fill ~85% of the row before wrapping (was 56 — bubbles wrapped too early).
+    private static let bubbleGutter: CGFloat = 44
+
     private var standardBubble: some View {
         HStack(alignment: .bottom, spacing: 6) {
-            if isMine { Spacer(minLength: 56) }
+            if isMine { Spacer(minLength: Self.bubbleGutter) }
 
             if showGroupAvatar {
                 groupAvatar
@@ -92,7 +96,7 @@ struct MessageBubble: View {
                 Color.clear.frame(width: 34, height: 34)
             }
 
-            if !isMine { Spacer(minLength: 56) }
+            if !isMine { Spacer(minLength: Self.bubbleGutter) }
         }
         .padding(.vertical, 1)
     }
@@ -140,12 +144,12 @@ struct MessageBubble: View {
 
                     if let emojiCount = emojiOnlyCount {
                         // §10.3: 1–3 emoji-only messages render WhatsApp-style — no
-                        // bubble background, large glyphs (1 biggest, 2–3 smaller),
-                        // time/ticks in the usual inline overlay position.
+                        // bubble background, large glyphs (1 biggest, 2–3 smaller).
+                        // §13.7: time/ticks sit BELOW the emoji, bottom-trailing.
                         if let reply = message.replyTo, message.attachments.isEmpty {
                             ReplyQuoteView(reply: reply, authorName: replyAuthorName)
                         }
-                        HStack(alignment: .bottom, spacing: 6) {
+                        VStack(alignment: .trailing, spacing: 2) {
                             Text(message.body.trimmingCharacters(in: .whitespacesAndNewlines))
                                 .font(.system(size: Self.bigEmojiSize(emojiCount)))
                             inlineTimeStatus(onPrimary: false)

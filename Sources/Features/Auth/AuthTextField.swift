@@ -17,6 +17,7 @@ struct AuthTextField: View {
 
     @Environment(\.colorScheme) private var colorScheme
     @State private var revealSecure = false
+    @FocusState private var focused: Bool
 
     var body: some View {
         HStack(spacing: 6) {
@@ -39,6 +40,7 @@ struct AuthTextField: View {
             .textInputAutocapitalization(.never)
             .autocorrectionDisabled()
             .textContentType(contentType)
+            .focused($focused)
 
             if isSecure {
                 Button {
@@ -56,9 +58,14 @@ struct AuthTextField: View {
         .padding(.horizontal, 18)
         // Matches PillButton's rendered height (16pt vertical padding around
         // its ~17pt Expanded-Medium label) so inputs and the CTA read as the
-        // same pill height in a stack.
+        // same pill height in a stack. 52pt also clears the 48pt touch-target
+        // minimum (§13.11).
         .frame(height: 52)
         .background(AuthStyle.fieldFill(colorScheme), in: Capsule())
+        // §13.11: the WHOLE capsule is tappable — a tap anywhere inside (padding,
+        // prefix glyph, empty trailing space) focuses the field, not just the text.
+        .contentShape(Capsule())
+        .onTapGesture { focused = true }
         .enableInjection()
     }
 

@@ -2,10 +2,11 @@ import SwiftUI
 import CoreImage.CIFilterBuiltins
 import AVFoundation
 
-/// Settings → QR Code (§10.7): a card with the user's avatar, name and a QR encoding
-/// https://klic.app/add/<username> (generated locally with CoreImage), a Scan tab
-/// that parses the same format (or a raw @username) into the add-friend flow, and a
-/// ShareLink exporting the QR image.
+/// Settings → QR Code (§10.7/§13.8): a card with the user's avatar, name and a QR
+/// encoding https://klic.pstepanov.dev/u/<username> (generated locally with
+/// CoreImage), a Scan tab that parses the /u/ and /add/ URL forms plus the legacy
+/// klic.app / raw-@username payloads into the add-friend flow, and a ShareLink
+/// exporting the QR image.
 struct QRCodeView: View {
     @EnvironmentObject var session: AppSession
     @State private var tab: Tab = .myCode
@@ -62,7 +63,7 @@ struct QRCodeView: View {
     // MARK: My code
 
     private var addLink: String {
-        "https://klic.app/add/\(session.currentUser?.username ?? "")"
+        FriendLinkRouter.link(forUsername: session.currentUser?.username ?? "")
     }
 
     private var myCodeCard: some View {
@@ -202,22 +203,16 @@ private struct QRScanPane: View {
         }
     }
 
-    /// Accepts https://klic.app/add/<username> and raw "@username" payloads (§10.7).
+    /// Accepts https://klic.pstepanov.dev/u|add/<username>, the legacy klic.app
+    /// links, and raw "@username" payloads (§10.7/§13.8).
     private func handle(_ code: String) {
         guard resolvedUsername == nil || scanned != code else { return }
         scanned = code
-        let trimmed = code.trimmingCharacters(in: .whitespacesAndNewlines)
-        if let url = URL(string: trimmed),
-           url.host?.hasSuffix("klic.app") == true,
-           url.pathComponents.count >= 3,
-           url.pathComponents[1] == "add" {
-            resolvedUsername = url.pathComponents[2].lowercased()
-        } else if trimmed.hasPrefix("@"), trimmed.count > 1 {
-            resolvedUsername = String(trimmed.dropFirst()).lowercased()
-        } else {
+        guard let username = FriendLinkRouter.username(fromScannedCode: code) else {
             statusText = String(localized: "That doesn't look like a Klic code.")
             return
         }
+        resolvedUsername = username
         statusText = nil
         UINotificationFeedbackGenerator().notificationOccurred(.success)
     }

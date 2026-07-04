@@ -7,7 +7,15 @@ struct ChatThemeView: View {
     @ObserveInjection var inject
     @ObservedObject private var theme = ChatThemeStore.shared
 
-    private let patternColumns = [GridItem(.adaptive(minimum: 64), spacing: 10)]
+    // §13.1: a PROPER grid — uniform tile size/spacing/corner radius, two fixed
+    // rows scrolling horizontally so the layout never jags.
+    private static let patternTileSize: CGFloat = 72
+    private static let patternTileSpacing: CGFloat = 10
+    private static let patternTileRadius: CGFloat = 14
+    private let patternRows = [
+        GridItem(.fixed(patternTileSize), spacing: patternTileSpacing),
+        GridItem(.fixed(patternTileSize), spacing: patternTileSpacing),
+    ]
 
     var body: some View {
         ScrollView {
@@ -71,10 +79,13 @@ struct ChatThemeView: View {
                 .font(KlicFont.headline(17))
                 .foregroundStyle(KlicColor.textPrimary)
 
-            LazyVGrid(columns: patternColumns, spacing: 10) {
-                ForEach(1...10, id: \.self) { id in
-                    patternSwatch(id)
+            ScrollView(.horizontal, showsIndicators: false) {
+                LazyHGrid(rows: patternRows, spacing: Self.patternTileSpacing) {
+                    ForEach(1...10, id: \.self) { id in
+                        patternSwatch(id)
+                    }
                 }
+                .padding(.vertical, 2)
             }
 
             VStack(alignment: .leading, spacing: 4) {
@@ -96,8 +107,12 @@ struct ChatThemeView: View {
         .background(KlicColor.surface, in: RoundedRectangle(cornerRadius: 20))
     }
 
+    /// §13.1 selection treatment: an accent-colored ring (2.5pt, slightly inset) plus
+    /// a small checkmark badge; unselected tiles keep a hairline neutral border so
+    /// tiles read as tiles in both light and dark themes.
     private func patternSwatch(_ id: Int) -> some View {
-        Button {
+        let selected = theme.patternId == id
+        return Button {
             withAnimation(.easeInOut(duration: 0.15)) { theme.patternId = id }
         } label: {
             ZStack {
@@ -105,15 +120,30 @@ struct ChatThemeView: View {
                 ChatPatternImage(patternId: id)
                     .opacity(0.5)
             }
-            .frame(height: 64)
-            .clipShape(RoundedRectangle(cornerRadius: 14))
+            .frame(width: Self.patternTileSize, height: Self.patternTileSize)
+            .clipShape(RoundedRectangle(cornerRadius: Self.patternTileRadius))
             .overlay(
-                RoundedRectangle(cornerRadius: 14)
-                    .strokeBorder(
-                        theme.patternId == id ? KlicColor.primary : KlicColor.surfaceRaised,
-                        lineWidth: theme.patternId == id ? 2 : 1
-                    )
+                RoundedRectangle(cornerRadius: Self.patternTileRadius)
+                    .strokeBorder(KlicColor.textPrimary.opacity(0.14), lineWidth: 1)
+                    .opacity(selected ? 0 : 1)
             )
+            .overlay(
+                RoundedRectangle(cornerRadius: Self.patternTileRadius - 1.5)
+                    .inset(by: 1.5)
+                    .strokeBorder(KlicColor.primary, lineWidth: 2.5)
+                    .opacity(selected ? 1 : 0)
+            )
+            .overlay(alignment: .topTrailing) {
+                if selected {
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundStyle(KlicColor.onPrimary)
+                        .frame(width: 18, height: 18)
+                        .background(KlicColor.primary, in: Circle())
+                        .padding(5)
+                        .transition(.scale.combined(with: .opacity))
+                }
+            }
         }
         .buttonStyle(.plain)
     }

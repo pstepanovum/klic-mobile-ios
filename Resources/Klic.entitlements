@@ -10,12 +10,16 @@
     <array>
         <string>group.com.klic.mobile.app</string>
     </array>
-    <!-- Passkeys (§10.4): the API serves /.well-known/apple-app-site-association with
-         webcredentials for this app id. AltStore re-signing may strip this — the
-         passkey UI degrades with a readable error in that case. -->
+    <!-- Passkeys (§10.4/§13.10): the RP is klic.pstepanov.dev — its AASA serves
+         webcredentials for this app id (the legacy sslip.io entry stays; harmless).
+         Universal links (§13.8): applinks for /u/* and /add/* friend links.
+         AltStore re-signing may strip this — passkeys degrade with a readable error
+         and universal links simply don't open the app (QR scanning still works). -->
     <key>com.apple.developer.associated-domains</key>
     <array>
+        <string>webcredentials:klic.pstepanov.dev</string>
         <string>webcredentials:api.89.34.230.2.sslip.io</string>
+        <string>applinks:klic.pstepanov.dev</string>
     </array>
 </dict>
 </plist>

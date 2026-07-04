@@ -57,7 +57,7 @@ struct MediaEditorView: View {
         .background(Color.black.ignoresSafeArea())
         .onAppear {
             if baseImage == nil {
-                baseImage = draft.previewImage ?? UIImage(data: draft.data)
+                baseImage = draft.previewImage ?? draft.data.flatMap(UIImage.init(data:))
             }
         }
         .klicSelectionSheet(

@@ -1718,6 +1718,23 @@
         }
       }
     },
+    "Couldn't reach the server. Check your connection and retry.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не удалось связаться с сервером. Проверьте подключение и повторите попытку."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法连接到服务器。请检查网络连接并重试。"
+          }
+        }
+      }
+    },
     "Couldn't read the selected photo.": {
       "extractionState": "manual",
       "localizations": {
@@ -4540,6 +4557,23 @@
         }
       }
     },
+    "Password": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Пароль"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "密码"
+          }
+        }
+      }
+    },
     "Pattern opacity": {
       "extractionState": "manual",
       "localizations": {
@@ -6784,6 +6818,23 @@
         }
       }
     },
+    "Upload failed. Please try again.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ошибка загрузки. Попробуйте ещё раз."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "上传失败。请重试。"
+          }
+        }
+      }
+    },
     "Upload quality": {
       "extractionState": "manual",
       "localizations": {
@@ -7596,23 +7647,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "昨天 %@ 上线"
-          }
-        }
-      }
-    },
-    "password": {
-      "extractionState": "manual",
-      "localizations": {
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "пароль"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "密码"
           }
         }
       }

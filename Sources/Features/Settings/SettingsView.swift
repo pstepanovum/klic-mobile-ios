@@ -81,16 +81,9 @@ struct SettingsView: View {
 
             Divider().padding(.leading, 64).opacity(0.4)
 
+            // Chat theme lives under Appearance only (§13.6) — no duplicate row here.
             NavigationLink { AppearanceView() } label: {
                 SettingsRow(icon: "sun.max", title: String(localized: "Appearance"))
-            }
-            .buttonStyle(.plain)
-
-            Divider().padding(.leading, 64).opacity(0.4)
-
-            // Chat theme (§12.3): pattern, gradient, bubble color — all chats.
-            NavigationLink { ChatThemeView() } label: {
-                SettingsRow(icon: "paintbrush", title: String(localized: "Chat theme"))
             }
             .buttonStyle(.plain)
         }

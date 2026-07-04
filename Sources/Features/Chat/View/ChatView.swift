@@ -168,7 +168,19 @@ struct ChatView: View {
         .frame(maxWidth: 760)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         // §12.3: background color → gradient → low-opacity pattern → messages.
-        .background(ChatThemeBackground().ignoresSafeArea())
+        // §13.4: the background stack is anchored to the SCREEN, not the keyboard-
+        // adjusted content area — a fixed screen-sized frame pinned to the top plus
+        // keyboard-inset exemption, so opening the keyboard moves only the
+        // messages/composer and never shifts the pattern.
+        .background(alignment: .top) {
+            ChatThemeBackground()
+                .frame(
+                    width: UIScreen.main.bounds.width,
+                    height: UIScreen.main.bounds.height
+                )
+                .ignoresSafeArea(.container, edges: .all)
+                .ignoresSafeArea(.keyboard, edges: .bottom)
+        }
         .navigationBarTitleDisplayMode(.inline)
         .toolbar(.hidden, for: .tabBar)
         .toolbar {
