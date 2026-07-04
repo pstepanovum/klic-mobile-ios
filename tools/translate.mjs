@@ -8,8 +8,9 @@
 //
 // NEW LANGUAGE: add its code to LANGS below and rerun.
 //
-// API key: env GEMINI_API_KEY, falling back to ../.translate.env at the workspace
-// root (OUTSIDE this repo — the repo is public; the key must never be committed).
+// API key: env GEMINI_API_KEY, falling back to ../klic-assets/env/.translate.env
+// at the workspace root (OUTSIDE this repo — the repo is public; the key must
+// never be committed).
 
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -29,14 +30,14 @@ const catalogPath = join(repoRoot, "Resources", "Localizable.xcstrings");
 
 function apiKey() {
   if (process.env.GEMINI_API_KEY) return process.env.GEMINI_API_KEY.trim();
-  const envFile = join(repoRoot, "..", ".translate.env");
+  const envFile = join(repoRoot, "..", "klic-assets", "env", ".translate.env");
   if (existsSync(envFile)) {
     for (const line of readFileSync(envFile, "utf8").split("\n")) {
       const match = line.match(/^\s*GEMINI_API_KEY\s*=\s*(.+)\s*$/);
       if (match) return match[1].trim();
     }
   }
-  console.error("No GEMINI_API_KEY in the environment and no ../.translate.env found.");
+  console.error("No GEMINI_API_KEY in the environment and no ../klic-assets/env/.translate.env found.");
   process.exit(1);
 }
 
