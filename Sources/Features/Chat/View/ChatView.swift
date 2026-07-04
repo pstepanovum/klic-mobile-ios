@@ -7,6 +7,8 @@ import Inject
 struct ChatView: View {
     @ObserveInjection var inject
     let conversation: Conversation
+    /// §18.4: when opened from global search, the message to scroll to + flash on first load.
+    var initialJumpMessageId: String? = nil
     @EnvironmentObject var session: AppSession
     @Environment(\.dismiss) var dismiss
     @Environment(\.scenePhase) private var scenePhase
@@ -74,6 +76,13 @@ struct ChatView: View {
     // Message search (group info → Search; §8.4).
     @State var showMessageSearch = false
     @State var pendingSearchJump: String?
+    // §18.4: in-chat header search — server-backed next/prev match navigation.
+    @State var showInChatSearch = false
+    @State var inChatSearchQuery = ""
+    @State var inChatMatches: [String] = []      // messageIds, newest-first (server order)
+    @State var inChatMatchIndex = 0
+    @State var inChatSearching = false
+    @State var inChatSearchTask: Task<Void, Never>?
     /// §16.6: who I've blocked — a blocked DM peer swaps the composer for the
     /// "You blocked <name>" banner (+ Unblock) in place.
     @ObservedObject var blockStore = BlockStore.shared
@@ -210,6 +219,19 @@ struct ChatView: View {
             // banner when the group has a live call we're not in yet.
             .safeAreaInset(edge: .top, spacing: 0) {
                 VStack(spacing: 0) {
+                    // §18.4: in-chat search bar with next/prev match navigation.
+                    if showInChatSearch {
+                        InChatSearchBar(
+                            query: $inChatSearchQuery,
+                            searching: inChatSearching,
+                            matchCount: inChatMatches.count,
+                            matchIndex: inChatMatchIndex,
+                            onPrev: { Task { await stepMatch(-1) } },
+                            onNext: { Task { await stepMatch(1) } },
+                            onClose: { closeInChatSearch() }
+                        )
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                    }
                     if showPinnedBar {
                         PinnedMessageBar(
                             pins: pinnedMessages,
@@ -247,6 +269,10 @@ struct ChatView: View {
             ToolbarItem(placement: .principal) { chatHeader }
             ToolbarItem(placement: .topBarTrailing) {
                 HStack(spacing: 20) {
+                    // §18.4: in-chat message search.
+                    Button { openInChatSearch() } label: {
+                        Image(systemName: "magnifyingglass").font(.system(size: 17))
+                    }
                     Button { Task { await startCall(kind: "AUDIO") } } label: {
                         Image(systemName: "phone.fill").font(.system(size: 18))
                     }
@@ -335,6 +361,8 @@ struct ChatView: View {
                 onSelect: { pendingSearchJump = $0 }
             )
         }
+        // §18.4: debounce in-chat search queries.
+        .onChange(of: inChatSearchQuery) { _, q in scheduleInChatSearch(q) }
         .klicSelectionSheet(
             isPresented: deleteDialogBinding,
             title: String(localized: "Delete message"),
@@ -384,6 +412,10 @@ struct ChatView: View {
             scrollToBottom(animated: false)
             initialLoadDone = true
             await loadPinned()   // §16.3 — degrades to no bar on older servers
+            // §18.4: jump to the message tapped in global search.
+            if let target = initialJumpMessageId {
+                await jumpToMessageHighlighting(target)
+            }
             #if DEBUG
             applyDebugSeedIfRequested()
             #endif
