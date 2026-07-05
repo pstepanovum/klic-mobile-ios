@@ -91,3 +91,6 @@ LiveKit track accessors in `CallService.swift` target SDK v2 — adjust if your 
 ## Roadmap
 Done: M1 auth/friends · M2 read receipts + push · M3 calling (CallKit + Dynamic Island + VoIP).
 Next: call history, group calls, typing indicators, store builds.
+
+## License
+Klic iOS is released under the [MIT License](LICENSE).
