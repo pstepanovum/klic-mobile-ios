@@ -301,27 +301,18 @@ private struct AutoNightModeView: View {
 
 // MARK: - Updates info page
 
+/// §20.2: a REAL update page — hits the public GitHub "latest release" on appear (throttled)
+/// and on demand via "Check for updates", then reflects the live state: checking / up to
+/// date / update available (version + notes + a CTA to the AltStore/TestFlight release) /
+/// offline / rate-limited / failed. iOS can't self-install IPAs, so the CTA opens the flow.
 private struct AppUpdateInfoView: View {
     let version: String
+    @StateObject private var checker = UpdateChecker.shared
 
     var body: some View {
         ScrollView {
             VStack(spacing: 20) {
-                // App icon + version badge
-                VStack(spacing: 12) {
-                    Image(systemName: "app.badge")
-                        .font(.system(size: 56, weight: .light))
-                        .foregroundStyle(KlicColor.primary)
-                    Text("Klic \(version)")
-                        .font(KlicFont.headline())
-                        .foregroundStyle(KlicColor.textPrimary)
-                    Text("You're on the latest version")
-                        .font(KlicFont.caption())
-                        .foregroundStyle(KlicColor.textMuted)
-                }
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 24)
-                .background(KlicColor.surface, in: RoundedRectangle(cornerRadius: 20))
+                statusCard
 
                 // Info rows
                 VStack(spacing: 0) {
@@ -332,6 +323,12 @@ private struct AppUpdateInfoView: View {
                     infoRow(label: String(localized: "Distribution"), value: "AltStore / TestFlight")
                 }
                 .background(KlicColor.surface, in: RoundedRectangle(cornerRadius: 20))
+
+                if let release = availableRelease, let notes = release.notes {
+                    whatsNewCard(notes: notes)
+                }
+
+                ctaButton
 
                 Text("Klic checks for new releases automatically and shows an update page when one is available. iOS updates install via AltStore or TestFlight.")
                     .font(KlicFont.caption(12))
@@ -345,6 +342,116 @@ private struct AppUpdateInfoView: View {
         .background(KlicColor.background.ignoresSafeArea())
         .navigationTitle("Updates")
         .navigationBarTitleDisplayMode(.inline)
+        .task { checker.checkOnAppear() }
+    }
+
+    private var availableRelease: UpdateChecker.ReleaseInfo? {
+        if case let .updateAvailable(release) = checker.status { return release }
+        return nil
+    }
+
+    // MARK: State card
+
+    private var statusCard: some View {
+        VStack(spacing: 12) {
+            Image(systemName: statusIcon)
+                .font(.system(size: 56, weight: .light))
+                .foregroundStyle(statusTint)
+            Text(availableRelease.map { "Klic \($0.version)" } ?? "Klic \(version)")
+                .font(KlicFont.headline())
+                .foregroundStyle(KlicColor.textPrimary)
+            Text(statusSubtitle)
+                .font(KlicFont.caption())
+                .foregroundStyle(statusIsError ? KlicColor.danger : KlicColor.textMuted)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 8)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 24)
+        .background(KlicColor.surface, in: RoundedRectangle(cornerRadius: 20))
+    }
+
+    private func whatsNewCard(notes: String) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("What's new")
+                .font(KlicFont.headline(14))
+                .foregroundStyle(KlicColor.textPrimary)
+            Text(notes)
+                .font(KlicFont.caption(13))
+                .foregroundStyle(KlicColor.textMuted)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(16)
+        .background(KlicColor.surface, in: RoundedRectangle(cornerRadius: 20))
+    }
+
+    @ViewBuilder
+    private var ctaButton: some View {
+        if let release = availableRelease {
+            PillButton(
+                title: String(localized: "Update now"),
+                fill: KlicColor.danger,
+                font: KlicFont.expandedMedium(17)
+            ) {
+                UIApplication.shared.open(release.url)
+            }
+        } else {
+            PillButton(
+                title: String(localized: "Check for updates"),
+                fill: KlicColor.surfaceRaised,
+                textColor: KlicColor.textPrimary,
+                isLoading: checker.status == .checking
+            ) {
+                checker.checkNow(force: true)
+            }
+        }
+    }
+
+    // MARK: State mapping
+
+    private var statusIcon: String {
+        switch checker.status {
+        case .updateAvailable: return "arrow.down.circle.fill"
+        case .offline:         return "wifi.slash"
+        case .rateLimited:     return "clock.badge.exclamationmark"
+        case .failed:          return "exclamationmark.triangle"
+        case .checking:        return "arrow.triangle.2.circlepath"
+        case .upToDate, .idle: return "checkmark.seal"
+        }
+    }
+
+    private var statusTint: Color {
+        switch checker.status {
+        case .updateAvailable:            return KlicColor.danger
+        case .offline, .rateLimited, .failed: return KlicColor.textMuted
+        default:                          return KlicColor.primary
+        }
+    }
+
+    private var statusIsError: Bool {
+        switch checker.status {
+        case .offline, .rateLimited, .failed: return true
+        default: return false
+        }
+    }
+
+    private var statusSubtitle: String {
+        switch checker.status {
+        case .checking:
+            return String(localized: "Checking for updates…")
+        case let .updateAvailable(release):
+            return String(localized: "Version \(release.version) is available")
+        case .upToDate:
+            return String(localized: "You're on the latest version")
+        case .offline:
+            return String(localized: "You're offline. Connect and try again.")
+        case .rateLimited:
+            return String(localized: "Too many checks — please try again later.")
+        case .failed:
+            return String(localized: "Couldn't check for updates. Please try again.")
+        case .idle:
+            return String(localized: "You're on the latest version")
+        }
     }
 
     private func infoRow(label: String, value: String) -> some View {
