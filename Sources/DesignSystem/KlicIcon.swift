@@ -5,6 +5,7 @@ enum KlicIcon {
     case camera, cameraOff
     case video, phone, callEnd
     case message, send, search
+    case check
     case user, addUser
     case settings, close, back
 
@@ -21,6 +22,7 @@ enum KlicIcon {
         case .message:   return "ic_bold_message"
         case .send:      return "ic_bold_send"
         case .search:    return "ic_bold_search"
+        case .check:     return "ic_bold_check"
         case .user:      return "ic_bold_user"
         case .addUser:   return "ic_bold_user_plus"
         case .settings:  return "ic_bold_setting"
@@ -42,6 +44,7 @@ enum KlicIcon {
         case .message:   return "ic_line_message"
         case .send:      return "ic_line_send"
         case .search:    return "ic_line_search"
+        case .check:     return "ic_line_check"
         case .user:      return "ic_line_user"
         case .addUser:   return "ic_line_user_plus"
         case .settings:  return "ic_line_setting"

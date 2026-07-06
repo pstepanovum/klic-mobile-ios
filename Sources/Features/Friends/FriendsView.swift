@@ -97,7 +97,7 @@ struct FriendsView: View {
                         }
                         Spacer()
                         Button { Task { await accept(req) } } label: {
-                            Icon(.message, size: 18, color: KlicColor.onPrimary)
+                            Icon(.check, size: 18, color: KlicColor.onPrimary, style: .line)
                                 .frame(width: 40, height: 40).background(KlicColor.primary, in: Circle())
                         }
                         Button { Task { await decline(req) } } label: {
