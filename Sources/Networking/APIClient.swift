@@ -270,9 +270,10 @@ actor APIClient {
 
     func conversations() async throws -> [Conversation] {
         var list: [Conversation] = try await get("/conversations")
-        for i in list.indices where list[i].lastMessage?.kind == "CIPHERTEXT" {
-            list[i].lastMessage = await E2eeMessaging.shared.materialize(list[i].lastMessage!)
-        }
+        let cipherIndices = list.indices.filter { list[$0].lastMessage?.kind == "CIPHERTEXT" }
+        guard !cipherIndices.isEmpty else { return list }
+        let materialized = await E2eeMessaging.shared.materializeAll(cipherIndices.map { list[$0].lastMessage! })
+        for (offset, i) in cipherIndices.enumerated() { list[i].lastMessage = materialized[offset] }
         return list
     }
 
@@ -819,7 +820,8 @@ actor APIClient {
     /// A non-expired access token, refreshing first if the current one is missing or
     /// stale. Returns whatever token we hold afterwards (nil only if refresh failed).
     private func validAccessToken() async -> String? {
-        if !AccessToken.isExpired(TokenStore.accessToken) { return TokenStore.accessToken }
+        let token = TokenStore.accessToken
+        if !AccessToken.isExpired(token) { return token }
         if TokenStore.refreshToken != nil { _ = await refreshAccessToken() }
         return TokenStore.accessToken
     }

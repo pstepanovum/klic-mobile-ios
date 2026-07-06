@@ -76,15 +76,16 @@ final class ConversationStore: ObservableObject {
             Task { await refresh() }
             return
         }
-        var convo = conversations[idx]
+        var list = conversations
+        var convo = list[idx]
         convo.lastMessage = message
         if message.senderId != myUserId, !message.isSystem {
             convo.unreadCount = (convo.unreadCount ?? 0) + 1
         }
-        conversations.remove(at: idx)
-        conversations.insert(convo, at: 0)
-        // §16.5: pinned chats stay above the recency order.
-        conversations = Self.pinSorted(conversations)
+        list.remove(at: idx)
+        list.insert(convo, at: 0)
+        // §16.5: pinned chats stay above the recency order. Single publish per event.
+        conversations = Self.pinSorted(list)
     }
 
     // MARK: §16.5 chat-list pins
