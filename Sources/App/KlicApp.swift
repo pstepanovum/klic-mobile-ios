@@ -44,12 +44,17 @@ struct KlicApp: App {
                 // App lock (§10.4): lock on background/foreground per the auto-lock pref.
                 AppLockManager.shared.handleScenePhase(phase)
                 if phase == .active {
+                    // Presence: report the app is in the foreground (server drives online state).
+                    SocketService.shared.emit("presence:active", ["active": true])
                     // Clear the app-icon badge + delivered banners when the user is back in.
                     UNUserNotificationCenter.current().setBadgeCount(0)
                     UNUserNotificationCenter.current().removeAllDeliveredNotifications()
                     if CallKitManager.shared.activeCall == nil {
                         CallActivityController.end()
                     }
+                } else if phase == .background {
+                    // Presence: backgrounded — no longer "online" even if the socket lingers briefly.
+                    SocketService.shared.emit("presence:active", ["active": false])
                 }
             }
             // Siri / CarPlay / Phone-app Recents call-back → resolve the contact and dial.
