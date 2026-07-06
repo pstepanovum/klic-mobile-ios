@@ -39,13 +39,18 @@ final class AppSession: ObservableObject {
     /// the session on a transient failure — that's what kept logging users out.
     func bootstrap() {
         guard TokenStore.hasSession else { return }
-        // Older installs hold tokens in the app-private keychain; move them into the
-        // shared access group so the share extension can authenticate too.
-        TokenStore.migrateToSharedGroupIfNeeded()
         Task {
-            // Refresh up front only when the access token is missing/expired — no
-            // gratuitous rotation (and no race) on every relaunch.
-            if AccessToken.isExpired(TokenStore.accessToken) {
+            // Keychain round-trips (migration probes + token read) are synchronous XPC
+            // calls to securityd — run them off the main actor so launch never stalls.
+            let needsRefresh = await Task.detached {
+                // Older installs hold tokens in the app-private keychain; move them into
+                // the shared access group so the share extension can authenticate too.
+                TokenStore.migrateToSharedGroupIfNeeded()
+                // Refresh up front only when the access token is missing/expired — no
+                // gratuitous rotation (and no race) on every relaunch.
+                return AccessToken.isExpired(TokenStore.accessToken)
+            }.value
+            if needsRefresh {
                 await APIClient.shared.refreshAccessToken()
             }
             // A genuine 401 during refresh already signed us out via the notification.
