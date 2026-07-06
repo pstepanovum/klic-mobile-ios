@@ -297,8 +297,6 @@ private struct NewGroupPickerView: View {
             PillButton(title: String(localized: "Next")) {
                 path.append(.newGroupDetails(Array(selectedIds)))
             }
-            .opacity(selectedIds.isEmpty ? 0.4 : 1)
-            .disabled(selectedIds.isEmpty)
             .padding(20)
             .background(KlicColor.background)
         }
