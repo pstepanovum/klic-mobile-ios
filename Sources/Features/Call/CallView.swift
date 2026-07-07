@@ -278,12 +278,17 @@ struct CallView: View {
     }
 
     private var controls: some View {
-        // With the camera on, the switch-camera button joins the row (5 buttons) —
-        // shrink sizes/spacing so everything still fits on narrow phones.
-        let compact = service.cameraEnabled
+        // Only the PRIMARY controls stay inline — Mute · Speaker · End · (Camera) — with the
+        // secondary actions (flip camera, screen share, and the voice-call camera toggle) tucked
+        // behind a "•••" More menu. That caps the row at 5 buttons on a video call and 4 on
+        // voice, so it never crams or clips on a narrow phone. `compact` keys off the call kind
+        // (not the live camera state, which would make buttons resize mid-call) so the 5-button
+        // video row shrinks to fit iPhone SE-width while the 4-button voice row stays full size.
+        let isVideoCall = call.isVideo
+        let compact = isVideoCall
         let buttonSize: CGFloat = compact ? 54 : 64
         let endSize: CGFloat = compact ? 64 : 72
-        return HStack(spacing: compact ? 14 : 24) {
+        return HStack(spacing: compact ? 14 : 20) {
             circleButton(service.micEnabled ? "mic.fill" : "mic.slash.fill", size: buttonSize) {
                 Task {
                     await service.toggleMic()
@@ -305,39 +310,81 @@ struct CallView: View {
             ) {
                 service.toggleSpeaker()
             }
+            // End call — always centered and the largest/red button in the row.
             circleButton("phone.down.fill", fill: KlicColor.danger, iconColor: KlicColor.onPrimary, size: endSize) {
                 CallKitManager.shared.requestEnd()
             }
-            circleButton(service.cameraEnabled ? "video.fill" : "video.slash.fill", size: buttonSize) {
-                Task {
-                    await service.toggleCamera()
-                    CallActivityController.update(
-                        status: callKit.statusText,
-                        muted: !service.micEnabled,
-                        isVideo: hasAnyVideo
+            // Camera toggle stays inline on video calls; on voice calls it moves into the More
+            // menu (keeping the row at four buttons) so the action is still reachable.
+            if isVideoCall {
+                circleButton(service.cameraEnabled ? "video.fill" : "video.slash.fill", size: buttonSize) {
+                    toggleCamera()
+                }
+            }
+            moreMenu(isVideoCall: isVideoCall, size: buttonSize)
+        }
+    }
+
+    private func toggleCamera() {
+        Task {
+            await service.toggleCamera()
+            CallActivityController.update(
+                status: callKit.statusText,
+                muted: !service.micEnabled,
+                isVideo: hasAnyVideo
+            )
+        }
+    }
+
+    /// The "•••" overflow menu holding the secondary controls. Its label reuses the exact
+    /// circleButton chrome; while a screen share is live the button lights up (primary fill) so
+    /// the active state stays visible even though the toggle now sits inside the menu.
+    private func moreMenu(isVideoCall: Bool, size: CGFloat) -> some View {
+        let sharing = service.screenShareEnabled
+        return Menu {
+            // On voice calls the camera toggle lives here rather than inline.
+            if !isVideoCall {
+                Button {
+                    toggleCamera()
+                } label: {
+                    Label(
+                        service.cameraEnabled ? "Turn off camera" : "Turn on camera",
+                        systemImage: service.cameraEnabled ? "video.slash.fill" : "video.fill"
                     )
                 }
             }
+            // Flip between front/back camera — only meaningful while the camera is publishing.
             if service.cameraEnabled {
-                circleButton("arrow.triangle.2.circlepath.camera", size: buttonSize) {
+                Button {
                     Task { await service.switchCamera() }
+                } label: {
+                    Label("Flip camera", systemImage: "arrow.triangle.2.circlepath.camera")
                 }
             }
-            // Share my phone screen into the call. Tapping when idle brings up Apple's system
-            // Start-Broadcast sheet (the SDK auto-publishes the screen-share track); tapping while
-            // sharing unpublishes and stops the broadcast.
-            circleButton(
-                service.screenShareEnabled ? "rectangle.fill.on.rectangle.fill" : "rectangle.on.rectangle",
-                fill: service.screenShareEnabled ? KlicColor.primary : KlicColor.surfaceRaised,
-                iconColor: service.screenShareEnabled ? KlicColor.onPrimary : KlicColor.textPrimary,
-                size: buttonSize
-            ) {
-                if service.screenShareEnabled {
+            // Share my phone screen into the call. Starting brings up Apple's system
+            // Start-Broadcast sheet (the SDK auto-publishes the screen-share track); stopping
+            // unpublishes and ends the broadcast. `broadcastPicker.present()` fires the hidden
+            // RPSystemBroadcastPickerView's button, so it works straight from the menu.
+            if sharing {
+                Button(role: .destructive) {
                     Task { await service.setScreenShare(false) }
-                } else {
+                } label: {
+                    Label("Stop sharing", systemImage: "rectangle.fill.on.rectangle.fill")
+                }
+            } else {
+                Button {
                     broadcastPicker.present()
+                } label: {
+                    Label("Share screen", systemImage: "rectangle.on.rectangle")
                 }
             }
+        } label: {
+            circleLabel(
+                "ellipsis",
+                fill: sharing ? KlicColor.primary : KlicColor.surfaceRaised,
+                iconColor: sharing ? KlicColor.onPrimary : KlicColor.textPrimary,
+                size: size
+            )
         }
     }
 
@@ -350,13 +397,23 @@ struct CallView: View {
         action: @escaping () -> Void
     ) -> some View {
         Button(action: action) {
-            Image(systemName: systemName)
-                .font(.system(size: 22, weight: .medium))
-                .foregroundStyle(iconColor)
-                .frame(width: size, height: size)
-                .background(fill, in: Circle())
+            circleLabel(systemName, fill: fill, iconColor: iconColor, size: size)
         }
         .buttonStyle(.plain)
+    }
+
+    // The circular chrome shared by circleButton and the More menu's label.
+    private func circleLabel(
+        _ systemName: String,
+        fill: Color = KlicColor.surfaceRaised,
+        iconColor: Color = KlicColor.textPrimary,
+        size: CGFloat = 64
+    ) -> some View {
+        Image(systemName: systemName)
+            .font(.system(size: 22, weight: .medium))
+            .foregroundStyle(iconColor)
+            .frame(width: size, height: size)
+            .background(fill, in: Circle())
     }
 
     /// The "video-call look" (white chrome over the fullscreen feed) keys on REMOTE video
