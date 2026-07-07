@@ -409,12 +409,23 @@ struct ChatView: View {
                 await loadGroupDetails()
                 await refreshActiveCall()
             }
-            scrollToBottom(animated: false)
+            if initialJumpMessageId == nil {
+                scrollToBottom(animated: false)
+            }
             initialLoadDone = true
             await loadPinned()   // §16.3 — degrades to no bar on older servers
             // §18.4: jump to the message tapped in global search.
             if let target = initialJumpMessageId {
                 await jumpToMessageHighlighting(target)
+            } else {
+                // The freshly loaded rows and the auto-opening keyboard (the composer
+                // focuses on appear) both settle a beat AFTER load() returns, so the
+                // single early scroll above lands short and leaves the newest message
+                // tucked behind the composer/keyboard. Re-assert the bottom on the next
+                // runloops so the last message clears the input bar the moment the chat
+                // opens (this also covers the keyboard-up case).
+                DispatchQueue.main.async { scrollToBottom(animated: false) }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { scrollToBottom(animated: false) }
             }
             #if DEBUG
             applyDebugSeedIfRequested()

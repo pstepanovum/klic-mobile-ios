@@ -72,6 +72,13 @@ struct ConversationsView: View {
             }
             .background(KlicColor.background.ignoresSafeArea())
             .navigationTitle("Chats")
+            // Drive the tab bar visibility from the nav path at the stack ROOT so it
+            // reappears the instant a chat is dismissed. ChatView hides the bar on the
+            // leaf, but a leaf-only preference is resolved back to "visible" only after
+            // the pushed view is torn down — i.e. after the pop animation finishes —
+            // which leaves the bar snapping in a beat late. Declaring an explicit
+            // `.visible` here (path empty) makes the reappearance synchronous with the pop.
+            .toolbar(navPath.isEmpty ? .visible : .hidden, for: .tabBar)
             .navigationDestination(for: Conversation.self) { ChatView(conversation: $0) }
             // §18.4: opening a global-search message hit jumps straight to that message.
             .navigationDestination(for: MessageJump.self) {

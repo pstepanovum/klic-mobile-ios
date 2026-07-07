@@ -1,6 +1,23 @@
 import SwiftUI
 import UIKit
 
+private extension View {
+    /// §19.2: open the message action menu on a long press WITHOUT blocking the list's
+    /// scroll. An exclusive `.onLongPressGesture` competes with the enclosing
+    /// ScrollView's pan; on a media/sticker/video-note bubble — which fills nearly the
+    /// whole row — a vertical drag almost always starts on the bubble, so that
+    /// arbitration swallowed the drag and the list wouldn't scroll (the touch resolved
+    /// as a tap that opened the viewer). Attaching the long press as a SIMULTANEOUS
+    /// gesture lets the scroll pan win the drag, while a stationary press still opens the
+    /// menu. A quick tap is unaffected — the child tap recognizer fails once the press
+    /// passes the long-press threshold, so it never double-fires alongside the menu.
+    func bubbleLongPress(perform action: @escaping () -> Void) -> some View {
+        simultaneousGesture(
+            LongPressGesture(minimumDuration: 0.3).onEnded { _ in action() }
+        )
+    }
+}
+
 // MARK: - Message bubble
 
 struct MessageBubble: View {
@@ -87,7 +104,7 @@ struct MessageBubble: View {
                     edited: message.isEdited,
                     starred: message.starred == true
                 )
-                .onLongPressGesture(minimumDuration: 0.3, perform: onLongPress)
+                .bubbleLongPress(perform: onLongPress)
                 if !message.reactions.isEmpty {
                     ReactionPills(reactions: message.reactions, onTap: onReactionTap)
                 }
@@ -113,7 +130,7 @@ struct MessageBubble: View {
     private func stickerBubble(_ stickerId: String) -> some View {
         VStack(alignment: isMine ? .trailing : .leading, spacing: 4) {
             StickerMessageView(stickerId: stickerId, isMine: isMine, time: shortTime(message.createdAt))
-                .onLongPressGesture(minimumDuration: 0.3, perform: onLongPress)
+                .bubbleLongPress(perform: onLongPress)
             if !message.reactions.isEmpty {
                 ReactionPills(reactions: message.reactions, onTap: onReactionTap)
             }
@@ -150,7 +167,7 @@ struct MessageBubble: View {
                     ReactionPills(reactions: message.reactions, onTap: onReactionTap)
                 }
             }
-            .onLongPressGesture(minimumDuration: 0.3, perform: onLongPress)
+            .bubbleLongPress(perform: onLongPress)
 
             if showGroupAvatarSpacer {
                 Color.clear.frame(width: 34, height: 34)
