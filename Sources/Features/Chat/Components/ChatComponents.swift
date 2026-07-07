@@ -3,16 +3,15 @@ import UIKit
 
 private extension View {
     /// §19.2: open the message action menu on a long press WITHOUT blocking the list's
-    /// scroll. An exclusive `.onLongPressGesture` competes with the enclosing
-    /// ScrollView's pan; on a media/sticker/video-note bubble — which fills nearly the
-    /// whole row — a vertical drag almost always starts on the bubble, so that
-    /// arbitration swallowed the drag and the list wouldn't scroll (the touch resolved
-    /// as a tap that opened the viewer). Attaching the long press as a SIMULTANEOUS
-    /// gesture lets the scroll pan win the drag, while a stationary press still opens the
-    /// menu. A quick tap is unaffected — the child tap recognizer fails once the press
-    /// passes the long-press threshold, so it never double-fires alongside the menu.
+    /// scroll. On a media/sticker/video-note bubble — which fills nearly the whole row —
+    /// a vertical drag almost always starts on the bubble. Both `.onLongPressGesture` AND
+    /// `.simultaneousGesture(LongPressGesture())` claim the touch immediately and so
+    /// compete with the enclosing ScrollView's pan, swallowing the drag. The plain
+    /// `.gesture()` modifier instead schedules the long press AFTER the scroll's own
+    /// gesture, so a moving finger scrolls the list and only a stationary press opens the
+    /// menu; a quick tap is handled by the separate tap recognizer and is unaffected.
     func bubbleLongPress(perform action: @escaping () -> Void) -> some View {
-        simultaneousGesture(
+        gesture(
             LongPressGesture(minimumDuration: 0.3).onEnded { _ in action() }
         )
     }

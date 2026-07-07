@@ -31,6 +31,9 @@ final class CallService: NSObject, ObservableObject {
     @Published private(set) var speakerOn = false
     @Published private(set) var localVideoTrack: VideoTrack?
     @Published private(set) var remoteVideoTrack: VideoTrack?
+    /// A remote participant's screen-share video track, if anyone is sharing their screen.
+    /// When set, the UI promotes it to the large/primary tile and demotes camera feeds.
+    @Published private(set) var screenShareTrack: VideoTrack?
     /// Remote members of the call (live from the room, plus peers inside their grace window).
     @Published private(set) var participants: [RemoteCallParticipant] = []
     /// Whether MY mic is registering speech — drives the local tile's speaking glow in the
@@ -349,16 +352,22 @@ final class CallService: NSObject, ObservableObject {
     /// re-enable) rather than unpublishing it, so without this filter the receiving side
     /// keeps rendering the last decoded (frozen) frame after the peer turns their camera off.
     private func refreshTracks() {
+        // Camera-only for the local/remote tiles — a screen share is its own track (below), so a
+        // sharer's own camera preview never gets swapped out for their desktop.
         localVideoTrack = room.localParticipant.videoTracks
-            .first { !$0.isMuted }?.track as? VideoTrack
-        remoteVideoTrack = room.remoteParticipants.values
-            .flatMap { $0.videoTracks }
-            .first { !$0.isMuted }?.track as? VideoTrack
+            .first { !$0.isMuted && $0.source != .screenShareVideo }?.track as? VideoTrack
+        let remotePublications = room.remoteParticipants.values.flatMap { $0.videoTracks }
+        // A remote's shared screen (publication source == .screenShareVideo) becomes the primary
+        // tile; camera feeds are picked separately so they can ride along as secondary tiles.
+        screenShareTrack = remotePublications
+            .first { !$0.isMuted && $0.source == .screenShareVideo }?.track as? VideoTrack
+        remoteVideoTrack = remotePublications
+            .first { !$0.isMuted && $0.source != .screenShareVideo }?.track as? VideoTrack
         refreshParticipants()
         APIClient.mobileDiagnostic(
             event: "livekit.tracks.refresh",
             callId: currentCallId,
-            detail: "localVideo=\(localVideoTrack != nil) remoteVideo=\(remoteVideoTrack != nil)"
+            detail: "localVideo=\(localVideoTrack != nil) remoteVideo=\(remoteVideoTrack != nil) screenShare=\(screenShareTrack != nil)"
         )
         updateAudioRouteForVideo()
     }
@@ -373,7 +382,9 @@ final class CallService: NSObject, ObservableObject {
                 id: id,
                 name: name,
                 // Muted video publication = camera off → the tile falls back to the avatar.
-                videoTrack: p.videoTracks.first { !$0.isMuted }?.track as? VideoTrack,
+                // Screen-share tracks are excluded here (they render as the primary tile), so a
+                // sharer's own camera tile keeps showing their face/avatar rather than the desktop.
+                videoTrack: p.videoTracks.first { !$0.isMuted && $0.source != .screenShareVideo }?.track as? VideoTrack,
                 micMuted: !p.isMicrophoneEnabled(),
                 isSpeaking: p.isSpeaking,
                 isInGrace: false
@@ -499,7 +510,7 @@ final class CallService: NSObject, ObservableObject {
     /// toggle. Only acts on a change so a user's manual speaker choice during an audio-only
     /// stretch isn't overridden until the video state actually flips.
     private func updateAudioRouteForVideo() {
-        let videoActive = cameraEnabled || localVideoTrack != nil || remoteVideoTrack != nil
+        let videoActive = cameraEnabled || localVideoTrack != nil || remoteVideoTrack != nil || screenShareTrack != nil
         guard videoActive != videoRouteActive else { return }
         videoRouteActive = videoActive
         setSpeaker(videoActive)
