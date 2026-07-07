@@ -1,6 +1,7 @@
 import Foundation
 import CallKit
 import AVFoundation
+import UIKit
 
 /// Central call coordinator. Bridges CallKit (the system call UI shown on the Lock Screen and
 /// in the Dynamic Island) with the LiveKit media session and the Live Activity.
@@ -54,6 +55,12 @@ final class CallKitManager: NSObject, ObservableObject {
     private var ringTimeoutTasks: [String: Task<Void, Never>] = [:]
     private var finishingCallIds = Set<String>()
     private var recentlyEndedCallIds = Set<String>()
+    /// CallIds CallKit has told us to put on hold (CXSetHeldCallAction, isOnHold == true).
+    /// Recorded synchronously so the answer handler can distinguish "Hold & Accept" (a hold was
+    /// reported for our current call) from "End & Accept" (no hold — the call is being ended).
+    private var heldViaCallKit = Set<String>()
+    /// Deduped set so the end/drop haptic fires exactly once per call.
+    private var endHapticCallIds = Set<String>()
 
     override init() {
         provider = CXProvider(configuration: Self.providerConfiguration())
@@ -260,6 +267,8 @@ final class CallKitManager: NSObject, ObservableObject {
         }
         callIdToUUID[callId] = nil
         pendingInvites[callId] = nil
+        heldViaCallKit.remove(callId)
+        endHapticCallIds.remove(callId)
         cancelRingTimeout(callId)
     }
 
@@ -408,9 +417,94 @@ final class CallKitManager: NSObject, ObservableObject {
         }
     }
 
+    /// Subtle one-shot haptic when a call ends or drops. Deduped per callId so overlapping
+    /// end paths (local hang-up vs. a remote end arriving together) buzz at most once.
+    private func playEndHaptic(_ callId: String?) {
+        if let callId {
+            guard !endHapticCallIds.contains(callId) else { return }
+            endHapticCallIds.insert(callId)
+        }
+        UINotificationFeedbackGenerator().notificationOccurred(.warning)
+    }
+
+    /// Tear down a call that was on HOLD for call-waiting. Its LiveKit room is already gone
+    /// (discarded when we answered the interrupting call), so this only notifies the server and
+    /// clears the CallKit call — it must NOT touch the shared media session, which belongs to the
+    /// currently active call.
+    private func endHeldCall(_ callId: String, notifyServer: Bool) {
+        guard !finishingCallIds.contains(callId) else { return }
+        finishingCallIds.insert(callId)
+        recentlyEndedCallIds.insert(callId)
+        playEndHaptic(callId)
+        if notifyServer {
+            serverTeardown = Task { _ = try? await APIClient.shared.endCall(callId: callId) }
+        }
+        endSystemCall(callId: callId)
+        CallService.shared.clearHeld()
+        clear(callId)
+        finishingCallIds.remove(callId)
+        Task {
+            try? await Task.sleep(nanoseconds: 120_000_000_000)
+            _ = await MainActor.run { self.recentlyEndedCallIds.remove(callId) }
+        }
+    }
+
+    /// After an active call ends, bring back any call we were holding for call-waiting.
+    private func resumeHeldCallIfNeeded(endedCallId: String?) {
+        guard let held = CallService.shared.heldCall, held.id != endedCallId else { return }
+        resumeHeldCall()
+    }
+
+    /// Rejoin a call that was held for call-waiting once the interrupting call ends. The held
+    /// call's LiveKit room was discarded when we answered the other call (single room at a time),
+    /// so this fetches a fresh token and reconnects from scratch, restores it as the active call,
+    /// and tells CallKit it's no longer held. Idempotent: it clears `heldCall` up front so a
+    /// second trigger (our own end path AND CallKit's automatic unhold) can only run once.
+    func resumeHeldCall() {
+        guard let held = CallService.shared.heldCall else { return }
+        CallService.shared.clearHeld()
+        guard !recentlyEndedCallIds.contains(held.id) else { return }
+        APIClient.mobileDiagnostic(event: "callkit.resumeHeld.start", callId: held.id)
+        statusText = "Connecting..."
+        activeCall = held
+        Task { @MainActor in
+            do {
+                let session = try await APIClient.shared.joinToken(callId: held.id)
+                try await CallService.shared.join(
+                    callId: held.id, url: session.livekitUrl, token: session.token, video: held.isVideo
+                )
+                guard activeCall?.id == held.id, !recentlyEndedCallIds.contains(held.id) else { return }
+                _ = try? await APIClient.shared.mediaJoined(callId: held.id)
+                statusText = "Connected"
+                markConnected()
+                // CallKit usually auto-unholds the surviving call when the other ends; make sure.
+                if let uuid = callIdToUUID[held.id] {
+                    controller.request(CXTransaction(action: CXSetHeldCallAction(call: uuid, onHold: false))) { _ in }
+                }
+                CallActivityController.start(peerName: held.peerName, isVideo: held.isVideo)
+                CallActivityController.update(status: "Connected", muted: false, isVideo: held.isVideo)
+                APIClient.mobileDiagnostic(event: "callkit.resumeHeld.ok", callId: held.id)
+            } catch {
+                APIClient.mobileDiagnostic(
+                    event: "callkit.resumeHeld.failed",
+                    callId: held.id,
+                    detail: String(describing: error)
+                )
+                finishCall(callId: held.id, status: "Ended", notifyServer: false, dismissAfter: 500_000_000)
+            }
+        }
+    }
+
     private func finishCall(callId: String, status: String, notifyServer: Bool, dismissAfter seconds: UInt64 = 1_500_000_000, endReason: CXCallEndedReason = .remoteEnded) {
         guard !finishingCallIds.contains(callId) else { return }
+        // A HELD (call-waiting) call ending must not run the normal teardown below — that would
+        // leave() the shared media session and kill the ACTIVE call. Tear it down on its own.
+        if callId != activeCall?.id, callId == CallService.shared.heldCall?.id {
+            endHeldCall(callId, notifyServer: notifyServer)
+            return
+        }
         Ringback.shared.stop()
+        playEndHaptic(callId)
         let wasOutgoing = activeCall?.id == callId ? activeCall?.isOutgoing == true : false
         let wasConnected = activeCall?.id == callId && isMediaConnected
         finishingCallIds.insert(callId)
@@ -427,6 +521,8 @@ final class CallKitManager: NSObject, ObservableObject {
         Task {
             await CallService.shared.leave()
             CallActivityController.end()
+            // The active call just ended — bring back any call we were holding for call-waiting.
+            resumeHeldCallIfNeeded(endedCallId: callId)
             try? await Task.sleep(nanoseconds: seconds)
             await MainActor.run {
                 self.clear(callId)
@@ -558,9 +654,18 @@ extension CallKitManager: CXProviderDelegate {
             if let call = activeCall {
                 let wasConnected = isMediaConnected
                 recentlyEndedCallIds.insert(call.id)
+                playEndHaptic(call.id)
                 await finishCallOnServer(callId: call.id, wasOutgoing: call.isOutgoing, wasConnected: wasConnected)
                 clear(call.id)
             }
+            // A held (call-waiting) call is torn down too — the whole provider is resetting.
+            if let held = CallService.shared.heldCall {
+                recentlyEndedCallIds.insert(held.id)
+                await finishCallOnServer(callId: held.id, wasOutgoing: held.isOutgoing, wasConnected: true)
+                clear(held.id)
+            }
+            CallService.shared.clearHeld()
+            heldViaCallKit.removeAll()
             activeCall = nil
             await CallService.shared.leave()
             CallActivityController.end()
@@ -589,12 +694,20 @@ extension CallKitManager: CXProviderDelegate {
                 options: [.allowBluetoothHFP, .allowBluetoothA2DP, .allowAirPlay]
             )
             action.fulfill()
-            // Answering this call means giving up any other one we had going (e.g. our own
-            // outgoing call to someone else). End it server-side and in CallKit so it can't
-            // linger ringing — the cause of stuck RINGING calls during overlap.
+            // Answering a call while another is active is one of two things:
+            //  • "Hold & Accept" — CallKit already reported CXSetHeldCallAction on our current
+            //    call, so keep it as the held call. Its LiveKit room is torn down when we join
+            //    the new call below (single room at a time); it's rejoined when the new call ends.
+            //  • "End & Accept" (or an unrelated overlap, e.g. our own outgoing call) — no hold
+            //    was reported, so give the other call up entirely so it can't linger ringing.
             if let other = activeCall, other.id != callId {
-                APIClient.mobileDiagnostic(event: "callkit.answer.endOther", callId: other.id, detail: callId)
-                endAbandonedCall(other.id)
+                if heldViaCallKit.contains(other.id), !recentlyEndedCallIds.contains(other.id) {
+                    APIClient.mobileDiagnostic(event: "callkit.answer.holdOther", callId: other.id, detail: callId)
+                    CallService.shared.markHeld(other)
+                } else {
+                    APIClient.mobileDiagnostic(event: "callkit.answer.endOther", callId: other.id, detail: callId)
+                    endAbandonedCall(other.id)
+                }
             }
             statusText = "Connecting..."
             do {
@@ -705,17 +818,31 @@ extension CallKitManager: CXProviderDelegate {
     nonisolated func provider(_ provider: CXProvider, perform action: CXEndCallAction) {
         Task { @MainActor in
             Ringback.shared.stop()
-            let id = activeCall?.id ?? callId(for: action.uuid)
+            // Resolve the ended call from the action's UUID FIRST. Using `activeCall` first would
+            // misroute when a second call is ringing/held over an active one — e.g. declining the
+            // 2nd would end the 1st. Fall back to activeCall only when the UUID can't be resolved.
+            let id = callId(for: action.uuid) ?? activeCall?.id
             APIClient.mobileDiagnostic(event: "callkit.end.enter", callId: id, detail: action.uuid.uuidString)
             // Fulfill immediately — CallKit enforces a short deadline on this action and will
             // call providerDidReset (killing all calls) if we don't respond fast enough. The
             // actual async teardown (server notify, LiveKit disconnect) happens after.
             action.fulfill()
+            // Ending the HELD (call-waiting) call from the CallKit UI: tear it down on its own so
+            // the ACTIVE call's media keeps running.
+            if let id, id != activeCall?.id, id == CallService.shared.heldCall?.id {
+                // A held call was always a connected call, so this is a genuine end.
+                endHeldCall(id, notifyServer: true)
+                return
+            }
+            let endedActiveCall = id == nil || id == activeCall?.id
             if let id {
                 recentlyEndedCallIds.insert(id)
-                let isRingingInvite = activeCall == nil && pendingInvites[id] != nil
+                playEndHaptic(id)
+                // A ringing invite being dismissed — including a 2nd incoming call declined while a
+                // first call is active (id != the active call) — is a decline, not an end.
+                let isRingingInvite = pendingInvites[id] != nil && activeCall?.id != id
                 let wasOutgoing = activeCall?.id == id && activeCall?.isOutgoing == true
-                let wasConnected = isMediaConnected
+                let wasConnected = activeCall?.id == id && isMediaConnected
                 // Registered as serverTeardown so a fast follow-up call awaits it instead of
                 // racing it into a 409 call_exists (the dead-call-button-after-hang-up bug).
                 let teardown = Task {
@@ -736,9 +863,15 @@ extension CallKitManager: CXProviderDelegate {
                 endSystemCall(callId: id)
                 clear(id)
             }
-            await CallService.shared.leave()
-            CallActivityController.end()
-            activeCall = nil
+            // Only tear down the shared media session if we actually ended the ACTIVE call — a
+            // declined 2nd ringing call must leave the first call's media untouched.
+            if endedActiveCall {
+                await CallService.shared.leave()
+                CallActivityController.end()
+                activeCall = nil
+                // The active call ended — bring back any call we were holding for call-waiting.
+                resumeHeldCallIfNeeded(endedCallId: id)
+            }
         }
     }
 
@@ -748,16 +881,30 @@ extension CallKitManager: CXProviderDelegate {
     /// plumbing); on unhold: restore both and go back to Connected.
     nonisolated func provider(_ provider: CXProvider, perform action: CXSetHeldCallAction) {
         Task { @MainActor in
+            let heldId = callId(for: action.callUUID)
             APIClient.mobileDiagnostic(
                 event: "callkit.hold",
-                callId: callId(for: action.callUUID),
+                callId: heldId,
                 detail: action.isOnHold ? "on" : "off"
             )
-            await CallService.shared.setHold(action.isOnHold)
             if action.isOnHold {
+                // Record synchronously (before any await) so the answer handler that follows a
+                // "Hold & Accept" can tell this apart from an "End & Accept".
+                if let heldId { heldViaCallKit.insert(heldId) }
+                await CallService.shared.setHold(true)
                 if isMediaConnected { statusText = "On Hold" }
-            } else if statusText == "On Hold" {
-                statusText = "Connected"
+            } else {
+                if let heldId { heldViaCallKit.remove(heldId) }
+                // A call-waiting call being taken off hold: its LiveKit room was discarded when we
+                // answered the interrupting call, so rejoin it from scratch rather than un-muting a
+                // room we no longer have. (Idempotent with the end-path resume.)
+                if let heldId, heldId == CallService.shared.heldCall?.id {
+                    action.fulfill()
+                    resumeHeldCall()
+                    return
+                }
+                await CallService.shared.setHold(false)
+                if statusText == "On Hold" { statusText = "Connected" }
             }
             CallActivityController.update(
                 status: statusText,

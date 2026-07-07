@@ -74,11 +74,18 @@ final class CallService: NSObject, ObservableObject {
     /// speaker (video) ↔ earpiece (audio-only) switching as cameras turn on/off mid-call.
     private var videoRouteActive = false
 
-    /// True while CallKit holds the call (CXSetHeldCallAction — e.g. the user answered a
-    /// native phone call). Media stays connected; only the mic and audio engine are gated.
+    /// True while CallKit holds the call (CXSetHeldCallAction — e.g. the user answered a native
+    /// phone call, or a second Klic call arrived and was answered). Mic, audio engine, camera,
+    /// and rendered video are ALL gated while held so a held call is neither heard nor seen.
     @Published private(set) var isOnHold = false
-    /// Mic state to restore when the hold ends.
+    /// Mic/camera state to restore when the hold ends.
     private var micEnabledBeforeHold = true
+    private var cameraEnabledBeforeHold = false
+    /// A call whose LiveKit room we tore down to answer a second, "call-waiting" call. Its media
+    /// is fully paused (single room at a time — the room is discarded when we join the new call);
+    /// it is rejoined from scratch when the interrupting call ends. Nil when nothing is held.
+    /// CallKit still tracks it as a held call in the system UI.
+    @Published private(set) var heldCall: CallKitManager.ActiveCall?
 
     override init() {
         super.init()
@@ -103,6 +110,13 @@ final class CallService: NSObject, ObservableObject {
             isLeaving = false
             if !rejoin { isReconnecting = false }
             prepareRoom(callId: callId, force: rejoin)
+            // A fresh (non-rejoin) join is a brand-new active call — clear any leftover hold
+            // state carried over from a call we just put on hold to answer this one.
+            if !rejoin {
+                isOnHold = false
+                micEnabledBeforeHold = true
+                cameraEnabledBeforeHold = false
+            }
             APIClient.mobileDiagnostic(event: "livekit.join.configure", callId: callId, detail: video ? "video" : "audio")
             // Hand LiveKit a fixed, valid session configuration instead of letting it compute
             // one on the fly — the dynamic path occasionally failed to configure on the first
@@ -220,22 +234,41 @@ final class CallService: NSObject, ObservableObject {
     /// CallKit put the call on (or took it off) hold. Uses the exact same engine gate and
     /// mic plumbing as join/publishMicIfReady — the CallKit-owned AVAudioSession itself is
     /// never touched, so the audio sequencing that join() relies on stays intact.
-    /// On hold: remember the mic state, mute, gate the engine off. On unhold: engine back
-    /// on first (so capture+playout resume together), then restore the previous mic state.
+    /// On hold: remember mic+camera state, mute, stop the camera, gate the engine off, and drop
+    /// the rendered video so a held call is neither heard nor seen. On unhold: engine back on
+    /// first (so capture+playout resume together), then restore the previous mic/camera state.
     func setHold(_ onHold: Bool) async {
         guard isOnHold != onHold else { return }
         if onHold {
             micEnabledBeforeHold = micEnabled
+            cameraEnabledBeforeHold = cameraEnabled
             await setMic(enabled: false)
+            // Stop capturing the camera so a held call can't keep sending video, then gate the
+            // audio engine off (kills both capture and playout).
+            if cameraEnabled { await setCamera(enabled: false) }
             try? AudioManager.shared.setEngineAvailability(.none)
             isOnHold = true
+            // Drop the rendered camera/screen feeds now, and keep them blanked while held
+            // (refreshTracks bails out on isOnHold) — a held call must never show live video.
+            localVideoTrack = nil
+            remoteVideoTrack = nil
+            screenShareTrack = nil
+            refreshParticipants()
         } else {
+            isOnHold = false
             try? AudioManager.shared.setEngineAvailability(.default)
             await setMic(enabled: micEnabledBeforeHold)
-            isOnHold = false
+            if cameraEnabledBeforeHold { await setCamera(enabled: true) }
+            // Re-render whatever video is live now that the call is resumed.
+            refreshTracks()
         }
         APIClient.mobileDiagnostic(event: "livekit.hold", callId: currentCallId, detail: onHold ? "on" : "off")
     }
+
+    /// Record a call we're putting on hold to answer a second, "call-waiting" call. Its room is
+    /// torn down when we join the new call; `CallKitManager.resumeHeldCall` rejoins it later.
+    func markHeld(_ call: CallKitManager.ActiveCall) { heldCall = call }
+    func clearHeld() { heldCall = nil }
 
     /// Toggle the call audio between the loudspeaker and the earpiece/headset. Overriding the
     /// output port routes immediately; `.none` lets the system pick the preferred route (a
@@ -372,6 +405,16 @@ final class CallService: NSObject, ObservableObject {
     /// re-enable) rather than unpublishing it, so without this filter the receiving side
     /// keeps rendering the last decoded (frozen) frame after the peer turns their camera off.
     private func refreshTracks() {
+        // A held call must stay visually dark — never surface live camera/screen feeds while
+        // isOnHold (setHold restores rendering via refreshTracks once the call resumes).
+        guard !isOnHold else {
+            localVideoTrack = nil
+            remoteVideoTrack = nil
+            screenShareTrack = nil
+            screenShareEnabled = room.localParticipant.isScreenShareEnabled()
+            refreshParticipants()
+            return
+        }
         // Camera-only for the local/remote tiles — a screen share is its own track (below), so a
         // sharer's own camera preview never gets swapped out for their desktop.
         localVideoTrack = room.localParticipant.videoTracks
@@ -407,7 +450,8 @@ final class CallService: NSObject, ObservableObject {
                 // Muted video publication = camera off → the tile falls back to the avatar.
                 // Screen-share tracks are excluded here (they render as the primary tile), so a
                 // sharer's own camera tile keeps showing their face/avatar rather than the desktop.
-                videoTrack: p.videoTracks.first { !$0.isMuted && $0.source != .screenShareVideo }?.track as? VideoTrack,
+                // While held, blank every tile's video so a held (group) call shows no live feed.
+                videoTrack: isOnHold ? nil : (p.videoTracks.first(where: { !$0.isMuted && $0.source != .screenShareVideo })?.track as? VideoTrack),
                 micMuted: !p.isMicrophoneEnabled(),
                 isSpeaking: p.isSpeaking,
                 isInGrace: false
