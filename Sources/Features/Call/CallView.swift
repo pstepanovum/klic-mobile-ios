@@ -203,13 +203,26 @@ struct CallView: View {
                 Text(call.peerName)
                     .font(KlicFont.title())
                     .foregroundStyle(KlicColor.textPrimary)
-                Text(statusLine)
+                statusOrTimer
                     .font(KlicFont.caption(13))
                     .foregroundStyle(KlicColor.textMuted)
                     .padding(.horizontal, 12)
                     .padding(.vertical, 5)
                     .background(KlicColor.surfaceRaised, in: Capsule())
             }
+        }
+    }
+
+    /// Once the call connects the status pill becomes a live, self-updating elapsed
+    /// timer (mm:ss / h:mm:ss, WhatsApp-style); before that it keeps showing the
+    /// ringing/connecting status. A group room you're alone in stays on
+    /// "Waiting for others…" until the first peer joins (§9.7).
+    @ViewBuilder private var statusOrTimer: some View {
+        if let connectedAt = callKit.connectedAt,
+           !(call.isGroup && service.participants.isEmpty) {
+            Text(connectedAt, style: .timer)
+        } else {
+            Text(statusLine)
         }
     }
 
