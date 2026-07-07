@@ -1,6 +1,7 @@
 import SwiftUI
 import LiveKit
 import Inject
+import ReplayKit
 
 struct CallView: View {
     @ObserveInjection var inject
@@ -16,6 +17,11 @@ struct CallView: View {
     /// Committed center of the draggable card (nil = its default top-right corner).
     @State private var cardCenter: CGPoint? = nil
     @GestureState private var dragTranslation = CGSize.zero
+
+    /// Owns Apple's system broadcast picker so the "Share screen" button can trigger it. The SDK
+    /// auto-publishes the screen-share track once the user taps Start Broadcast (BroadcastManager
+    /// default shouldPublishTrack == true).
+    @State private var broadcastPicker = BroadcastPicker()
 
     private let cardSize = CGSize(width: 110, height: 160)
 
@@ -66,6 +72,13 @@ struct CallView: View {
                     controls
                 }
                 .padding(.vertical, 56)
+
+                // Zero-footprint host for the system broadcast picker: RPSystemBroadcastPickerView
+                // must be in the hierarchy for the picker sheet to present, but we drive it from the
+                // "Share screen" control rather than showing its own button.
+                BroadcastPickerView(picker: broadcastPicker.view)
+                    .frame(width: 0, height: 0)
+                    .allowsHitTesting(false)
 
                 // Minimize: collapse the call screen into the floating root overlay so the
                 // rest of the app is browsable mid-call. UI-only — media keeps running.
@@ -310,6 +323,21 @@ struct CallView: View {
                     Task { await service.switchCamera() }
                 }
             }
+            // Share my phone screen into the call. Tapping when idle brings up Apple's system
+            // Start-Broadcast sheet (the SDK auto-publishes the screen-share track); tapping while
+            // sharing unpublishes and stops the broadcast.
+            circleButton(
+                service.screenShareEnabled ? "rectangle.fill.on.rectangle.fill" : "rectangle.on.rectangle",
+                fill: service.screenShareEnabled ? KlicColor.primary : KlicColor.surfaceRaised,
+                iconColor: service.screenShareEnabled ? KlicColor.onPrimary : KlicColor.textPrimary,
+                size: buttonSize
+            ) {
+                if service.screenShareEnabled {
+                    Task { await service.setScreenShare(false) }
+                } else {
+                    broadcastPicker.present()
+                }
+            }
         }
     }
 
@@ -345,6 +373,38 @@ struct CallView: View {
         service.cameraEnabled || service.localVideoTrack != nil || service.remoteVideoTrack != nil
             || service.screenShareTrack != nil
     }
+}
+
+/// Owns the system broadcast picker for screen sharing. Its `preferredExtension` points at our
+/// ReplayKit broadcast upload extension (bundle id `com.klic.mobile.app.broadcast`), so tapping
+/// Start Broadcast launches SampleHandler, which streams the screen into the live LiveKit call.
+private final class BroadcastPicker {
+    let view: RPSystemBroadcastPickerView = {
+        let picker = RPSystemBroadcastPickerView(frame: CGRect(x: 0, y: 0, width: 1, height: 1))
+        picker.preferredExtension = "com.klic.mobile.app.broadcast"
+        picker.showsMicrophoneButton = false
+        return picker
+    }()
+
+    /// Trigger the picker's internal button to bring up Apple's Start-Broadcast sheet — the view
+    /// itself hosts a UIButton we fire directly (falling back to its private action selector).
+    func present() {
+        if let button = view.subviews.compactMap({ $0 as? UIButton }).first {
+            button.sendActions(for: .touchUpInside)
+            return
+        }
+        let selector = NSSelectorFromString("buttonPressed:")
+        if view.responds(to: selector) { view.perform(selector, with: nil) }
+    }
+}
+
+/// Hosts the (invisible) RPSystemBroadcastPickerView in the SwiftUI hierarchy so the system picker
+/// has a real view to present from; the visible control is our own circle button in the call bar.
+private struct BroadcastPickerView: UIViewRepresentable {
+    let picker: RPSystemBroadcastPickerView
+
+    func makeUIView(context: Context) -> RPSystemBroadcastPickerView { picker }
+    func updateUIView(_ uiView: RPSystemBroadcastPickerView, context: Context) {}
 }
 
 /// One tile of the group-call grid — a remote participant, or my own local feed. Both

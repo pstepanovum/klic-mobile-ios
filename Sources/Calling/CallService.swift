@@ -27,6 +27,10 @@ final class CallService: NSObject, ObservableObject {
     @Published private(set) var isReconnecting = false
     @Published private(set) var micEnabled = true
     @Published private(set) var cameraEnabled = false
+    /// Whether I'm currently sharing my phone screen into the call. Driven by the SDK's own
+    /// screen-share track state (isScreenShareEnabled) so it flips true once the ReplayKit
+    /// broadcast starts and the track is published, and false when the broadcast stops.
+    @Published private(set) var screenShareEnabled = false
     /// Whether call audio is routed to the loudspeaker (vs. the earpiece / a connected headset).
     @Published private(set) var speakerOn = false
     @Published private(set) var localVideoTrack: VideoTrack?
@@ -195,6 +199,21 @@ final class CallService: NSObject, ObservableObject {
         }
     }
 
+    /// Start or stop publishing my phone screen into the call. Mirrors `setCamera`: the SDK owns
+    /// the ReplayKit broadcast track — on enable it publishes the screen-share track that the
+    /// broadcast extension feeds; on disable it unpublishes and requests the broadcast to stop.
+    /// The actual `screenShareEnabled` flag is refreshed from the SDK in the publish/unpublish
+    /// delegate callbacks (starting a broadcast is driven by Apple's system picker, not this call).
+    func setScreenShare(_ enabled: Bool) async {
+        try? await room.localParticipant.setScreenShare(enabled: enabled)
+        screenShareEnabled = room.localParticipant.isScreenShareEnabled()
+        APIClient.mobileDiagnostic(
+            event: "livekit.screenshare.toggle",
+            callId: currentCallId,
+            detail: "enabled=\(enabled)"
+        )
+    }
+
     func toggleMic() async { await setMic(enabled: !micEnabled) }
     func toggleCamera() async { await setCamera(enabled: !cameraEnabled) }
 
@@ -320,6 +339,7 @@ final class CallService: NSObject, ObservableObject {
         remoteVideoTrack = nil
         participants = []
         localIsSpeaking = false
+        screenShareEnabled = false
         currentCallId = nil
         // Reset the audio gate for the next call. Re-enable engine availability so any non-call
         // audio isn't left disabled; the next join() re-gates it off until CallKit activates.
@@ -363,6 +383,9 @@ final class CallService: NSObject, ObservableObject {
             .first { !$0.isMuted && $0.source == .screenShareVideo }?.track as? VideoTrack
         remoteVideoTrack = remotePublications
             .first { !$0.isMuted && $0.source != .screenShareVideo }?.track as? VideoTrack
+        // Reflect whether MY screen-share track is live (published by the SDK when the ReplayKit
+        // broadcast starts) so the Share-screen button shows the active state.
+        screenShareEnabled = room.localParticipant.isScreenShareEnabled()
         refreshParticipants()
         APIClient.mobileDiagnostic(
             event: "livekit.tracks.refresh",
@@ -558,6 +581,17 @@ extension CallService: RoomDelegate {
                 break
             }
         }
+    }
+
+    // A broadcast is started/stopped from Apple's system picker (outside our control flow), so the
+    // local screen-share track is published/unpublished asynchronously. Refresh on both edges so the
+    // Share-screen button flips the moment the SDK publishes (Start Broadcast) or drops the track.
+    nonisolated func room(_ room: Room, participant: LocalParticipant, didPublishTrack publication: LocalTrackPublication) {
+        Task { @MainActor in refreshTracks() }
+    }
+
+    nonisolated func room(_ room: Room, participant: LocalParticipant, didUnpublishTrack publication: LocalTrackPublication) {
+        Task { @MainActor in refreshTracks() }
     }
 
     nonisolated func room(_ room: Room, participant: RemoteParticipant, didSubscribeTrack publication: RemoteTrackPublication) {

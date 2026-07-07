@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- Same app group as the main app: the LiveKit SDK derives the IPC socket path from
+         group.<app-bundle-id>, so this extension must share it to reach the running call. -->
+    <key>com.apple.security.application-groups</key>
+    <array>
+        <string>group.com.klic.mobile.app</string>
+    </array>
+</dict>
+</plist>

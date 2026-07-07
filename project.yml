@@ -65,6 +65,7 @@ targets:
       - package: GoogleSignIn
       - target: KlicWidgets
       - target: KlicShare
+      - target: KlicBroadcast
 
   KlicWidgets:
     type: app-extension
@@ -98,6 +99,24 @@ targets:
         INFOPLIST_FILE: ShareExtension/Info.plist
         # App group = shared keychain access group; how the extension reads the tokens.
         CODE_SIGN_ENTITLEMENTS: ShareExtension/KlicShare.entitlements
+
+  # ReplayKit broadcast upload extension. Publishes the phone screen into the live LiveKit
+  # call: SampleHandler subclasses the SDK's LKSampleHandler, which forwards captured sample
+  # buffers to the app over the shared App Group socket. Bundle id MUST be exactly
+  # <app-bundle-id>.broadcast so the SDK's default socket-path derivation finds it (no
+  # RTCAppGroupIdentifier / RTCScreenSharingExtension Info.plist overrides required).
+  KlicBroadcast:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: BroadcastExtension
+    dependencies:
+      - package: LiveKit
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.klic.mobile.app.broadcast
+        INFOPLIST_FILE: BroadcastExtension/Info.plist
+        CODE_SIGN_ENTITLEMENTS: BroadcastExtension/BroadcastExtension.entitlements
 
 # Explicit shared scheme so `xcodegen generate` always emits it. Without this, a malformed-project
 # warning (the Sources/Shared vs on-disk Sources/shared case collision) intermittently left the
