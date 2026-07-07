@@ -29,8 +29,8 @@ settings:
     # CocoaPods script phases (embed frameworks, libsignal FFI download) need
     # file access that Xcode's user-script sandboxing denies.
     ENABLE_USER_SCRIPT_SANDBOXING: NO
-    MARKETING_VERSION: "0.6.10"
-    CURRENT_PROJECT_VERSION: "63"
+    MARKETING_VERSION: "0.6.11"
+    CURRENT_PROJECT_VERSION: "64"
     SWIFT_VERSION: "5.0"
     DEVELOPMENT_TEAM: "775RWRF5LZ"
     # Localization (§10.5): compile string tables from code literals so the
