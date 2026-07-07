@@ -28,6 +28,7 @@ struct CallView: View {
             // fullscreen surface only ever carries video when the REMOTE side has video
             // (§7.6) — my own camera alone renders as the small preview card over the
             // themed avatar layout, never as the fullscreen "video look".
+            let screenShare = service.screenShareTrack
             let local = service.cameraEnabled ? service.localVideoTrack : nil
             let remote = isGrid ? nil : service.remoteVideoTrack
             let primaryIsLocal = localFullscreen && local != nil && remote != nil
@@ -37,12 +38,26 @@ struct CallView: View {
             ZStack {
                 KlicColor.background.ignoresSafeArea()
 
-                if isGrid {
+                if let screenShare {
+                    // A remote screen share takes over as the primary tile: render it big and
+                    // fitted (desktops are landscape, so .fit avoids cropping the shared screen),
+                    // with the participants demoted to a compact filmstrip below.
+                    CallVideoView(track: screenShare, fill: false).ignoresSafeArea()
+                } else if isGrid {
                     participantGrid
                 } else if let primaryTrack {
                     CallVideoView(track: primaryTrack).ignoresSafeArea()
                 } else {
                     avatar
+                }
+
+                // Camera feeds ride in a secondary filmstrip while a screen share is primary.
+                if screenShare != nil {
+                    VStack {
+                        Spacer().frame(height: 108)
+                        screenShareFilmstrip
+                        Spacer()
+                    }
                 }
 
                 VStack {
@@ -80,7 +95,7 @@ struct CallView: View {
                 // grid my feed is a regular tile instead, so no floating card there). It
                 // holds the secondary feed: swap on tap when both sides have video, my lone
                 // camera preview otherwise.
-                if !isGrid, let secondaryTrack {
+                if !isGrid, screenShare == nil, let secondaryTrack {
                     pipCard(track: secondaryTrack, geo: geo, allowSwap: local != nil && remote != nil)
                 }
             }
@@ -172,6 +187,20 @@ struct CallView: View {
                     }
             )
             .onTapGesture { if allowSwap { withAnimation { localFullscreen.toggle() } } }
+    }
+
+    /// Compact horizontal strip of participant tiles shown over a screen share so the shared
+    /// screen keeps the stage — every camera feed (remotes + me) rides here as a small tile.
+    private var screenShareFilmstrip: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach(gridTiles) { tile in
+                    ParticipantTile(tile: tile)
+                        .frame(width: 84, height: 116)
+                }
+            }
+            .padding(.horizontal, 12)
+        }
     }
 
     private var avatar: some View {
@@ -306,12 +335,15 @@ struct CallView: View {
     /// being rendered fullscreen — NOT on the local camera state (§7.6). In the group grid
     /// the background is themed, so the themed chrome applies there too.
     private var videoLook: Bool {
-        !isGrid && service.remoteVideoTrack != nil
+        // A remote screen share is a fullscreen video surface too, so it gets the same
+        // white-chrome treatment as a fullscreen camera feed.
+        service.screenShareTrack != nil || (!isGrid && service.remoteVideoTrack != nil)
     }
 
     /// Whether any video is on screen at all — only used for the Live Activity's video flag.
     private var hasAnyVideo: Bool {
         service.cameraEnabled || service.localVideoTrack != nil || service.remoteVideoTrack != nil
+            || service.screenShareTrack != nil
     }
 }
 
