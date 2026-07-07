@@ -20,16 +20,20 @@ struct FriendsView: View {
                 LazyVStack(alignment: .leading, spacing: 0) {
                     if !requests.isEmpty { requestsSection }
                     friendsSection
-                    VStack(spacing: 6) {
-                        KlicLottieView(name: "01", height: 180)
-                        Text("Your people, all in one place.")
-                            .font(KlicFont.caption(13))
-                            .foregroundStyle(KlicColor.textMuted)
-                            .frame(maxWidth: .infinity)
+                    // Empty-state illustration: only when the user has no friends,
+                    // centered in the scroll viewport.
+                    if friends.isEmpty {
+                        VStack(spacing: 6) {
+                            KlicLottieView(name: "01", height: 180)
+                            Text("Your people, all in one place.")
+                                .font(KlicFont.caption(13))
+                                .foregroundStyle(KlicColor.textMuted)
+                                .frame(maxWidth: .infinity)
+                        }
+                        .padding(.horizontal, 16)
+                        .frame(maxWidth: .infinity)
+                        .containerRelativeFrame(.vertical, alignment: .center)
                     }
-                    .padding(.top, 20)
-                    .padding(.bottom, 8)
-                    .padding(.horizontal, 16)
                 }
                 .frame(maxWidth: .infinity)
             }
@@ -101,7 +105,7 @@ struct FriendsView: View {
                                 .frame(width: 40, height: 40).background(KlicColor.primary, in: Circle())
                         }
                         Button { Task { await decline(req) } } label: {
-                            Icon(.close, size: 18, color: KlicColor.textMuted)
+                            Icon(.cancel, size: 18, color: KlicColor.textMuted, style: .line)
                                 .frame(width: 40, height: 40).background(KlicColor.surfaceRaised, in: Circle())
                         }
                     }

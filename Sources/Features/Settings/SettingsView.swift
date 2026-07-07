@@ -30,7 +30,6 @@ struct SettingsView: View {
                         session.logout()
                     }
                     VStack(spacing: 6) {
-                        KlicLottieView(name: "07", height: 140)
                         Text("Version \(appVersion)")
                             .font(KlicFont.caption(12))
                             .foregroundStyle(KlicColor.textMuted)
@@ -354,6 +353,7 @@ private struct AppUpdateInfoView: View {
 
     private var statusCard: some View {
         VStack(spacing: 12) {
+            KlicLottieView(name: "07", height: 140)
             Image(systemName: statusIcon)
                 .font(.system(size: 56, weight: .light))
                 .foregroundStyle(statusTint)

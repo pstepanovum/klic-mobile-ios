@@ -7,7 +7,7 @@ enum KlicIcon {
     case message, send, search
     case check
     case user, addUser
-    case settings, close, back
+    case settings, close, back, cancel
 
     // Bold variant — use for action/filled contexts (buttons, call controls).
     var bold: String {
@@ -28,6 +28,7 @@ enum KlicIcon {
         case .settings:  return "ic_bold_setting"
         case .close:     return "ic_bold_close"
         case .back:      return "ic_bold_arrow_left"
+        case .cancel:    return "ic_line_cancel"
         }
     }
 
@@ -50,6 +51,7 @@ enum KlicIcon {
         case .settings:  return "ic_line_setting"
         case .close:     return "ic_line_close"
         case .back:      return "ic_line_arrow_left"
+        case .cancel:    return "ic_line_cancel"
         }
     }
 }
