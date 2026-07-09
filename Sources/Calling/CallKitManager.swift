@@ -519,7 +519,10 @@ final class CallKitManager: NSObject, ObservableObject {
         }
         endSystemCall(callId: callId, reason: endReason)
         Task {
-            await CallService.shared.leave()
+            // Scope the teardown to THIS call: if the user has already answered a different call
+            // by the time this Task runs, the live room now belongs to that call — leaving it
+            // would kill the new call's audio (M3).
+            await CallService.shared.leave(callId: callId)
             CallActivityController.end()
             // The active call just ended — bring back any call we were holding for call-waiting.
             resumeHeldCallIfNeeded(endedCallId: callId)
@@ -606,11 +609,15 @@ final class CallKitManager: NSObject, ObservableObject {
         return true
     }
 
-    /// Satisfy PushKit's `mustReport` contract for a `call.end` push that arrived with no live
-    /// call to dismiss (e.g. the invite push was missed): report a call to CallKit and end it
-    /// immediately. Prevents app termination on iOS 26.4+; only ever runs in that rare edge case.
+    /// Satisfy PushKit's `mustReport` contract for a `call.end` push by reporting a call to CallKit
+    /// and ending it immediately. `reportCall(endedAt:)` on a live ring does NOT satisfy the
+    /// contract (it reports an END, not a NEW incoming call), so this runs even when the same push
+    /// also dismissed a live call. Reports on a THROWAWAY UUID — never the call's real CallKit
+    /// identity — so it can't collide with a UUID we just reported ended for that same call (which
+    /// CallKit would reject, leaving us non-compliant). Prevents app termination + VoIP-push
+    /// throttling on iOS < 26.4 (whose handler reports `mustReport` unconditionally).
     func reportEndedForCompliance(callId: String, invite: SocketService.CallInvite? = nil, completion: (() -> Void)? = nil) {
-        let uuid = uuid(for: callId)
+        let uuid = UUID()
         let update = CXCallUpdate()
         update.remoteHandle = CXHandle(
             type: .generic,
@@ -622,7 +629,6 @@ final class CallKitManager: NSObject, ObservableObject {
             Task { @MainActor in
                 guard let self else { completion?(); return }
                 self.provider.reportCall(with: uuid, endedAt: Date(), reason: .remoteEnded)
-                self.clear(callId)
                 completion?()
             }
         }
@@ -866,7 +872,9 @@ extension CallKitManager: CXProviderDelegate {
             // Only tear down the shared media session if we actually ended the ACTIVE call — a
             // declined 2nd ringing call must leave the first call's media untouched.
             if endedActiveCall {
-                await CallService.shared.leave()
+                // Scope to the ended call so a stale end can't tear down a room that a newer
+                // call already took over (M3). `id == nil` (fallback) leaves unconditionally.
+                await CallService.shared.leave(callId: id)
                 CallActivityController.end()
                 activeCall = nil
                 // The active call ended — bring back any call we were holding for call-waiting.

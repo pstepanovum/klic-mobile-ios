@@ -356,7 +356,20 @@ final class CallService: NSObject, ObservableObject {
         }
     }
 
-    func leave() async {
+    /// Tear down the current call's room. Pass `callId` to scope the teardown to a specific call:
+    /// if the live room has since been swapped to a DIFFERENT call (`currentCallId != callId`),
+    /// this is a no-op. Without that guard, a late teardown Task for call A (scheduled by
+    /// `finishCall`) could disconnect call B's room after the user already answered B — a
+    /// connected-but-silent / dead call. Pass `nil` to force teardown regardless (provider reset).
+    func leave(callId scopedCallId: String? = nil) async {
+        if let scopedCallId, currentCallId != scopedCallId {
+            APIClient.mobileDiagnostic(
+                event: "livekit.leave.skippedStale",
+                callId: scopedCallId,
+                detail: currentCallId
+            )
+            return
+        }
         let callId = currentCallId
         isLeaving = true
         // A user-initiated (or remote-signaled) teardown cancels any in-flight rejoin
