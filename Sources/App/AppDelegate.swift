@@ -102,10 +102,18 @@ extension AppDelegate: PKPushRegistryDelegate {
             let callId = d["callId"] as? String ?? ""
             APIClient.mobileDiagnostic(event: "pushkit.callEnd.received", callId: callId)
             MainActor.assumeIsolated {
-                let dismissed = CallKitManager.shared.handleRemoteCallEnded(callId: callId)
-                // If the system insists this push be reported but there's no live call to
-                // dismiss, report-and-end so we don't get terminated.
-                if mustReport && !dismissed {
+                // Dismiss the live ring/call this teardown refers to, if we're showing one.
+                CallKitManager.shared.handleRemoteCallEnded(callId: callId)
+                // PushKit's must-report contract requires reportNewIncomingCall for EVERY delivered
+                // VoIP push. Dismissing a live call via reportCall(endedAt:) does NOT satisfy it —
+                // that reports an END, not a NEW incoming call — so we report-then-end for
+                // compliance whenever the system says this push must be reported, REGARDLESS of
+                // whether we also dismissed a live ring. Skipping it terminates the app on
+                // iOS < 26.4 (whose handler passes mustReport unconditionally) and eventually makes
+                // iOS stop waking the app for VoIP pushes — a cause of an asleep/killed iPhone
+                // silently never ringing. On iOS 26.4+ the system sets mustReport = false for a
+                // stale/foreground end push, so this compliance flash is skipped there.
+                if mustReport {
                     CallKitManager.shared.reportEndedForCompliance(callId: callId)
                 }
             }

@@ -4,18 +4,24 @@ import UIKit
 /// §15.3: interactive swipe-LEFT-to-reply on message rows (own and peer, every
 /// bubble kind — text, media/bento, voice, files, stickers).
 ///
-/// Gesture anatomy:
-/// - Scroll-vs-swipe disambiguation: the very first movement decides the axis. A
-///   mostly-vertical drag is rejected for the rest of the touch so the list scrolls
-///   untouched; a mostly-horizontal leftward drag engages the gesture.
-/// - The row tracks the finger 1:1 up to the trigger distance, then RESISTS: the
-///   displacement past the trigger grows sublinearly (rubber-band), asymptotically
-///   capped, so the bubble never runs away.
-/// - A reply badge fades/scales in behind the row's trailing edge as progress builds.
-/// - ONE crisp haptic exactly when the raw finger travel crosses the trigger; the
-///   flag re-arms only when a new touch begins, so it never re-fires while held.
-/// - Release past the trigger opens the reply flow; anything less springs back.
-/// - Transform-only rendering (offset/opacity/scale) — no per-frame re-layout.
+/// Why a UIKit pan and not a SwiftUI `DragGesture`:
+/// - A SwiftUI `DragGesture` engages on movement in ANY direction once it clears
+///   `minimumDistance`; you can only inspect the axis in `onChanged`, which fires
+///   AFTER the gesture has already recognized. On iOS 18+ a `DragGesture` attached to
+///   any subview of a `ScrollView` makes the ScrollView ignore the vertical pan for
+///   that whole touch (FB14688465) — so a drag that starts on a bubble locks the list,
+///   and `.simultaneousGesture` / a larger `minimumDistance` do NOT fix it. Media
+///   bubbles fill the row, so nearly every drag begins on one and the list froze.
+/// - A `UIPanGestureRecognizer` can DECLINE to begin (`gestureRecognizerShouldBegin`)
+///   the instant it has a velocity: we begin only for a clearly-horizontal LEFTWARD
+///   pan and fail for everything else, so vertical/diagonal drags are never claimed and
+///   the ScrollView scrolls untouched. Taps and long-presses pass straight through
+///   (the recognizer only ever wakes for pans), so opening media / the action menu is
+///   unaffected.
+///
+/// Rendering: transform-only (offset/opacity/scale) — the row tracks the finger 1:1 up
+/// to the trigger, then RESISTS (rubber-band, asymptotically capped). ONE crisp haptic
+/// fires exactly when travel crosses the trigger; release past it opens the reply flow.
 struct SwipeToReplyModifier: ViewModifier {
     let enabled: Bool
     let onReply: () -> Void
@@ -26,18 +32,8 @@ struct SwipeToReplyModifier: ViewModifier {
     private static let bandRange: CGFloat = 80
     /// How quickly the rubber-band stiffens.
     private static let bandCoefficient: CGFloat = 0.4
-    /// Movement before the drag is recognized at all (lets taps through).
-    private static let activationDistance: CGFloat = 12
-
-    private enum AxisLock {
-        case undecided
-        case horizontal
-        /// Mostly-vertical start — ignore this touch entirely; the list scrolls.
-        case rejected
-    }
 
     @State private var translation: CGFloat = 0
-    @State private var axisLock: AxisLock = .undecided
     @State private var hapticFired = false
     @State private var haptic = UIImpactFeedbackGenerator(style: .medium)
 
@@ -52,14 +48,36 @@ struct SwipeToReplyModifier: ViewModifier {
             content
                 .offset(x: translation)
         }
-        // §19.2: attach the swipe as a SIMULTANEOUS gesture so the enclosing
-        // ScrollView's pan always recognizes alongside it — the list keeps scrolling
-        // even when the drag starts on a media/file bubble (which fills the row).
-        // A plain `.gesture` competed with the scroll pan for the touch, and because
-        // media bubbles occupy nearly the whole row width/height, drags almost always
-        // began on the bubble and the list wouldn't scroll. The axis-lock below still
-        // restricts this gesture to horizontal, so vertical drags only scroll.
-        .simultaneousGesture(dragGesture, including: enabled ? .all : .subviews)
+        // The pan recognizer is installed on the row's backing view (via the
+        // passthrough host below), so it observes the whole bubble without ever
+        // intercepting taps/long-press. It only begins on a horizontal-left drag,
+        // leaving every vertical drag to the enclosing ScrollView.
+        .background {
+            if enabled {
+                HorizontalSwipeGesture(
+                    onBegan: {
+                        haptic.prepare()
+                        hapticFired = false
+                    },
+                    onChanged: { dx in
+                        let leftward = max(0, -dx)
+                        translation = -Self.rubberBanded(leftward)
+                        if leftward >= Self.trigger, !hapticFired {
+                            hapticFired = true
+                            haptic.impactOccurred()
+                        }
+                    },
+                    onEnded: { dx in
+                        let recognized = -dx >= Self.trigger
+                        hapticFired = false
+                        withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
+                            translation = 0
+                        }
+                        if recognized { onReply() }
+                    }
+                )
+            }
+        }
     }
 
     private var replyBadge: some View {
@@ -75,45 +93,6 @@ struct SwipeToReplyModifier: ViewModifier {
             .allowsHitTesting(false)
     }
 
-    private var dragGesture: some Gesture {
-        DragGesture(minimumDistance: Self.activationDistance)
-            .onChanged { value in
-                let dx = value.translation.width
-                let dy = value.translation.height
-
-                if axisLock == .undecided {
-                    // First decision wins for the whole touch: leftward and clearly
-                    // more horizontal than vertical, or the list keeps the drag.
-                    if dx < 0, abs(dx) > abs(dy) {
-                        axisLock = .horizontal
-                        haptic.prepare()
-                    } else {
-                        axisLock = .rejected
-                    }
-                }
-                guard axisLock == .horizontal else { return }
-
-                translation = -Self.rubberBanded(max(0, -dx))
-
-                if -dx >= Self.trigger, !hapticFired {
-                    hapticFired = true
-                    haptic.impactOccurred()
-                }
-            }
-            .onEnded { value in
-                let recognized = axisLock == .horizontal
-                    && -value.translation.width >= Self.trigger
-                axisLock = .undecided
-                hapticFired = false
-                withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
-                    translation = 0
-                }
-                if recognized {
-                    onReply()
-                }
-            }
-    }
-
     /// Finger travel → displacement: linear up to the trigger, then the excess is
     /// compressed onto an asymptote `bandRange` away — displacement keeps growing
     /// with the finger but ever more slowly.
@@ -122,6 +101,132 @@ struct SwipeToReplyModifier: ViewModifier {
         let excess = travel - trigger
         return trigger + (1 - 1 / (excess * bandCoefficient / bandRange + 1)) * bandRange
     }
+}
+
+/// UIKit-backed horizontal-left pan that never steals the ScrollView's vertical scroll.
+///
+/// The representable renders an invisible, NON-interactive host (its `hitTest` returns
+/// nil, so it never wins a tap). The pan recognizer is instead added to the host's
+/// superview — the row-sized backing view — and scoped back to the host's bounds via
+/// the delegate, so it fires only for drags that start on THIS row's bubble.
+private struct HorizontalSwipeGesture: UIViewRepresentable {
+    var onBegan: () -> Void = {}
+    var onChanged: (CGFloat) -> Void
+    var onEnded: (CGFloat) -> Void
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(onBegan: onBegan, onChanged: onChanged, onEnded: onEnded)
+    }
+
+    func makeUIView(context: Context) -> UIView {
+        let view = PassthroughHostView()
+        context.coordinator.attach(to: view)
+        return view
+    }
+
+    func updateUIView(_ uiView: UIView, context: Context) {
+        context.coordinator.onBegan = onBegan
+        context.coordinator.onChanged = onChanged
+        context.coordinator.onEnded = onEnded
+        // The superview may not have existed yet at make time — retry until attached.
+        context.coordinator.attach(to: uiView)
+    }
+
+    static func dismantleUIView(_ uiView: UIView, coordinator: Coordinator) {
+        coordinator.detach()
+    }
+
+    final class Coordinator: NSObject, UIGestureRecognizerDelegate {
+        var onBegan: () -> Void
+        var onChanged: (CGFloat) -> Void
+        var onEnded: (CGFloat) -> Void
+        private weak var pan: UIPanGestureRecognizer?
+        private weak var host: UIView?
+
+        init(
+            onBegan: @escaping () -> Void,
+            onChanged: @escaping (CGFloat) -> Void,
+            onEnded: @escaping (CGFloat) -> Void
+        ) {
+            self.onBegan = onBegan
+            self.onChanged = onChanged
+            self.onEnded = onEnded
+        }
+
+        func attach(to view: UIView) {
+            host = view
+            guard pan == nil else { return }
+            DispatchQueue.main.async { [weak self, weak view] in
+                guard let self, let view, self.pan == nil else { return }
+                // Install on the row's backing view so the whole bubble is covered; the
+                // delegate below re-scopes recognition to this row's bounds.
+                let target = view.superview ?? view
+                let recognizer = UIPanGestureRecognizer(
+                    target: self, action: #selector(self.handle(_:))
+                )
+                recognizer.delegate = self
+                target.addGestureRecognizer(recognizer)
+                self.pan = recognizer
+            }
+        }
+
+        func detach() {
+            if let pan, let view = pan.view {
+                view.removeGestureRecognizer(pan)
+            }
+            pan = nil
+            host = nil
+        }
+
+        @objc private func handle(_ gesture: UIPanGestureRecognizer) {
+            let reference = host ?? gesture.view
+            let translationX = gesture.translation(in: reference).x
+            switch gesture.state {
+            case .began:
+                onBegan()
+                onChanged(translationX)
+            case .changed:
+                onChanged(translationX)
+            case .ended, .cancelled, .failed:
+                onEnded(translationX)
+            default:
+                break
+            }
+        }
+
+        /// The decisive gate: begin ONLY for a dominantly-horizontal LEFTWARD pan that
+        /// starts inside this row. Anything vertical/diagonal/rightward fails here, so
+        /// the ScrollView keeps the touch and scrolls normally.
+        func gestureRecognizerShouldBegin(_ gesture: UIGestureRecognizer) -> Bool {
+            guard let pan = gesture as? UIPanGestureRecognizer, let host else { return false }
+            if !host.bounds.contains(pan.location(in: host)) { return false }
+            let velocity = pan.velocity(in: pan.view)
+            return velocity.x < 0 && abs(velocity.x) > abs(velocity.y)
+        }
+
+        /// Only accept touches that land on this row (the recognizer lives on a shared
+        /// ancestor, so keep every other row's drags out of it).
+        func gestureRecognizer(
+            _ gestureRecognizer: UIGestureRecognizer,
+            shouldReceive touch: UITouch
+        ) -> Bool {
+            guard let host else { return false }
+            return host.bounds.contains(touch.location(in: host))
+        }
+
+        /// Coexist with the ScrollView's pan so arbitration never deadlocks; the
+        /// shouldBegin gate above is what actually restricts us to horizontal.
+        func gestureRecognizer(
+            _ gestureRecognizer: UIGestureRecognizer,
+            shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer
+        ) -> Bool { true }
+    }
+}
+
+/// Invisible host that never intercepts touches itself — the pan recognizer is attached
+/// to its superview, so taps and long-presses fall straight through to the bubble.
+private final class PassthroughHostView: UIView {
+    override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? { nil }
 }
 
 extension View {
