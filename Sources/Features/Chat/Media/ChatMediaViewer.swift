@@ -58,15 +58,6 @@ struct MediaViewer: View {
         items.first(where: { $0.attachmentId == currentAttachmentId }) ?? items.first
     }
 
-    /// §10.9: the media that belongs to the SAME message as the current item — the set
-    /// the horizontal pager swipes across (a message's own image gallery). Jumping to
-    /// another message via the thumbnail strip re-scopes the pager to that message.
-    private var currentGroupItems: [ChatMediaGalleryItem] {
-        guard let messageId = currentItem?.messageId else { return items }
-        let group = items.filter { $0.messageId == messageId }
-        return group.isEmpty ? items : group
-    }
-
     var body: some View {
         ZStack {
             Color.black
@@ -220,19 +211,20 @@ struct MediaViewer: View {
         return String(format: "%d:%02d", seconds / 60, seconds % 60)
     }
 
-    /// Horizontal paging across the current message's media, starting at the tapped
-    /// item. Each page keeps its own pinch-zoom / vertical drag-to-dismiss (those live
-    /// in `mediaStage`); the TabView owns the left/right swipe and the page-dot
-    /// indicator. Single-image messages page to nothing and show no dots.
+    /// Horizontal paging across the ENTIRE conversation's media, starting at the tapped
+    /// item — swiping left/right walks every image/video in the chat, in step with the
+    /// thumbnail strip. Each page keeps its own pinch-zoom / vertical drag-to-dismiss
+    /// (those live in `mediaStage`); the TabView owns the left/right swipe and the
+    /// page-dot indicator. A lone-attachment chat pages to nothing and shows no dots.
     private var mediaPager: some View {
         TabView(selection: $currentAttachmentId) {
-            ForEach(currentGroupItems) { groupItem in
-                mediaStage(groupItem)
-                    .tag(groupItem.attachmentId)
+            ForEach(items) { item in
+                mediaStage(item)
+                    .tag(item.attachmentId)
             }
         }
         .tabViewStyle(
-            .page(indexDisplayMode: currentGroupItems.count > 1 && !immersive ? .always : .never)
+            .page(indexDisplayMode: items.count > 1 && !immersive ? .always : .never)
         )
         .indexViewStyle(.page(backgroundDisplayMode: .interactive))
     }

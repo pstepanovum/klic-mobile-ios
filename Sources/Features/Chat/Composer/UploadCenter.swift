@@ -112,8 +112,10 @@ final class UploadCenter: ObservableObject {
     /// Match the sent drafts to the returned attachments (same order) and cache each
     /// video's local first-frame under its server attachment id (§14.2).
     private func seedVideoThumbnails(items: [PendingMediaDraft], message: Message) {
-        let videoItems = items.filter { $0.kind == "VIDEO" }
-        let videoAttachments = message.attachments.filter { $0.isVideo }
+        // Both VIDEO and VIDEO_NOTE carry a locally-generated first-frame preview;
+        // a VIDEO-only filter dropped every video-note thumbnail (black circle bug).
+        let videoItems = items.filter { $0.kind == "VIDEO" || $0.kind == "VIDEO_NOTE" }
+        let videoAttachments = message.attachments.filter { $0.isVideoLike }
         for (item, attachment) in zip(videoItems, videoAttachments) {
             guard let preview = item.previewImage else { continue }
             Task { await VideoThumbnailer.store(preview, attachmentId: attachment.id) }

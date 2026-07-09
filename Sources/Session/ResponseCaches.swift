@@ -12,7 +12,9 @@ import Combine
 final class ConversationStore: ObservableObject {
     static let shared = ConversationStore()
 
-    @Published private(set) var conversations: [Conversation] = []
+    @Published private(set) var conversations: [Conversation] = [] {
+        didSet { persistConversations() }
+    }
     private(set) var loaded = false
     private var refreshing = false
     private var cancellables: Set<AnyCancellable> = []
@@ -25,6 +27,12 @@ final class ConversationStore: ObservableObject {
     private var myUserId: String? { AccessToken.subject(of: TokenStore.accessToken) }
 
     private init() {
+        // §9.9: optimistic restore — hydrate the last-known list from disk BEFORE any
+        // network call so the Chats tab paints real rows on cold start instead of a
+        // blank flash. `refresh()` (kicked off by the view's .task) reconciles right
+        // after. (The didSet re-persists the same bytes once — negligible on launch.)
+        conversations = Self.loadCachedConversations()
+
         let socket = SocketService.shared
         socket.$lastMessage
             .compactMap { $0 }
@@ -41,12 +49,58 @@ final class ConversationStore: ObservableObject {
             .store(in: &cancellables)
         NotificationCenter.default.publisher(for: .klicSessionExpired)
             .sink { [weak self] _ in
+                Self.clearCachedConversations()
                 self?.conversations = []
                 self?.loaded = false
                 self?.pinOverrides = [:]
                 ChatCaches.clear()
             }
             .store(in: &cancellables)
+    }
+
+    // MARK: Disk cache (cold-start hydration, §9.9)
+
+    /// Per-user cache file — keyed by user id so a re-login as a different account never
+    /// shows the previous user's chats. Nil when signed out (no id yet).
+    private static func cacheURL(for userId: String?) -> URL? {
+        guard let userId, !userId.isEmpty,
+              let dir = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first
+        else { return nil }
+        return dir.appendingPathComponent("conversations-\(userId).json")
+    }
+
+    private static func loadCachedConversations() -> [Conversation] {
+        let userId = AccessToken.subject(of: TokenStore.accessToken)
+        guard let url = cacheURL(for: userId),
+              let data = try? Data(contentsOf: url),
+              let list = try? JSONDecoder().decode([Conversation].self, from: data)
+        else { return [] }
+        return list
+    }
+
+    /// Snapshot the current list to disk off the main thread. Called from `conversations`
+    /// didSet so the cache always reflects the latest server + socket state.
+    private func persistConversations() {
+        guard let url = Self.cacheURL(for: myUserId) else { return }
+        let snapshot = conversations
+        Task.detached(priority: .utility) {
+            guard let data = try? JSONEncoder().encode(snapshot) else { return }
+            try? data.write(to: url, options: .atomic)
+        }
+    }
+
+    /// Wipe every user's conversation cache on sign-out. We can't rely on the token
+    /// still being present here (it may already be cleared), so sweep all cache files
+    /// rather than deriving a single user id.
+    private static func clearCachedConversations() {
+        guard let dir = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first,
+              let files = try? FileManager.default.contentsOfDirectory(
+                  at: dir, includingPropertiesForKeys: nil)
+        else { return }
+        for file in files where file.lastPathComponent.hasPrefix("conversations-")
+            && file.pathExtension == "json" {
+            try? FileManager.default.removeItem(at: file)
+        }
     }
 
     /// Fetch the list from the server; keeps the cached copy on failure.
