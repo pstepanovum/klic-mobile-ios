@@ -32,7 +32,7 @@ settings:
     MARKETING_VERSION: "0.6.15"
     CURRENT_PROJECT_VERSION: "68"
     SWIFT_VERSION: "5.0"
-    DEVELOPMENT_TEAM: "775RWRF5LZ"
+    DEVELOPMENT_TEAM: "V7H9Y9K6Z7"
     # Localization (§10.5): compile string tables from code literals so the
     # Localizable.xcstrings catalog (en/ru/zh-Hans) resolves Text()/String(localized:).
     SWIFT_EMIT_LOC_STRINGS: YES
