@@ -156,11 +156,25 @@ private struct HorizontalSwipeGesture: UIViewRepresentable {
         func attach(to view: UIView) {
             host = view
             guard pan == nil else { return }
+            attemptAttach(to: view, retriesLeft: 5)
+        }
+
+        /// Install on the enclosing UIScrollView — the one view guaranteed to be a true
+        /// ancestor of every row's visible content, so the recognizer actually receives
+        /// the bubble's touches. A `.background` host's OWN subtree is a sibling layer
+        /// behind the content (and this host's hitTest returns nil), so a recognizer on
+        /// the host or its immediate superview never sees the touch — that was the
+        /// v0.6.16 regression. If the scroll view isn't in the hierarchy yet, retry on the
+        /// next runloop turns rather than locking onto the wrong (dead) target.
+        private func attemptAttach(to view: UIView, retriesLeft: Int) {
             DispatchQueue.main.async { [weak self, weak view] in
                 guard let self, let view, self.pan == nil else { return }
-                // Install on the row's backing view so the whole bubble is covered; the
-                // delegate below re-scopes recognition to this row's bounds.
-                let target = view.superview ?? view
+                guard let target = Self.enclosingScrollView(from: view) else {
+                    if retriesLeft > 0 {
+                        self.attemptAttach(to: view, retriesLeft: retriesLeft - 1)
+                    }
+                    return
+                }
                 let recognizer = UIPanGestureRecognizer(
                     target: self, action: #selector(self.handle(_:))
                 )
@@ -168,6 +182,16 @@ private struct HorizontalSwipeGesture: UIViewRepresentable {
                 target.addGestureRecognizer(recognizer)
                 self.pan = recognizer
             }
+        }
+
+        /// Walk up the superview chain to the nearest enclosing scroll view.
+        private static func enclosingScrollView(from view: UIView) -> UIScrollView? {
+            var current: UIView? = view.superview
+            while let candidate = current {
+                if let scroll = candidate as? UIScrollView { return scroll }
+                current = candidate.superview
+            }
+            return nil
         }
 
         func detach() {

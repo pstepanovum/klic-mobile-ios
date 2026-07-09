@@ -282,6 +282,7 @@ struct Attachment: Codable, Identifiable, Hashable {
     var isVoice: Bool { kind == "VOICE" }
     var isVideo: Bool { kind == "VIDEO" }
     var isVideoNote: Bool { kind == "VIDEO_NOTE" }
+    var isVideoLike: Bool { kind == "VIDEO" || kind == "VIDEO_NOTE" }
     var isFile:  Bool { kind == "FILE" }
 }
 

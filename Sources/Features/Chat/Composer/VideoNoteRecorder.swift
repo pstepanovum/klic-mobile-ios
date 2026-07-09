@@ -205,7 +205,6 @@ private final class VideoNoteCapturePipeline: NSObject,
         }
         session.addOutput(video)
         videoOutput = video
-        orientVideoConnection(front: camera.position == .front)
 
         if hasAudio {
             let audio = AVCaptureAudioDataOutput()
@@ -218,6 +217,11 @@ private final class VideoNoteCapturePipeline: NSObject,
         }
 
         session.commitConfiguration()
+        // Orient AFTER committing: the video connection isn't fully established until
+        // the configuration commits, so querying it earlier returns nil and the
+        // rotation/mirroring silently never applies — that left the first recording
+        // landscape (rotated 90°) until a camera flip re-ran this post-commit. (§16.2)
+        orientVideoConnection(front: camera.position == .front)
         setUpWriter(hasAudio: hasAudio)
         session.startRunning()
     }
