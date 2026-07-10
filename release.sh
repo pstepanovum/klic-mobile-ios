@@ -6,8 +6,12 @@
 # - Optionally also publishes the sibling platform after a confirmation prompt.
 #
 # Usage:
-#   ./release.sh            # auto-bump patch version
-#   ./release.sh 0.4.3      # explicit shared version
+#   ./release.sh                      # auto-bump patch version
+#   ./release.sh 0.4.3                # explicit shared version
+#   ./release.sh 0.7.0 --appstore     # release + upload the iOS build to App Store
+#                                     # Connect (TestFlight). Needs ~/.klic-appstore/
+#                                     # (see require_appstore_config below).
+#   ./release.sh --play               # RESERVED: Google Play upload (not implemented)
 #
 set -euo pipefail
 # Without this, a build failing inside $(build_android ...) does NOT abort the
@@ -104,6 +108,86 @@ confirm_yes() {
     y|Y|yes|YES) return 0 ;;
     *) return 1 ;;
   esac
+}
+
+# ── App Store Connect upload (--appstore) ────────────────────────────────────
+# One-time setup (owner):
+#   1. appstoreconnect.apple.com → Users and Access → Integrations →
+#      App Store Connect API → Team Keys → Generate (role: App Manager).
+#      Download the .p8 ONCE and note the Key ID + Issuer ID.
+#   2. mkdir -p ~/.klic-appstore && chmod 700 ~/.klic-appstore
+#      Put the key there as AuthKey_<KEYID>.p8 and write ~/.klic-appstore/config:
+#        ASC_KEY_ID=ABC123DEFG
+#        ASC_ISSUER_ID=00000000-0000-0000-0000-000000000000
+#   3. Create the app record once in App Store Connect (My Apps → "+",
+#      bundle id com.klic.mobile.app) — uploads are rejected without it.
+ASC_KEY_ID=""
+ASC_ISSUER_ID=""
+ASC_KEY_PATH=""
+
+require_appstore_config() {
+  local cfg="$HOME/.klic-appstore/config"
+  if [ ! -f "$cfg" ]; then
+    echo "ERROR: --appstore needs $cfg (see the setup comment in release.sh)." >&2
+    exit 1
+  fi
+  # shellcheck disable=SC1090
+  . "$cfg"
+  ASC_KEY_PATH="$HOME/.klic-appstore/AuthKey_${ASC_KEY_ID}.p8"
+  if [ -z "${ASC_KEY_ID:-}" ] || [ -z "${ASC_ISSUER_ID:-}" ] || [ ! -f "$ASC_KEY_PATH" ]; then
+    echo "ERROR: --appstore config incomplete: need ASC_KEY_ID, ASC_ISSUER_ID in $cfg" >&2
+    echo "       and the key at $ASC_KEY_PATH" >&2
+    exit 1
+  fi
+}
+
+# Re-export the release archive with App Store signing and upload it straight to
+# App Store Connect (appears in TestFlight after Apple-side processing, ~10-30 min).
+# Runs AFTER the GitHub release so a TestFlight hiccup never blocks the sideload flow.
+upload_ios_appstore() {
+  local dir="$1"
+  local version="$2"
+  local archive="$3"
+  local team_id
+  local plist="/tmp/klic-appstore-options-${version}.plist"
+  local out_dir="/tmp/klic-appstore-upload-${version}"
+  team_id="$(grep -E 'DEVELOPMENT_TEAM: ' "$dir/$IOS_PROJECT_REL" | head -1 | sed -E 's/.*"([^"]+)".*/\1/')"
+  echo "Uploading ${version} to App Store Connect (TestFlight)..." >&2
+  rm -rf "$out_dir"
+  cat > "$plist" <<EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>method</key>
+  <string>app-store-connect</string>
+  <key>destination</key>
+  <string>upload</string>
+  <key>signingStyle</key>
+  <string>automatic</string>
+  <key>teamID</key>
+  <string>${team_id}</string>
+  <key>stripSwiftSymbols</key>
+  <true/>
+  <key>uploadSymbols</key>
+  <true/>
+</dict>
+</plist>
+EOF
+  # The API key lets xcodebuild's cloud signing mint the Apple Distribution
+  # certificate + App Store profile on demand and authenticate the upload.
+  xcodebuild -exportArchive \
+    -archivePath "$archive" \
+    -exportPath "$out_dir" \
+    -exportOptionsPlist "$plist" \
+    -allowProvisioningUpdates \
+    -authenticationKeyPath "$ASC_KEY_PATH" \
+    -authenticationKeyID "$ASC_KEY_ID" \
+    -authenticationKeyIssuerID "$ASC_ISSUER_ID" \
+    1>&2 || { echo "ERROR: App Store Connect upload failed" >&2; return 1; }
+  rm -rf "$out_dir"
+  rm -f "$plist"
+  echo "App Store Connect upload accepted — check TestFlight after processing." >&2
 }
 
 build_android() {
@@ -244,8 +328,14 @@ EOF
   fi
   cp "$exported_ipa" "$signed_ipa_path"
 
-  rm -rf "$payload_dir" "$unsigned_archive_path" "$signed_archive_path" "$export_dir"
+  rm -rf "$payload_dir" "$unsigned_archive_path" "$export_dir"
   rm -f "$export_options_plist"
+  if [ "$UPLOAD_APPSTORE" = true ]; then
+    # The --appstore lane re-exports this same archive with App Store signing.
+    ARTIFACT_IOS_SIGNED_ARCHIVE="$signed_archive_path"
+  else
+    rm -rf "$signed_archive_path"
+  fi
   ARTIFACT_IOS_UNSIGNED_IPA="$unsigned_ipa_path"
   ARTIFACT_IOS_SIGNED_IPA="$signed_ipa_path"
 }
@@ -308,7 +398,37 @@ else
   exit 1
 fi
 
-new_version="${1:-}"
+new_version=""
+UPLOAD_APPSTORE=false
+UPLOAD_PLAY=false
+for arg in "$@"; do
+  case "$arg" in
+    --appstore) UPLOAD_APPSTORE=true ;;
+    --play) UPLOAD_PLAY=true ;;
+    --*) echo "Unknown flag: $arg" >&2; exit 1 ;;
+    *) new_version="$arg" ;;
+  esac
+done
+
+if [ "$UPLOAD_PLAY" = true ]; then
+  # RESERVED lane for Google Play — intentionally unimplemented until the Play
+  # Console app exists. To implement (future agent): the signed AAB already
+  # builds via `./gradlew bundlePlayRelease` (play flavor strips the self-updater;
+  # signing from ~/.klic-android/keystore.properties) at
+  # app/build/outputs/bundle/playRelease/app-play-release.aab. Upload it with the
+  # Google Play Developer API using a Play Console service-account JSON
+  # (suggest ~/.klic-android/play-service-account.json) — fastlane `supply` or a
+  # direct edits.insert/upload/commit call — into the "internal" track first.
+  echo "ERROR: --play (Google Play upload) is reserved but not implemented yet." >&2
+  echo "       Blocked on the Play Console app record; see the comment above this message in release.sh." >&2
+  exit 1
+fi
+
+if [ "$UPLOAD_APPSTORE" = true ]; then
+  # Fail before any version bump / tag if the upload credentials are missing.
+  require_appstore_config
+fi
+
 if [ -z "$new_version" ]; then
   new_version="$(bump_patch "$current_version")"
 fi
@@ -358,6 +478,7 @@ fi
 ARTIFACT_ANDROID_APK=""
 ARTIFACT_IOS_UNSIGNED_IPA=""
 ARTIFACT_IOS_SIGNED_IPA=""
+ARTIFACT_IOS_SIGNED_ARCHIVE=""
 
 # A build function's stdout must be exactly one line: the artifact path. Verify the
 # file really exists before releasing anything — on bash < 4.4 a build failure inside
@@ -414,6 +535,22 @@ else
   fi
 fi
 
+APPSTORE_UPLOAD_STATUS=""
+if [ "$UPLOAD_APPSTORE" = true ]; then
+  if [ -n "$ARTIFACT_IOS_SIGNED_ARCHIVE" ] && [ -d "$ARTIFACT_IOS_SIGNED_ARCHIVE" ]; then
+    if upload_ios_appstore "$IOS_DIR" "$new_version" "$ARTIFACT_IOS_SIGNED_ARCHIVE"; then
+      APPSTORE_UPLOAD_STATUS="uploaded (processing in App Store Connect)"
+      rm -rf "$ARTIFACT_IOS_SIGNED_ARCHIVE"
+    else
+      # Keep the archive so the upload can be retried without rebuilding.
+      APPSTORE_UPLOAD_STATUS="FAILED — archive kept at $ARTIFACT_IOS_SIGNED_ARCHIVE"
+    fi
+  else
+    echo "ERROR: --appstore requested but no iOS archive was produced (run from the iOS repo, or answer yes to the iOS sibling prompt)." >&2
+    APPSTORE_UPLOAD_STATUS="SKIPPED — no iOS archive"
+  fi
+fi
+
 echo ""
 echo "==========================================="
 echo "Released ${tag}"
@@ -426,5 +563,8 @@ if [ -n "$ARTIFACT_IOS_UNSIGNED_IPA" ]; then
 fi
 if [ -n "$ARTIFACT_IOS_SIGNED_IPA" ]; then
   echo "  iOS signed     : $ARTIFACT_IOS_SIGNED_IPA"
+fi
+if [ -n "$APPSTORE_UPLOAD_STATUS" ]; then
+  echo "  App Store      : $APPSTORE_UPLOAD_STATUS"
 fi
 echo "==========================================="
