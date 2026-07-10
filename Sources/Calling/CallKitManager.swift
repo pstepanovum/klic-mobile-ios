@@ -434,7 +434,7 @@ final class CallKitManager: NSObject, ObservableObject {
     private func endHeldCall(_ callId: String, notifyServer: Bool) {
         guard !finishingCallIds.contains(callId) else { return }
         finishingCallIds.insert(callId)
-        recentlyEndedCallIds.insert(callId)
+        markRecentlyEnded(callId)
         playEndHaptic(callId)
         if notifyServer {
             serverTeardown = Task { _ = try? await APIClient.shared.endCall(callId: callId) }
@@ -443,10 +443,6 @@ final class CallKitManager: NSObject, ObservableObject {
         CallService.shared.clearHeld()
         clear(callId)
         finishingCallIds.remove(callId)
-        Task {
-            try? await Task.sleep(nanoseconds: 120_000_000_000)
-            _ = await MainActor.run { self.recentlyEndedCallIds.remove(callId) }
-        }
     }
 
     /// After an active call ends, bring back any call we were holding for call-waiting.
@@ -508,7 +504,7 @@ final class CallKitManager: NSObject, ObservableObject {
         let wasOutgoing = activeCall?.id == callId ? activeCall?.isOutgoing == true : false
         let wasConnected = activeCall?.id == callId && isMediaConnected
         finishingCallIds.insert(callId)
-        recentlyEndedCallIds.insert(callId)
+        markRecentlyEnded(callId)
         cancelRingTimeout(callId)
         statusText = status
         if activeCall?.id == callId {
@@ -530,10 +526,6 @@ final class CallKitManager: NSObject, ObservableObject {
             await MainActor.run {
                 self.clear(callId)
                 self.finishingCallIds.remove(callId)
-                Task {
-                    try? await Task.sleep(nanoseconds: 120_000_000_000)
-                    _ = await MainActor.run { self.recentlyEndedCallIds.remove(callId) }
-                }
             }
         }
     }
@@ -545,7 +537,7 @@ final class CallKitManager: NSObject, ObservableObject {
         let wasOutgoing = activeCall?.id == callId ? activeCall?.isOutgoing == true : true
         let wasConnected = activeCall?.id == callId && isMediaConnected
         Ringback.shared.stop()
-        recentlyEndedCallIds.insert(callId)
+        markRecentlyEnded(callId)
         cancelRingTimeout(callId)
         serverTeardown = Task { await self.finishCallOnServer(callId: callId, wasOutgoing: wasOutgoing, wasConnected: wasConnected) }
         endSystemCall(callId: callId)
@@ -597,6 +589,18 @@ final class CallKitManager: NSObject, ObservableObject {
         }
     }
 
+    /// Mark a call so late-arriving invite copies for it don't re-ring, expiring after 120s.
+    /// Every end path must use this instead of inserting directly: a marker with no expiry
+    /// blocks any legitimate later re-ring of the same callId (e.g. re-joining a still-live
+    /// group call after one end push) and grows the set for the life of the process.
+    private func markRecentlyEnded(_ callId: String) {
+        guard recentlyEndedCallIds.insert(callId).inserted else { return }
+        Task {
+            try? await Task.sleep(nanoseconds: 120_000_000_000)
+            _ = await MainActor.run { self.recentlyEndedCallIds.remove(callId) }
+        }
+    }
+
     /// Tear down a call ended remotely. Returns true if a known call was actually dismissed,
     /// so a VoIP `call.end` push can tell whether it still needs to satisfy `mustReport`.
     @discardableResult
@@ -623,7 +627,10 @@ final class CallKitManager: NSObject, ObservableObject {
             type: .generic,
             value: invite?.displayTitle ?? pendingInvites[callId]?.fromDisplayName ?? "Call"
         )
-        recentlyEndedCallIds.insert(callId)
+        // Expiring marker, NOT a bare insert: this runs for EVERY call.end push, and a
+        // permanent entry here silenced any later re-ring of the same callId for the whole
+        // process lifetime (and leaked one Set entry per ended call).
+        markRecentlyEnded(callId)
         APIClient.mobileDiagnostic(event: "callkit.reportEndedForCompliance", callId: callId)
         provider.reportNewIncomingCall(with: uuid, update: update) { [weak self] _ in
             Task { @MainActor in
@@ -659,14 +666,14 @@ extension CallKitManager: CXProviderDelegate {
             cancelAllRingTimeouts()
             if let call = activeCall {
                 let wasConnected = isMediaConnected
-                recentlyEndedCallIds.insert(call.id)
+                markRecentlyEnded(call.id)
                 playEndHaptic(call.id)
                 await finishCallOnServer(callId: call.id, wasOutgoing: call.isOutgoing, wasConnected: wasConnected)
                 clear(call.id)
             }
             // A held (call-waiting) call is torn down too — the whole provider is resetting.
             if let held = CallService.shared.heldCall {
-                recentlyEndedCallIds.insert(held.id)
+                markRecentlyEnded(held.id)
                 await finishCallOnServer(callId: held.id, wasOutgoing: held.isOutgoing, wasConnected: true)
                 clear(held.id)
             }
@@ -842,7 +849,7 @@ extension CallKitManager: CXProviderDelegate {
             }
             let endedActiveCall = id == nil || id == activeCall?.id
             if let id {
-                recentlyEndedCallIds.insert(id)
+                markRecentlyEnded(id)
                 playEndHaptic(id)
                 // A ringing invite being dismissed — including a 2nd incoming call declined while a
                 // first call is active (id != the active call) — is a decline, not an end.
