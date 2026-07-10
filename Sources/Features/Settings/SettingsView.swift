@@ -7,6 +7,9 @@ struct SettingsView: View {
     @EnvironmentObject var themeManager: ThemeManager
     /// §12.1: Settings → "Report a problem" opens the target-less report flow.
     @State private var reportTarget: ReportTarget?
+    /// Legal pages — the same sheets the sign-up screen presents.
+    @State private var showPrivacyPolicy = false
+    @State private var showTerms = false
 
     var body: some View {
         NavigationStack {
@@ -168,9 +171,26 @@ struct SettingsView: View {
                 SettingsRow(icon: "exclamationmark.bubble", title: String(localized: "Report a problem"))
             }
             .buttonStyle(.plain)
+
+            Divider().padding(.leading, 64).opacity(0.4)
+
+            // Legal — the sign-up screen's Privacy Policy and Terms of Service pages.
+            Button { showPrivacyPolicy = true } label: {
+                SettingsRow(icon: "doc.text", title: String(localized: "Privacy Policy"))
+            }
+            .buttonStyle(.plain)
+
+            Divider().padding(.leading, 64).opacity(0.4)
+
+            Button { showTerms = true } label: {
+                SettingsRow(icon: "doc.plaintext", title: String(localized: "Terms of Service"))
+            }
+            .buttonStyle(.plain)
         }
         .background(KlicColor.surface, in: RoundedRectangle(cornerRadius: 20))
         .reportSheet(target: $reportTarget)
+        .sheet(isPresented: $showPrivacyPolicy) { PrivacyPolicyView() }
+        .sheet(isPresented: $showTerms) { TermsOfServiceView() }
     }
 }
 

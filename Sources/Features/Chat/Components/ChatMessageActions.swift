@@ -24,6 +24,8 @@ struct MessageActionsOverlay: View {
     var onToggleStar: () -> Void = {}
     var onEdit: () -> Void = {}
     var onPin: () -> Void = {}
+    /// §12.1 "Hide" — device-local content filter, other people's messages only.
+    var onHide: () -> Void = {}
     /// §12.1 "Report message" — shown for other people's messages only.
     var onReport: () -> Void = {}
     let onDelete: () -> Void
@@ -173,6 +175,10 @@ struct MessageActionsOverlay: View {
                 systemImage: message.starred == true ? "star.slash" : "star"
             ) { onToggleStar(); onDismiss() }
             if !isMine {
+                Divider().overlay(KlicColor.surfaceRaised)
+                ActionRow(title: String(localized: "Hide"), systemImage: "eye.slash") {
+                    onHide()
+                }
                 Divider().overlay(KlicColor.surfaceRaised)
                 ActionRow(title: String(localized: "Report message"), systemImage: "exclamationmark.bubble") {
                     onReport()

@@ -16,6 +16,7 @@ struct SignUpView: View {
     @State private var displayName = ""
     @State private var agreedToPrivacy = false
     @State private var showPrivacyPolicy = false
+    @State private var showTerms = false
     @State private var isSubmitting = false
 
     var body: some View {
@@ -72,6 +73,20 @@ struct SignUpView: View {
                 .padding(.top, 18)
                 .disabled(!agreedToPrivacy || isSubmitting)
 
+                // Terms of Service caption — same inline-link language as the
+                // privacy checkbox above (stacked so long translations wrap cleanly).
+                VStack(spacing: 2) {
+                    Text("By creating an account you agree to our")
+                        .font(KlicFont.caption(12))
+                        .foregroundStyle(AuthStyle.smallText)
+                        .multilineTextAlignment(.center)
+                    Button("Terms of Service") { showTerms = true }
+                        .font(KlicFont.caption(12))
+                        .foregroundStyle(AuthStyle.smallText)
+                        .underline()
+                }
+                .padding(.top, 10)
+
                 if let error = session.errorMessage {
                     Text(error)
                         .font(KlicFont.caption())
@@ -99,6 +114,9 @@ struct SignUpView: View {
         .toolbar(.hidden, for: .navigationBar)
         .sheet(isPresented: $showPrivacyPolicy) {
             PrivacyPolicyView()
+        }
+        .sheet(isPresented: $showTerms) {
+            TermsOfServiceView()
         }
         .enableInjection()
     }
