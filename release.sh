@@ -116,9 +116,10 @@ build_android() {
   (
     cd "$dir"
     # stdout of this function is the artifact path — keep build logs on stderr
-    ./gradlew assembleDebug 1>&2
+    # "github" flavor = the sideload distribution (self-updater + GitHub releases).
+    ./gradlew assembleGithubDebug 1>&2
   ) || { echo "ERROR: gradle build failed" >&2; exit 1; }
-  cp "$dir/app/build/outputs/apk/debug/app-debug.apk" "$apk"
+  cp "$dir/app/build/outputs/apk/github/debug/app-github-debug.apk" "$apk"
   ARTIFACT_ANDROID_APK="$apk"
 }
 
