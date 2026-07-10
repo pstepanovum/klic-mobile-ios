@@ -86,6 +86,8 @@ struct ChatView: View {
     /// §16.6: who I've blocked — a blocked DM peer swaps the composer for the
     /// "You blocked <name>" banner (+ Unblock) in place.
     @ObservedObject var blockStore = BlockStore.shared
+    /// §12.1: device-local "Hide" filter — observed so a Settings reset re-renders.
+    @ObservedObject var hiddenMessages = HiddenMessagesStore.shared
     @State var unblocking = false
     /// §16.6: quiet "Couldn't send" surface for failed sends (e.g. the peer
     /// blocked me → 403) — auto-hides; the text returns to the composer.
@@ -133,8 +135,11 @@ struct ChatView: View {
     }
     var groupAvatarUrl: String? { groupDetails?.avatarUrl ?? conversation.avatarUrl }
 
-    /// Messages minus anything the user deleted just for themselves (local-only).
-    var visibleMessages: [Message] { messages.filter { !hiddenIds.contains($0.id) } }
+    /// Messages minus anything the user deleted just for themselves or hid via the
+    /// long-press "Hide" filter (both local-only).
+    var visibleMessages: [Message] {
+        messages.filter { !hiddenIds.contains($0.id) && !hiddenMessages.isHidden($0.id) }
+    }
     /// This chat's in-flight upload pills, re-attached from the registry (§14.2).
     var outgoingUploads: [OutgoingUpload] { uploadCenter.uploads(in: conversation.id) }
     var mediaGalleryItems: [ChatMediaGalleryItem] {
@@ -328,6 +333,10 @@ struct ChatView: View {
                         } else {
                             pinDialogTarget = target
                         }
+                    },
+                    onHide: {
+                        hiddenMessages.hide(target.id)
+                        withAnimation(.easeOut(duration: 0.15)) { menuTarget = nil }
                     },
                     onReport: {
                         withAnimation(.easeOut(duration: 0.15)) { menuTarget = nil }

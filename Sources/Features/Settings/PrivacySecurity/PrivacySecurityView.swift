@@ -17,6 +17,10 @@ struct PrivacySecurityView: View {
     /// Guards the toggle onChange handlers while state is programmatically synced.
     @State private var syncingToggles = false
 
+    // §12.1: device-local "Hide" filter — the row clears it.
+    @ObservedObject private var hiddenMessages = HiddenMessagesStore.shared
+    @State private var showResetHiddenConfirm = false
+
     // Auto-delete account (§10.4).
     @State private var deleteIfAwayMonths: Int?
     @State private var showAwaySheet = false
@@ -98,6 +102,19 @@ struct PrivacySecurityView: View {
                         PrivacyRow(icon: "person.badge.key", title: String(localized: "Passkeys"))
                     }
                     .buttonStyle(.plain)
+
+                    Divider().padding(.leading, 64).opacity(0.4)
+
+                    // §12.1: un-hide every message hidden via the long-press "Hide".
+                    Button { showResetHiddenConfirm = true } label: {
+                        PrivacyRow(
+                            icon: "eye.slash",
+                            title: String(localized: "Reset hidden messages"),
+                            value: "\(hiddenMessages.count)"
+                        )
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(hiddenMessages.count == 0)
                 }
                 .background(KlicColor.surface, in: RoundedRectangle(cornerRadius: 20))
 
@@ -177,6 +194,15 @@ struct PrivacySecurityView: View {
                 session.updateCurrentUser(fresh)
                 syncPrivacy(from: fresh)
             }
+        }
+        // §12.1: reset the device-local "Hide" filter — every hidden message returns.
+        .klicSelectionSheet(
+            isPresented: $showResetHiddenConfirm,
+            title: String(localized: "Reset hidden messages?"),
+            message: String(localized: "Shows the \(hiddenMessages.count) messages you've hidden on this device again."),
+            options: [KlicSheetOption(id: "reset", label: String(localized: "Reset"))]
+        ) { _ in
+            hiddenMessages.reset()
         }
         // §11.6: one shared Everybody / My friends / Nobody selector for every row.
         .klicSelectionSheet(
