@@ -33,6 +33,11 @@ settings:
     CURRENT_PROJECT_VERSION: "80"
     SWIFT_VERSION: "5.0"
     DEVELOPMENT_TEAM: "V7H9Y9K6Z7"
+    # iPhone-only (App Store error 90474): the portrait-only UI would otherwise have
+    # to support all four iPad orientations for multitasking or declare
+    # UIRequiresFullScreen. iPads still run the app in iPhone-compatibility mode,
+    # and no iPad screenshots are required for the store listing.
+    TARGETED_DEVICE_FAMILY: "1"
     # Localization (§10.5): compile string tables from code literals so the
     # Localizable.xcstrings catalog (en/ru/zh-Hans) resolves Text()/String(localized:).
     SWIFT_EMIT_LOC_STRINGS: YES

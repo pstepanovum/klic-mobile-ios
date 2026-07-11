@@ -19,12 +19,19 @@
     <!-- App Store export compliance: only standard/exempt encryption is used. -->
     <key>ITSAppUsesNonExemptEncryption</key>
     <false/>
+    <!-- App Store validation (error 90362) looks for RPBroadcastProcessMode outside
+         NSExtensionAttributes, despite Apple's docs placing it there. Declared at every
+         plausible level so the upload passes; runtime only needs the attributes copy. -->
+    <key>RPBroadcastProcessMode</key>
+    <string>RPBroadcastProcessModeSampleBuffer</string>
     <key>NSExtension</key>
     <dict>
         <key>NSExtensionPointIdentifier</key>
         <string>com.apple.broadcast-services-upload</string>
         <key>NSExtensionPrincipalClass</key>
         <string>$(PRODUCT_MODULE_NAME).SampleHandler</string>
+        <key>RPBroadcastProcessMode</key>
+        <string>RPBroadcastProcessModeSampleBuffer</string>
         <key>NSExtensionAttributes</key>
         <dict>
             <key>RPBroadcastProcessMode</key>
