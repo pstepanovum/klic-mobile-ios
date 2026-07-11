@@ -52,6 +52,7 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.klic.mobile.app
+        TARGETED_DEVICE_FAMILY: "1"
         INFOPLIST_FILE: Resources/Info.plist
         # LibSignalClient's public interface references its C FFI module; the app
         # target must be able to resolve it too (the podspec only sets this on
@@ -81,6 +82,7 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.klic.mobile.app.widgets
+        TARGETED_DEVICE_FAMILY: "1"
         INFOPLIST_FILE: Widget/Info.plist
 
   # Share-sheet target ("Share to" panel). Compiles only the minimal shared sources it
@@ -101,6 +103,7 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.klic.mobile.app.share
+        TARGETED_DEVICE_FAMILY: "1"
         INFOPLIST_FILE: ShareExtension/Info.plist
         # App group = shared keychain access group; how the extension reads the tokens.
         CODE_SIGN_ENTITLEMENTS: ShareExtension/KlicShare.entitlements
@@ -120,6 +123,7 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.klic.mobile.app.broadcast
+        TARGETED_DEVICE_FAMILY: "1"
         INFOPLIST_FILE: BroadcastExtension/Info.plist
         CODE_SIGN_ENTITLEMENTS: BroadcastExtension/BroadcastExtension.entitlements
 
