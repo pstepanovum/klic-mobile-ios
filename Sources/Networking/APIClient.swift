@@ -370,7 +370,7 @@ actor APIClient {
     }
 
     func joinToken(callId: String) async throws -> CallSession {
-        try await post("/calls/\(callId)/token", body: [:])
+        try await postCallAction("/calls/\(callId)/token")
     }
 
     func mediaJoined(callId: String) async throws -> EmptyResponse {
@@ -378,19 +378,31 @@ actor APIClient {
     }
 
     func declineCall(callId: String) async throws -> EmptyResponse {
-        try await post("/calls/\(callId)/decline", body: [:])
+        try await postCallAction("/calls/\(callId)/decline")
     }
 
     func cancelCall(callId: String) async throws -> EmptyResponse {
-        try await post("/calls/\(callId)/cancel", body: [:])
+        try await postCallAction("/calls/\(callId)/cancel")
     }
 
     func failCall(callId: String) async throws -> EmptyResponse {
-        try await post("/calls/\(callId)/fail", body: [:])
+        try await postCallAction("/calls/\(callId)/fail")
     }
 
     func endCall(callId: String) async throws -> EmptyResponse {
-        try await post("/calls/\(callId)/end", body: [:])
+        try await postCallAction("/calls/\(callId)/end")
+    }
+
+    /// POST for the call actions that identify the acting DEVICE (token/decline/cancel/fail/end).
+    /// The X-Install-Id header lets the server scope its teardown push to this install: answering
+    /// or declining here dismisses this user's OTHER ringing devices without also tearing down
+    /// the very device performing the action. Older servers ignore the header.
+    private func postCallAction<T: Decodable>(_ path: String) async throws -> T {
+        let data = try JSONSerialization.data(withJSONObject: [String: Any]())
+        return try await request(
+            path, method: "POST", body: data, authed: true,
+            headers: ["X-Install-Id": InstallIdentity.current]
+        )
     }
 
     nonisolated static func mobileDiagnostic(event: String, callId: String? = nil, detail: String? = nil) {
@@ -762,6 +774,7 @@ actor APIClient {
         method: String,
         body: Data?,
         authed: Bool,
+        headers: [String: String] = [:],
         hasRetriedAuth: Bool = false
     ) async throws -> T {
         // Concatenate so query strings (`?username=…`) are preserved — appendingPathComponent
@@ -774,6 +787,10 @@ actor APIClient {
         // empty-body POST/DELETE makes the server try (and fail) to parse a body.
         if body != nil {
             req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        }
+        // Extra per-endpoint headers (e.g. X-Install-Id on call actions).
+        for (field, value) in headers {
+            req.setValue(value, forHTTPHeaderField: field)
         }
         if authed, let token = await validAccessToken() {
             req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
@@ -793,6 +810,7 @@ actor APIClient {
                 method: method,
                 body: body,
                 authed: authed,
+                headers: headers,
                 hasRetriedAuth: true
             )
         }

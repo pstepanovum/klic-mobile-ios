@@ -139,11 +139,36 @@ extension AppDelegate: PKPushRegistryDelegate {
                 completion()
                 return
             }
+            // M-5: ringer policy on the push path (mirrors the socket handler in
+            // SocketService) — a per-chat calls-mute suppresses the ring on THIS device
+            // only; the server still delivers the VoIP invite. A delivered VoIP push must
+            // still be reported (H2 must-report contract), so suppress via report-then-end
+            // on a throwaway UUID rather than skipping. Silenced-unknown-caller invites
+            // never ride the VoIP transport — the server sends those as alert pushes — so
+            // the per-chat mute is the only policy check the push path needs.
+            if !invite.conversationId.isEmpty, ChatLocalPrefs.callsMuted(invite.conversationId) {
+                APIClient.mobileDiagnostic(event: "pushkit.skippedMutedChat", callId: invite.id)
+                CallKitManager.shared.reportEndedForCompliance(
+                    callId: invite.id, invite: invite, completion: completion
+                )
+                return
+            }
             APIClient.mobileDiagnostic(event: "pushkit.received", callId: invite.id, detail: invite.kind)
             // iOS requires reporting the call synchronously here (the registry runs on .main),
             // otherwise the app can be terminated and future VoIP pushes blocked.
             CallKitManager.shared.reportIncoming(invite, fromPushKit: true, completion: completion)
         }
+    }
+
+    // L-6: the system invalidated our VoIP token (VoIP entitlement/notification state
+    // changed, registry torn down). There is no server endpoint that unregisters a single
+    // token — POST /me/devices merges tokens onto the install's row and never clears one —
+    // so drop it locally so later sync()s stop re-sending the dead token, and leave retiring
+    // the stale row to the server's bounced-push pruning.
+    func pushRegistry(_ registry: PKPushRegistry, didInvalidatePushTokenFor type: PKPushType) {
+        guard type == .voIP else { return }
+        APIClient.mobileDiagnostic(event: "pushkit.tokenInvalidated")
+        Task { @MainActor in DeviceRegistrar.voipToken = nil }
     }
 }
 
