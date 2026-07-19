@@ -540,6 +540,12 @@ final class CallKitManager: NSObject, ObservableObject {
         markRecentlyEnded(callId)
         cancelRingTimeout(callId)
         serverTeardown = Task { await self.finishCallOnServer(callId: callId, wasOutgoing: wasOutgoing, wasConnected: wasConnected) }
+        // M-2: the abandoned room stays connected until the answer path swaps it out
+        // (prepareRoom disconnects the old Room), and the server end above is try?-swallowed
+        // — so hard-mute its mic NOW rather than leaving an unmuted capture live on the SFU
+        // for that whole window. Scoped by callId so a late-running task can't touch the
+        // call we're switching to.
+        Task { await CallService.shared.muteAbandonedCall(callId) }
         endSystemCall(callId: callId)
         clear(callId)
         if activeCall?.id == callId { activeCall = nil }
@@ -755,6 +761,14 @@ extension CallKitManager: CXProviderDelegate {
                     return
                 }
                 _ = try await APIClient.shared.mediaJoined(callId: callId)
+                // L-8: re-check after the media-joined round-trip too — a remote end landing in
+                // THAT window already tore the call down (activeCall nil, leave scheduled), and
+                // setting Connected / starting the Live Activity now would resurrect a dead
+                // call's UI (stuck Dynamic Island activity with no call behind it).
+                guard !recentlyEndedCallIds.contains(callId) else {
+                    APIClient.mobileDiagnostic(event: "callkit.answer.endedDuringConnect", callId: callId)
+                    return
+                }
                 statusText = "Connected"
                 markConnected()
                 APIClient.mobileDiagnostic(event: "callkit.answer.livekit.ok", callId: callId)
@@ -830,7 +844,6 @@ extension CallKitManager: CXProviderDelegate {
 
     nonisolated func provider(_ provider: CXProvider, perform action: CXEndCallAction) {
         Task { @MainActor in
-            Ringback.shared.stop()
             // Resolve the ended call from the action's UUID FIRST. Using `activeCall` first would
             // misroute when a second call is ringing/held over an active one — e.g. declining the
             // 2nd would end the 1st. Fall back to activeCall only when the UUID can't be resolved.
@@ -848,6 +861,18 @@ extension CallKitManager: CXProviderDelegate {
                 return
             }
             let endedActiveCall = id == nil || id == activeCall?.id
+            // L-3: the ringback belongs to the ACTIVE outgoing call — declining a 2nd incoming
+            // call must not silence the 1st call's still-playing ringback. (A held call never
+            // has ringback running, so the early return above needs no stop.)
+            if endedActiveCall { Ringback.shared.stop() }
+            // M-3: start the media teardown NOW, in parallel with the server notify below.
+            // The CallKit UI already dismissed at fulfill(); serializing the LiveKit disconnect
+            // behind the server round-trip kept the mic capturing for that whole window.
+            // leave(callId:) is scoped to the ended call, so if a newer call takes the room
+            // over mid-flight it no-ops; `id == nil` (unresolvable UUID) force-leaves as before.
+            let mediaTeardown: Task<Void, Never>? = endedActiveCall
+                ? Task { await CallService.shared.leave(callId: id) }
+                : nil
             if let id {
                 markRecentlyEnded(id)
                 playEndHaptic(id)
@@ -876,12 +901,28 @@ extension CallKitManager: CXProviderDelegate {
                 endSystemCall(callId: id)
                 clear(id)
             }
-            // Only tear down the shared media session if we actually ended the ACTIVE call — a
+            // Only tear down the shared call state if we actually ended the ACTIVE call — a
             // declined 2nd ringing call must leave the first call's media untouched.
             if endedActiveCall {
-                // Scope to the ended call so a stale end can't tear down a room that a newer
-                // call already took over (M3). `id == nil` (fallback) leaves unconditionally.
-                await CallService.shared.leave(callId: id)
+                // Let the scoped leave finish before resuming a held call below: the resume
+                // joins a fresh room, and interleaving it with the ended call's leave() would
+                // let the leave clobber the resumed call's just-restored media state.
+                _ = await mediaTeardown?.value
+                // H-1: re-check that the ended call is STILL the active call after the awaits
+                // above (same guard finishCall uses). CallKit's auto-unhold can resume the held
+                // call, or a racing answer can install a new call, during that server round-trip
+                // — clearing activeCall / ending the Live Activity / resuming the held call now
+                // would clobber the call that just took over, leaving a connected room with a
+                // live mic and no UI (the zombie hot-mic bug). A nil id (unresolvable UUID)
+                // has nothing to compare against — keep its original unconditional cleanup.
+                if let id, let current = activeCall, current.id != id {
+                    APIClient.mobileDiagnostic(
+                        event: "callkit.end.skippedStaleActive",
+                        callId: id,
+                        detail: current.id
+                    )
+                    return
+                }
                 CallActivityController.end()
                 activeCall = nil
                 // The active call ended — bring back any call we were holding for call-waiting.
