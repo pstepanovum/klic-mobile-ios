@@ -1,7 +1,9 @@
 import Foundation
 
 enum AppConfig {
-    private static let productionAPIOrigin = "https://api.89.34.230.2.sslip.io"
+    // Domain, never an IP-derived host: the 2026-09 outage proved sslip origins die
+    // with the server's IP, stranding every installed build. DNS moves; this doesn't.
+    private static let productionAPIOrigin = "https://api.klic.pstepanov.dev"
 
     static let apiOrigin = normalized(
         env("KLIC_API_ORIGIN")

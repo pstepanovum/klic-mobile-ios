@@ -116,6 +116,11 @@ private final class VideoNotePlayer: ObservableObject {
     private var endObserver: NSObjectProtocol?
 
     func toggle(attachment: Attachment) {
+        // H4/M-1: never play a round video while a call is active — the setCategory(.playback)
+        // + setActive below would steal the CallKit/LiveKit-owned session and kill the call's
+        // mic capture (the exact session-clobber class ChatAudio already guards against).
+        // Refuse outright, matching voice notes (AudioPlaybackManager) — the call owns audio.
+        guard CallKitManager.shared.activeCall == nil else { return }
         if isActive {
             if isPlaying {
                 avPlayer.pause()
@@ -132,6 +137,10 @@ private final class VideoNotePlayer: ObservableObject {
     }
 
     private func start(attachment: Attachment) async {
+        // H4/M-1: defensive twin of the toggle() guard for the interleaved case (a call
+        // connecting between the tap and this async hop) — same rule: no session mutation
+        // while a call is live.
+        guard CallKitManager.shared.activeCall == nil else { return }
         let source = AttachmentFileStore.shared.cachedURL(for: attachment) ?? URL(string: attachment.url)
         guard let source else { return }
         // Stop any voice note that's playing — one audio stream at a time.

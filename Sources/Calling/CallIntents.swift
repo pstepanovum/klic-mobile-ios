@@ -79,6 +79,9 @@ enum CallIntents {
                 APIClient.mobileDiagnostic(event: "intents.startCall.noMatch", detail: request.contactName)
                 return
             }
+            // Let the previous call's server-side end/cancel land first, or POST /calls 409s
+            // against the call we just hung up and the intent silently does nothing (L-5).
+            await CallKitManager.shared.awaitServerTeardown()
             guard let convo = try? await APIClient.shared.openConversation(userId: friend.id),
                   let session = try? await APIClient.shared.startCall(
                       conversationId: convo.id, kind: request.isVideo ? "VIDEO" : "AUDIO"

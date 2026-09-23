@@ -238,6 +238,9 @@ private struct FriendCallRow: View {
         guard !isCalling else { return }
         isCalling = true
         defer { isCalling = false }
+        // Let the previous call's server-side end/cancel land first, or POST /calls 409s
+        // against the call we just hung up and the tap looks dead (L-5, same as callBack).
+        await CallKitManager.shared.awaitServerTeardown()
         guard let convo = try? await APIClient.shared.openConversation(userId: friend.id),
               let session = try? await APIClient.shared.startCall(conversationId: convo.id, kind: kind)
         else { return }

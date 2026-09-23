@@ -20,7 +20,14 @@ final class CallService: NSObject, ObservableObject {
         var isInGrace: Bool
     }
 
-    private(set) var room = Room()
+    /// L3: AdaptiveStream lets the SFU downscale each subscribed video to the largest size we
+    /// actually render (the PiP frame renderer already reports its target size assuming this
+    /// is on — CallPictureInPicture), and dynacast pauses publish layers nobody subscribes to.
+    /// Both are multi-party bandwidth/CPU savers with no effect on 1:1 audio. Every Room we
+    /// create (initial + prepareRoom swaps) must carry these same options.
+    private static let roomOptions = RoomOptions(adaptiveStream: true, dynacast: true)
+
+    private(set) var room = Room(roomOptions: CallService.roomOptions)
     private var currentCallId: String?
 
     @Published private(set) var isConnected = false
@@ -270,6 +277,20 @@ final class CallService: NSObject, ObservableObject {
     func markHeld(_ call: CallKitManager.ActiveCall) { heldCall = call }
     func clearHeld() { heldCall = nil }
 
+    /// M-2: hard-mute the mic of a call we're walking away from ("End & Accept") without
+    /// touching the published `micEnabled` state — the interrupting call re-publishes and owns
+    /// that from here on. The abandoned room stays connected until `prepareRoom` swaps and
+    /// disconnects it, so without this its unmuted mic keeps capturing for the whole answer
+    /// round-trip. Scoped: no-ops once the room already belongs to a different call, and the
+    /// room reference is captured before the await so a mid-flight swap can't retarget the
+    /// mute at the new call's room.
+    func muteAbandonedCall(_ callId: String) async {
+        guard currentCallId == callId else { return }
+        let abandonedRoom = room
+        try? await abandonedRoom.localParticipant.setMicrophone(enabled: false)
+        APIClient.mobileDiagnostic(event: "livekit.abandoned.micMuted", callId: callId)
+    }
+
     /// Toggle the call audio between the loudspeaker and the earpiece/headset. Overriding the
     /// output port routes immediately; `.none` lets the system pick the preferred route (a
     /// connected Bluetooth/wired headset wins), `.speaker` forces the loudspeaker.
@@ -406,9 +427,19 @@ final class CallService: NSObject, ObservableObject {
         // briefly produce two concurrent LiveKit rooms (the duplicate-video bug).
         // A rejoin forces a fresh Room: the old one is terminally disconnected.
         if force || currentCallId != callId {
-            room.remove(delegate: self)
-            room = Room()
+            let oldRoom = room
+            oldRoom.remove(delegate: self)
+            room = Room(roomOptions: Self.roomOptions)
             room.add(delegate: self)
+            // M-2: the SDK Room has no deinit — dropping the last reference does NOT close its
+            // signal/media connection, so a swapped-out room (Hold & Accept / End & Accept)
+            // stayed connected to the SFU with its mic still published until the server end
+            // evicted it. Disconnect it explicitly; detached (not awaited) so the answer path's
+            // join isn't serialized behind the dying room's teardown round-trip. The delegate
+            // is already removed above, so its terminal .disconnected can't reach us and be
+            // mistaken for the NEW room dropping. (Rejoins pass an already-dead room — the
+            // extra disconnect is a no-op there.)
+            Task.detached { await oldRoom.disconnect() }
         }
         currentCallId = callId
     }
@@ -626,11 +657,34 @@ extension CallService: RoomDelegate {
                 CallKitManager.shared.handleReconnected(callId: currentCallId)
             case .disconnected:
                 if !isLeaving, let callId = currentCallId {
-                    // Terminal disconnect that wasn't a hang-up: LiveKit's resume gave up
-                    // (e.g. WiFi→LTE with an IP change). Rejoin with a fresh token instead
-                    // of ending the call (D1).
-                    APIClient.mobileDiagnostic(event: "livekit.connection.lost", callId: callId)
-                    startRejoin(callId: callId)
+                    // M1: branch on WHY the server dropped us before rejoining — some terminal
+                    // disconnects are deliberate evictions, and re-entering the room would
+                    // ping-pong (or resurrect a call the server already retired).
+                    switch room.disconnectError?.type {
+                    case .duplicateIdentity:
+                        // Another of this user's devices joined with our identity and the SFU
+                        // dropped us — the call lives THERE now. End quietly with NO server
+                        // notify (handleRemoteCallEnded never notifies): an endCall here would
+                        // tear down the call the other device just took over.
+                        APIClient.mobileDiagnostic(event: "livekit.disconnect.duplicateIdentity", callId: callId)
+                        CallKitManager.shared.handleRemoteCallEnded(callId: callId, reason: .answeredElsewhere)
+                    case .participantRemoved, .roomDeleted:
+                        // The server ejected us / retired the room on purpose — a rejoin would
+                        // only bounce off a 4xx token after a wasted backoff cycle. End quietly;
+                        // the server already knows.
+                        APIClient.mobileDiagnostic(
+                            event: "livekit.disconnect.evicted",
+                            callId: callId,
+                            detail: String(describing: room.disconnectError?.type)
+                        )
+                        CallKitManager.shared.handleRemoteCallEnded(callId: callId)
+                    default:
+                        // Terminal disconnect that wasn't a hang-up: LiveKit's resume gave up
+                        // (e.g. WiFi→LTE with an IP change). Rejoin with a fresh token instead
+                        // of ending the call (D1).
+                        APIClient.mobileDiagnostic(event: "livekit.connection.lost", callId: callId)
+                        startRejoin(callId: callId)
+                    }
                 } else {
                     isReconnecting = false
                 }
