@@ -5,11 +5,15 @@ import Inject
 struct RootView: View {
     @ObserveInjection var inject
     @EnvironmentObject var session: AppSession
-    @Environment(\.scenePhase) private var scenePhase
     @StateObject private var callKit = CallKitManager.shared
     @StateObject private var appLock = AppLockManager.shared
     @StateObject private var friendLinks = FriendLinkRouter.shared
+    #if KLIC_UPDATE_CHECKS
+    // §14.7: sideload / TestFlight builds only — see project.yml. An App Store
+    // build has no self-updater, so neither the checker nor scenePhase is needed.
+    @Environment(\.scenePhase) private var scenePhase
     @StateObject private var updateChecker = UpdateChecker.shared
+    #endif
     @State private var didGetStarted = false
     @State private var selectedTab: RootTab = .chats
 
@@ -107,6 +111,7 @@ struct RootView: View {
         .fullScreenCover(item: presentedCall) { call in
             CallView(call: call)
         }
+        #if KLIC_UPDATE_CHECKS
         // §14.7: a newer GitHub release → dismissible update page (auth styling).
         // Checked on launch + foreground, throttled to once per 6h by the checker.
         .fullScreenCover(item: $updateChecker.available) { release in
@@ -120,6 +125,7 @@ struct RootView: View {
         .onChange(of: scenePhase) { _, phase in
             if phase == .active { updateChecker.checkIfDue() }
         }
+        #endif
         .enableInjection()
     }
 }

@@ -24,7 +24,7 @@ struct PrivacyPolicyView: View {
         ),
         (
             "Contact",
-            "Questions? Reach us at privacy@klic.pstepanov.dev"
+            "Questions? Reach us at support@pstepanov.dev"
         ),
     ]
 

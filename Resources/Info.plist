@@ -53,10 +53,17 @@
         <false/>
     </dict>
 
-    <!-- App Store export compliance: only standard/exempt encryption is used
-         (HTTPS, AES-GCM, libsignal). -->
+    <!-- App Store export compliance: the app DOES use non-exempt encryption.
+         The only exemption that would apply here is "encryption limited to what
+         Apple provides in the operating system", and the app goes past that: it
+         links libsignal (Curve25519, AES-256, HMAC-SHA256, ML-KEM) for the E2EE
+         message stack and LiveKit/WebRTC (DTLS-SRTP) for calls, neither of which
+         is OS-provided crypto. Standard is not the same thing as exempt. The
+         algorithms are all published standards, so the row that applies needs a
+         French encryption declaration in App Store Connect (France is an enabled
+         territory) and no CCATS. -->
     <key>ITSAppUsesNonExemptEncryption</key>
-    <false/>
+    <true/>
 
     <key>NSCameraUsageDescription</key>
     <string>Klic uses your camera for video calls and to record video messages.</string>

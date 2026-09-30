@@ -241,6 +241,9 @@ build_ios() {
 
   (
     cd "$dir"
+    # The unsigned archive is the AltStore/sideload artifact, and only it keeps
+    # the GitHub self-updater: KLIC_UPDATE_CHECKS is off by default in Release
+    # so the App Store build below carries no update checker at all.
     # CocoaPods projects must build via the workspace. (Plain string, not an
     # array: empty-array expansion breaks under set -u on macOS bash 3.2.)
     workspace_flag=""
@@ -257,6 +260,7 @@ build_ios() {
       -sdk iphoneos \
       -configuration Release \
       -archivePath "$unsigned_archive_path" \
+      KLIC_RELEASE_SWIFT_CONDITIONS=KLIC_UPDATE_CHECKS \
       CODE_SIGN_IDENTITY="" \
       CODE_SIGNING_REQUIRED=NO \
       CODE_SIGNING_ALLOWED=NO \

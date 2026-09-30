@@ -1,3 +1,9 @@
+// §14.7 / §20.2: the self-update feature is compiled in ONLY for sideload /
+// TestFlight builds (KLIC_UPDATE_CHECKS, see project.yml). App Store builds must
+// not point people at AltStore, GitHub releases or TestFlight (App Review 2.4.5,
+// 3.2.2, 3.1.1), and without the flag this file compiles to nothing at all — so
+// the six-hourly api.github.com poll is gone from the binary too.
+#if KLIC_UPDATE_CHECKS
 import SwiftUI
 import Inject
 
@@ -77,3 +83,5 @@ struct UpdateAvailableView: View {
         .enableInjection()
     }
 }
+
+#endif

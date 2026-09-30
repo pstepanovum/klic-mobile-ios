@@ -2,6 +2,13 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+    <!-- Correct as written: this value governs only the locally signed
+         development / direct-install lane. `xcodebuild -exportArchive` re-signs
+         with the chosen profile's entitlements, and the App Store profile ("iOS
+         Team Store Provisioning Profile: com.klic.mobile.app") carries
+         aps-environment = production, so the TestFlight / App Store build ships
+         production APNs. Hard-coding production here would break push on
+         dev-signed builds instead of fixing anything. -->
     <key>aps-environment</key>
     <string>development</string>
     <!-- Shared container + keychain access group (app groups double as keychain access

@@ -23,8 +23,11 @@ struct SettingsView: View {
                     // Notifications + Data and Storage (CALLS.md §8.3/§8.5)
                     dataSection
 
-                    // Updates — own card, visually separated
+                    #if KLIC_UPDATE_CHECKS
+                    // Updates — own card, visually separated. Sideload /
+                    // TestFlight builds only (§14.7, see project.yml).
                     updatesSection
+                    #endif
 
                     // Privacy — own card, navigates to full page
                     privacySection
@@ -129,6 +132,10 @@ struct SettingsView: View {
 
     // MARK: Updates
 
+    /// §14.7: the self-updater ships only in sideload / TestFlight builds
+    /// (KLIC_UPDATE_CHECKS). An App Store build has no Updates row, because the
+    /// page advertises AltStore / GitHub releases — App Review 2.4.5, 3.2.2, 3.1.1.
+    #if KLIC_UPDATE_CHECKS
     private var updatesSection: some View {
         VStack(spacing: 0) {
             NavigationLink { AppUpdateInfoView(version: appVersion) } label: {
@@ -138,6 +145,7 @@ struct SettingsView: View {
         }
         .background(KlicColor.surface, in: RoundedRectangle(cornerRadius: 20))
     }
+    #endif
 
     // MARK: Privacy
 
@@ -320,6 +328,7 @@ private struct AutoNightModeView: View {
 
 // MARK: - Updates info page
 
+#if KLIC_UPDATE_CHECKS
 /// §20.2: a REAL update page — hits the public GitHub "latest release" on appear (throttled)
 /// and on demand via "Check for updates", then reflects the live state: checking / up to
 /// date / update available (version + notes + a CTA to the AltStore/TestFlight release) /
@@ -488,6 +497,8 @@ private struct AppUpdateInfoView: View {
         .padding(.vertical, 14)
     }
 }
+
+#endif
 
 // MARK: - Shared helpers
 

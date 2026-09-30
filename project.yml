@@ -41,6 +41,22 @@ settings:
     # Localization (§10.5): compile string tables from code literals so the
     # Localizable.xcstrings catalog (en/ru/zh-Hans) resolves Text()/String(localized:).
     SWIFT_EMIT_LOC_STRINGS: YES
+  configs:
+    Debug:
+      # DEBUG is restated because naming this setting here replaces XcodeGen's
+      # debug preset value. KLIC_UPDATE_CHECKS compiles in the self-update
+      # feature (§14.7) — the GitHub "latest release" checker and its UI.
+      SWIFT_ACTIVE_COMPILATION_CONDITIONS: DEBUG KLIC_UPDATE_CHECKS
+    Release:
+      # App Store builds must NOT ship the self-updater: it points people at
+      # AltStore / TestFlight / GitHub releases (App Review 2.4.5, 3.2.2, 3.1.1)
+      # and polls api.github.com every six hours. With the flag absent none of
+      # that code is compiled, so there is no Updates row, no launch check and
+      # no GitHub request at all. A sideload or TestFlight release that wants it
+      # back is built with the flag switched on:
+      #   xcodebuild ... KLIC_RELEASE_SWIFT_CONDITIONS=KLIC_UPDATE_CHECKS
+      KLIC_RELEASE_SWIFT_CONDITIONS: ""
+      SWIFT_ACTIVE_COMPILATION_CONDITIONS: $(KLIC_RELEASE_SWIFT_CONDITIONS)
 
 targets:
   Klic:
@@ -48,6 +64,11 @@ targets:
     platform: iOS
     sources:
       - path: Sources
+      # Resources also carries the first-party privacy manifest
+      # (Resources/PrivacyInfo.xcprivacy). XcodeGen has no build phase for the
+      # .xcprivacy extension, so it lands in Copy Bundle Resources and ships at
+      # the app bundle root, which is where App Review looks for it. Apple reads
+      # it from the built product only — keep it inside a declared source path.
       - path: Resources
     settings:
       base:
