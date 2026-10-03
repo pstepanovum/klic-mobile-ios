@@ -408,33 +408,13 @@ struct MessageBubble: View {
 /// §19.1: shared, lazily-built date formatters for the message list. Allocating an
 /// ISO8601DateFormatter / DateFormatter is expensive; the list parses timestamps on
 /// every row on every scroll frame, so they must not be created per call.
+/// Thin aliases over the app-wide `KlicDate` cache.
 enum ChatTimeFormat {
-    static let isoFractional: ISO8601DateFormatter = {
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        return formatter
-    }()
-
-    static let iso: ISO8601DateFormatter = {
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime]
-        return formatter
-    }()
-
-    static let hourMinute: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "h:mm a"
-        return formatter
-    }()
-
-    static let monthDay: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "MMMM d"
-        return formatter
-    }()
+    static var hourMinute: DateFormatter { KlicDate.hourMinuteAMPM }
+    static var monthDay: DateFormatter { KlicDate.monthNameDay }
 
     static func date(from iso: String) -> Date? {
-        isoFractional.date(from: iso) ?? Self.iso.date(from: iso)
+        KlicDate.parse(iso)
     }
 }
 

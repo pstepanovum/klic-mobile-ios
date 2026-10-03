@@ -303,27 +303,18 @@ enum ChatLocalPrefs {
     }
 
     static func parseISO(_ iso: String?) -> Date? {
-        guard let iso, !iso.isEmpty else { return nil }
-        let withFraction = ISO8601DateFormatter()
-        withFraction.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        let plain = ISO8601DateFormatter()
-        plain.formatOptions = [.withInternetDateTime]
-        return withFraction.date(from: iso) ?? plain.date(from: iso)
+        KlicDate.parse(optional: iso)
     }
 
     static func isoString(_ date: Date) -> String {
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        return formatter.string(from: date)
+        KlicDate.isoFractionalString(date)
     }
 
     /// Human summary for a mute state ("Off", "Until 3:26 PM", "Always").
     static func muteSummary(_ iso: String?) -> String {
         guard let date = parseISO(iso), date > Date() else { return String(localized: "Off") }
         if date.timeIntervalSinceNow > 365 * 24 * 3600 { return String(localized: "Always") }
-        let formatter = DateFormatter()
-        formatter.dateStyle = Calendar.current.isDateInToday(date) ? .none : .short
-        formatter.timeStyle = .short
+        let formatter = Calendar.current.isDateInToday(date) ? KlicDate.shortTime : KlicDate.shortDateShortTime
         return String(localized: "Until \(formatter.string(from: date))")
     }
 }

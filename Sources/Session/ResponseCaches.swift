@@ -160,7 +160,7 @@ final class ConversationStore: ObservableObject {
     /// persisted via PUT /conversations/:id/prefs {pinned}. A pre-§16.5 server
     /// rejects the key; the pin then lives locally for this session.
     func setPinned(conversationId: String, pinned: Bool) {
-        let stamp = pinned ? ISO8601DateFormatter().string(from: Date()) : nil
+        let stamp = pinned ? KlicDate.nowISO() : nil
         pinOverrides[conversationId] = .some(stamp)
         if let idx = conversations.firstIndex(where: { $0.id == conversationId }) {
             conversations[idx].chatPinnedAt = stamp

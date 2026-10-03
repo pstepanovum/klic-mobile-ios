@@ -13,7 +13,7 @@ extension ChatView {
 
     func applyDebugSeedIfRequested() {
         guard debugSeedEnabled, let myId else { return }
-        let now = ISO8601DateFormatter().string(from: Date())
+        let now = KlicDate.nowISO()
 
         // Reuse a real attachment from the loaded history so thumbnails/plays work.
         let video = messages.flatMap(\.attachments).first { $0.isVideo }

@@ -95,9 +95,9 @@ extension ChatView {
         if socket.presence[id]?.online == true { return String(localized: "Online") }
         guard let date = socket.presence[id]?.lastSeen else { return nil }
         let cal = Calendar.current
-        let f = DateFormatter()
-        if cal.isDateInToday(date) { f.dateFormat = "HH:mm"; return String(localized: "last seen \(f.string(from: date))") }
+        // Locale-aware clock time (honors the 12/24-hour setting) instead of a fixed "HH:mm".
+        if cal.isDateInToday(date) { return String(localized: "last seen \(KlicDate.shortTime.string(from: date))") }
         if cal.isDateInYesterday(date) { return String(localized: "last seen yesterday") }
-        f.dateFormat = "MMM d"; return String(localized: "last seen \(f.string(from: date))")
+        return String(localized: "last seen \(KlicDate.monthAbbrevDay.string(from: date))")
     }
 }

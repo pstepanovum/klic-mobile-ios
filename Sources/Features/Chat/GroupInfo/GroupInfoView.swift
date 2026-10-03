@@ -113,10 +113,7 @@ private struct GroupInfoContent: View {
 
     private var createdAtText: String? {
         guard let date = ChatLocalPrefs.parseISO(resolvedDetails?.createdAt) else { return nil }
-        let formatter = DateFormatter()
-        formatter.dateStyle = .medium
-        formatter.timeStyle = .none
-        return formatter.string(from: date)
+        return KlicDate.mediumDate.string(from: date)
     }
 
     var body: some View {

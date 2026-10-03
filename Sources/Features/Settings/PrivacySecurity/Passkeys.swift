@@ -317,14 +317,7 @@ struct PasskeysView: View {
     }
 
     private static func shortDate(_ iso: String?) -> String? {
-        guard let iso else { return nil }
-        let primary = ISO8601DateFormatter()
-        primary.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        let fallback = ISO8601DateFormatter()
-        fallback.formatOptions = [.withInternetDateTime]
-        guard let date = primary.date(from: iso) ?? fallback.date(from: iso) else { return nil }
-        let formatter = DateFormatter()
-        formatter.dateStyle = .medium
-        return formatter.string(from: date)
+        guard let iso, let date = KlicDate.parse(iso) else { return nil }
+        return KlicDate.mediumDate.string(from: date)
     }
 }

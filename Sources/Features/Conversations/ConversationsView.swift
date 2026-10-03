@@ -325,16 +325,10 @@ struct ConversationsView: View {
     }
 
     static func stamp(_ iso: String?) -> String? {
-        guard let iso, !iso.isEmpty else { return nil }
-        let df = ISO8601DateFormatter(); df.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        let df2 = ISO8601DateFormatter(); df2.formatOptions = [.withInternetDateTime]
-        guard let date = df.date(from: iso) ?? df2.date(from: iso) else { return nil }
-        let f = DateFormatter()
-        if Calendar.current.isDate(date, equalTo: Date(), toGranularity: .year) {
-            f.dateFormat = "MMM d"
-        } else {
-            f.dateFormat = "MM/dd/yy"
-        }
+        guard let date = KlicDate.parse(optional: iso) else { return nil }
+        let f = Calendar.current.isDate(date, equalTo: Date(), toGranularity: .year)
+            ? KlicDate.monthAbbrevDay
+            : KlicDate.monthDayYearSlash
         return f.string(from: date)
     }
 
@@ -582,18 +576,15 @@ private func groupMemberSummary(_ conversation: Conversation) -> String {
 /// Last-message stamp for the chat list: clock time today (e.g. "3:26 PM"), "MM/dd" earlier
 /// this year, "MM/dd/yy" before that — or nil if unknown.
 private func lastMessageStamp(_ m: Message?) -> String? {
-    guard let iso = m?.createdAt, !iso.isEmpty else { return nil }
-    let df = ISO8601DateFormatter(); df.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-    let df2 = ISO8601DateFormatter(); df2.formatOptions = [.withInternetDateTime]
-    guard let date = df.date(from: iso) ?? df2.date(from: iso) else { return nil }
+    guard let date = KlicDate.parse(optional: m?.createdAt) else { return nil }
     let cal = Calendar.current
-    let f = DateFormatter()
+    let f: DateFormatter
     if cal.isDateInToday(date) {
-        f.dateFormat = "h:mm a"
+        f = KlicDate.hourMinuteAMPM
     } else if cal.isDate(date, equalTo: Date(), toGranularity: .year) {
-        f.dateFormat = "MM/dd"
+        f = KlicDate.monthDaySlash
     } else {
-        f.dateFormat = "MM/dd/yy"
+        f = KlicDate.monthDayYearSlash
     }
     return f.string(from: date)
 }

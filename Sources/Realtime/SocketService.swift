@@ -283,9 +283,7 @@ final class SocketService: ObservableObject {
 
     /// Parse an ISO-8601 timestamp with or without fractional seconds.
     static func parseDate(_ iso: String) -> Date? {
-        let f1 = ISO8601DateFormatter(); f1.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        let f2 = ISO8601DateFormatter(); f2.formatOptions = [.withInternetDateTime]
-        return f1.date(from: iso) ?? f2.date(from: iso)
+        KlicDate.parse(iso)
     }
 }
 

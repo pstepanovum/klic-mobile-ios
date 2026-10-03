@@ -327,14 +327,8 @@ struct MediaViewer: View {
     }
 
     private func viewerTimestamp(_ iso: String) -> String {
-        let primary = ISO8601DateFormatter()
-        primary.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        let fallback = ISO8601DateFormatter()
-        fallback.formatOptions = [.withInternetDateTime]
-        guard let date = primary.date(from: iso) ?? fallback.date(from: iso) else { return "" }
-        let formatter = DateFormatter()
-        formatter.dateFormat = "h:mm a"
-        return formatter.string(from: date)
+        guard let date = KlicDate.parse(iso) else { return "" }
+        return KlicDate.hourMinuteAMPM.string(from: date)
     }
 
     private func resetImageState() {

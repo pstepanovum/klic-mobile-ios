@@ -638,9 +638,7 @@ struct DocumentScannerView: UIViewControllerRepresentable {
         }
 
         private static func dateStamp() -> String {
-            let formatter = DateFormatter()
-            formatter.dateFormat = "yyyy-MM-dd HH.mm"
-            return formatter.string(from: Date())
+            KlicDate.fileStamp.string(from: Date())
         }
     }
 }

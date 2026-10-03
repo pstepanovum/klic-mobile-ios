@@ -545,7 +545,7 @@ struct ChatView: View {
         .onReceive(socket.$lastDeleted.compactMap { $0 }) { update in
             guard update.conversationId == conversation.id,
                   let idx = messages.firstIndex(where: { $0.id == update.messageId }) else { return }
-            messages[idx].deletedAt = ISO8601DateFormatter().string(from: Date())
+            messages[idx].deletedAt = KlicDate.nowISO()
             messages[idx].reactions = []
         }
         .navigationDestination(item: $openedConversation) { opened in

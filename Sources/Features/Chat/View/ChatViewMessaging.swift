@@ -153,7 +153,7 @@ extension ChatView {
             try await APIClient.shared.pinMessage(
                 conversationId: conversation.id, messageId: message.id, notify: notify)
             if let idx = messages.firstIndex(where: { $0.id == message.id }) {
-                messages[idx].pinnedAt = ISO8601DateFormatter().string(from: Date())
+                messages[idx].pinnedAt = KlicDate.nowISO()
             }
             hiddenNewestPinId = nil
             await loadPinned()
@@ -175,7 +175,7 @@ extension ChatView {
     func handlePinEvent(_ event: SocketService.PinEvent) {
         if event.pinned {
             if let idx = messages.firstIndex(where: { $0.id == event.messageId }) {
-                messages[idx].pinnedAt = ISO8601DateFormatter().string(from: Date())
+                messages[idx].pinnedAt = KlicDate.nowISO()
             }
             hiddenNewestPinId = nil
             Task { await loadPinned() }
@@ -190,7 +190,7 @@ extension ChatView {
     func deleteEveryone(_ message: Message) async {
         try? await APIClient.shared.deleteForEveryone(conversationId: conversation.id, messageId: message.id)
         if let idx = messages.firstIndex(where: { $0.id == message.id }) {
-            messages[idx].deletedAt = ISO8601DateFormatter().string(from: Date())
+            messages[idx].deletedAt = KlicDate.nowISO()
             messages[idx].reactions = []
         }
     }

@@ -420,10 +420,10 @@ struct ProfileView: View {
 
     private static func lastSeen(_ date: Date) -> String {
         let cal = Calendar.current
-        let f = DateFormatter()
-        if cal.isDateInToday(date) { f.dateFormat = "HH:mm"; return String(localized: "last seen today at \(f.string(from: date))") }
-        if cal.isDateInYesterday(date) { f.dateFormat = "HH:mm"; return String(localized: "last seen yesterday at \(f.string(from: date))") }
-        f.dateFormat = "MMM d"; return String(localized: "last seen \(f.string(from: date))")
+        // Locale-aware clock time (honors the 12/24-hour setting) instead of a fixed "HH:mm".
+        if cal.isDateInToday(date) { return String(localized: "last seen today at \(KlicDate.shortTime.string(from: date))") }
+        if cal.isDateInYesterday(date) { return String(localized: "last seen yesterday at \(KlicDate.shortTime.string(from: date))") }
+        return String(localized: "last seen \(KlicDate.monthAbbrevDay.string(from: date))")
     }
 }
 

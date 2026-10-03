@@ -106,14 +106,7 @@ struct MessageSearchSheet: View {
     }
 
     private static func stamp(_ iso: String) -> String {
-        let withFraction = ISO8601DateFormatter()
-        withFraction.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        let plain = ISO8601DateFormatter()
-        plain.formatOptions = [.withInternetDateTime]
-        guard let date = withFraction.date(from: iso) ?? plain.date(from: iso) else { return "" }
-        let formatter = DateFormatter()
-        formatter.dateStyle = .short
-        formatter.timeStyle = .short
-        return formatter.string(from: date)
+        guard let date = KlicDate.parse(iso) else { return "" }
+        return KlicDate.shortDateShortTime.string(from: date)
     }
 }
