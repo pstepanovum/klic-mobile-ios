@@ -18,6 +18,10 @@ final class ConversationStore: ObservableObject {
     private(set) var loaded = false
     private var refreshing = false
     private var cancellables: Set<AnyCancellable> = []
+    /// Pending debounced disk snapshot (cancel-and-restart on every change).
+    private var persistTask: Task<Void, Never>?
+    /// Serial queue: cache writes (and the sign-out sweep) run one at a time, in order.
+    private static let persistQueue = DispatchQueue(label: "com.klic.mobile.conversations-cache", qos: .utility)
 
     /// §16.5: local pin decisions (conversationId → chatPinnedAt or nil) that outrank
     /// the fetched list until the server confirms it persisted them — so a pin made
@@ -49,6 +53,9 @@ final class ConversationStore: ObservableObject {
             .store(in: &cancellables)
         NotificationCenter.default.publisher(for: .klicSessionExpired)
             .sink { [weak self] _ in
+                // Drop any pending snapshot so it can't rewrite the cache after the sweep.
+                self?.persistTask?.cancel()
+                self?.persistTask = nil
                 Self.clearCachedConversations()
                 self?.conversations = []
                 self?.loaded = false
@@ -79,13 +86,22 @@ final class ConversationStore: ObservableObject {
     }
 
     /// Snapshot the current list to disk off the main thread. Called from `conversations`
-    /// didSet so the cache always reflects the latest server + socket state.
+    /// didSet so the cache reflects the latest server + socket state. Debounced (0.5s,
+    /// cancel-and-restart) so a burst of socket events encodes the list once instead of
+    /// per event, and writes are serialized on `persistQueue` so they can't overlap or
+    /// land out of order.
     private func persistConversations() {
+        persistTask?.cancel()
+        persistTask = nil
         guard let url = Self.cacheURL(for: myUserId) else { return }
-        let snapshot = conversations
-        Task.detached(priority: .utility) {
-            guard let data = try? JSONEncoder().encode(snapshot) else { return }
-            try? data.write(to: url, options: .atomic)
+        persistTask = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: 500_000_000)
+            guard !Task.isCancelled, let self else { return }
+            let snapshot = self.conversations
+            Self.persistQueue.async {
+                guard let data = try? JSONEncoder().encode(snapshot) else { return }
+                try? data.write(to: url, options: .atomic)
+            }
         }
     }
 
@@ -93,13 +109,16 @@ final class ConversationStore: ObservableObject {
     /// still being present here (it may already be cleared), so sweep all cache files
     /// rather than deriving a single user id.
     private static func clearCachedConversations() {
-        guard let dir = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first,
-              let files = try? FileManager.default.contentsOfDirectory(
-                  at: dir, includingPropertiesForKeys: nil)
-        else { return }
-        for file in files where file.lastPathComponent.hasPrefix("conversations-")
-            && file.pathExtension == "json" {
-            try? FileManager.default.removeItem(at: file)
+        // On the write queue, so it runs after any snapshot write already in flight.
+        persistQueue.async {
+            guard let dir = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first,
+                  let files = try? FileManager.default.contentsOfDirectory(
+                      at: dir, includingPropertiesForKeys: nil)
+            else { return }
+            for file in files where file.lastPathComponent.hasPrefix("conversations-")
+                && file.pathExtension == "json" {
+                try? FileManager.default.removeItem(at: file)
+            }
         }
     }
 
