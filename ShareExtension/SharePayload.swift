@@ -1,5 +1,6 @@
 import UIKit
 import AVFoundation
+import ImageIO
 import UniformTypeIdentifiers
 
 /// One media item extracted from the share sheet, ready for the attachment pipeline.
@@ -61,27 +62,58 @@ enum SharePayloadLoader {
     // MARK: - Per-type loaders
 
     private static func loadImage(_ provider: NSItemProvider) async -> SharePayloadItem? {
-        // Prefer the file representation (photos come as HEIC/JPEG files), falling back to
-        // an in-memory UIImage (e.g. screenshots shared straight from the markup UI).
-        var image: UIImage?
-        if let url = await loadFileCopy(provider, type: UTType.image),
-           let data = try? Data(contentsOf: url) {
-            image = UIImage(data: data)
+        // Prefer the file representation (photos come as HEIC/JPEG files): downsample it
+        // with ImageIO straight from disk, so a 48MP photo is never fully decoded (the
+        // full bitmap alone is ~190MB, over the extension's memory limit).
+        if let url = await loadFileCopy(provider, type: UTType.image) {
+            let item = downsampledImageItem(at: url)
             try? FileManager.default.removeItem(at: url)
+            if let item { return item }
         }
-        if image == nil, provider.canLoadObject(ofClass: UIImage.self) {
-            image = await loadObject(provider, of: UIImage.self)
-        }
-        guard let image, let (data, w, h) = encodeImage(image) else { return nil }
+        // Fallback: an in-memory UIImage (e.g. screenshots shared straight from the markup UI).
+        guard provider.canLoadObject(ofClass: UIImage.self),
+              let image = await loadObject(provider, of: UIImage.self),
+              let (data, w, h) = encodeImage(image) else { return nil }
         return SharePayloadItem(
             kind: "IMAGE", contentType: "image/jpeg", data: data,
             width: w, height: h, previewImage: image
         )
     }
 
+    /// ImageIO downsample of an image file to ≤`maxDimension` px (EXIF orientation
+    /// applied), JPEG-encoded at the same quality as `encodeImage` — matching the app's
+    /// pipeline (Media.encodeImage: ≤2048px, 0.85) without decoding the full image.
+    private static func downsampledImageItem(
+        at url: URL, maxDimension: Int = 2048, quality: CGFloat = 0.85
+    ) -> SharePayloadItem? {
+        let sourceOptions = [kCGImageSourceShouldCache: false] as CFDictionary
+        guard let source = CGImageSourceCreateWithURL(url as CFURL, sourceOptions) else { return nil }
+        guard let cgImage = downsample(source, maxPixelSize: maxDimension),
+              let data = UIImage(cgImage: cgImage).jpegData(compressionQuality: quality) else { return nil }
+        // Small preview only — the full-size bitmap is released once encoded.
+        let preview = downsample(source, maxPixelSize: 320).map { UIImage(cgImage: $0) }
+        return SharePayloadItem(
+            kind: "IMAGE", contentType: "image/jpeg", data: data,
+            width: cgImage.width, height: cgImage.height, previewImage: preview
+        )
+    }
+
+    private static func downsample(_ source: CGImageSource, maxPixelSize: Int) -> CGImage? {
+        let options = [
+            kCGImageSourceCreateThumbnailFromImageAlways: true,
+            kCGImageSourceShouldCacheImmediately: true,
+            kCGImageSourceCreateThumbnailWithTransform: true,
+            kCGImageSourceThumbnailMaxPixelSize: maxPixelSize,
+        ] as CFDictionary
+        return CGImageSourceCreateThumbnailAtIndex(source, 0, options)
+    }
+
     private static func loadMovie(_ provider: NSItemProvider) async -> SharePayloadItem? {
+        // Memory-mapped (file-backed pages, not dirty memory): a long video read fully into
+        // RAM could exceed the extension's memory limit. The mapping stays valid after the
+        // temp file is unlinked below.
         guard let url = await loadFileCopy(provider, type: UTType.movie),
-              let data = try? Data(contentsOf: url) else { return nil }
+              let data = try? Data(contentsOf: url, options: .mappedIfSafe) else { return nil }
         defer { try? FileManager.default.removeItem(at: url) }
         let asset = AVURLAsset(url: url)
         var durationMs = 0
@@ -108,7 +140,8 @@ enum SharePayloadLoader {
     private static func loadFile(_ url: URL) -> SharePayloadItem? {
         let scoped = url.startAccessingSecurityScopedResource()
         defer { if scoped { url.stopAccessingSecurityScopedResource() } }
-        guard let data = try? Data(contentsOf: url) else { return nil }
+        // Memory-mapped when the volume allows it (falls back to a normal read otherwise).
+        guard let data = try? Data(contentsOf: url, options: .mappedIfSafe) else { return nil }
         return SharePayloadItem(
             kind: "FILE",
             contentType: mime(for: url, fallback: "application/octet-stream"),
