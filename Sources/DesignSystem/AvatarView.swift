@@ -120,8 +120,11 @@ actor RemoteImageStore {
         let key = Self.displayKey(cacheKey, bucket)
         if let cached = memory.object(forKey: key as NSString) { return cached }
         if let ondisk = try? Data(contentsOf: fileURL(for: key)), let image = UIImage(data: ondisk) {
-            remember(image, for: key)
-            return image
+            // Decode here (off-main), like the downsample path — UIImage(data:) alone
+            // defers the decode to the first draw on the main thread (§19.1).
+            let decoded = image.preparingForDisplay() ?? image
+            remember(decoded, for: key)
+            return decoded
         }
         guard let data = await sourceData(for: url, cacheKey: cacheKey) else { return nil }
         guard let image = Self.downsample(data: data, maxPixelSize: bucket) ?? UIImage(data: data) else { return nil }
@@ -139,8 +142,11 @@ actor RemoteImageStore {
         let key = Self.displayKey(cacheKey, bucket)
         if let cached = memory.object(forKey: key as NSString) { return cached }
         if let ondisk = try? Data(contentsOf: fileURL(for: key)), let image = UIImage(data: ondisk) {
-            remember(image, for: key)
-            return image
+            // Decode here (off-main), like the downsample path — UIImage(data:) alone
+            // defers the decode to the first draw on the main thread (§19.1).
+            let decoded = image.preparingForDisplay() ?? image
+            remember(decoded, for: key)
+            return decoded
         }
         // Fall back to the cached full-resolution bytes, downsampled once.
         guard let original = try? Data(contentsOf: fileURL(for: cacheKey)) else { return nil }
