@@ -16,7 +16,9 @@ enum CallActivityController {
                 content: .init(state: state, staleDate: nil)
             )
         } catch {
+            #if DEBUG
             print("LiveActivity start failed: \(error)")
+            #endif
         }
     }
 

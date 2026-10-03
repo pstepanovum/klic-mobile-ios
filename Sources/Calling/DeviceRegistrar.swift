@@ -13,7 +13,9 @@ enum DeviceRegistrar {
             do {
                 _ = try await APIClient.shared.registerDevice(pushToken: apnsToken, voipToken: voipToken)
             } catch {
+                #if DEBUG
                 print("DeviceRegistrar.sync failed: \(error)")
+                #endif
             }
         }
     }

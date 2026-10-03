@@ -167,7 +167,9 @@ final class CallService: NSObject, ObservableObject {
             // activateAudioSession() does it the moment didActivate fires.
             await publishMicIfReady(callId: callId)
         } catch {
+            #if DEBUG
             print("CallService.join failed: \(error)")
+            #endif
             APIClient.mobileDiagnostic(event: "livekit.join.failed", callId: callId, detail: String(describing: error))
             throw error
         }

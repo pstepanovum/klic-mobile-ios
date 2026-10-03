@@ -101,7 +101,9 @@ extension E2eeKeyManager {
                     type: message.messageType == .preKey ? 3 : 2,
                     ciphertext: message.serialize().base64EncodedString()))
             } catch {
+                #if DEBUG
                 print("E2ee: encrypt to \(target.userId)/\(target.deviceId) failed: \(error)")
+                #endif
             }
         }
         return EncryptedFanOut(senderDeviceId: myDeviceId, envelopes: envelopes)
@@ -139,7 +141,9 @@ extension E2eeKeyManager {
             }
             return E2eeCodec.decode(plaintext)
         } catch {
+            #if DEBUG
             print("E2ee: decrypt from \(senderUserId)/\(senderDeviceId) failed: \(error)")
+            #endif
             return nil
         }
     }

@@ -726,7 +726,9 @@ extension CallKitManager: CXProviderDelegate {
             do {
                 // Everything needed to join comes from the token response, so answering
                 // works even if the original invite is no longer in memory.
+                #if DEBUG
                 print("CallKit answer: requesting join token for \(callId)")
+                #endif
                 APIClient.mobileDiagnostic(event: "callkit.answer.token.start", callId: callId)
                 let session = try await APIClient.shared.joinToken(callId: callId)
                 APIClient.mobileDiagnostic(event: "callkit.answer.token.ok", callId: callId)
@@ -764,7 +766,9 @@ extension CallKitManager: CXProviderDelegate {
                     CallIntents.donate(peerName: peerName, peerId: invite?.fromUserId, isVideo: isVideo)
                 }
             } catch {
+                #if DEBUG
                 print("CallKit answer failed for \(callId): \(error)")
+                #endif
                 // If the call was torn down while we were still connecting (caller hung up
                 // fast, or the peer dropped), the join throws "Cancelled"/"disconnected" —
                 // that's not a real failure, so clean up quietly without a misleading

@@ -160,7 +160,9 @@ actor E2eeKeyManager {
                 try await maintain(box)
             }
         } catch {
+            #if DEBUG
             print("E2ee key upkeep failed (will retry on next auth): \(error)")
+            #endif
         }
     }
 
@@ -265,7 +267,9 @@ actor E2eeKeyManager {
 
         box.state.deviceId = response.deviceId
         box.save()
+        #if DEBUG
         print("E2ee: published key bundle as device \(response.deviceId)")
+        #endif
     }
 
     // MARK: - Upkeep: top-up + rotation
@@ -315,7 +319,9 @@ actor E2eeKeyManager {
         box.state.nextKyberId = nextKyber + Self.kyberBatch
         box.save()
         cachedStore = nil // rebuilt from the updated snapshot on next use
+        #if DEBUG
         print("E2ee: topped up prekeys (+\(Self.preKeyBatch) EC, +\(Self.kyberBatch) kyber)")
+        #endif
     }
 
     private func rotateSignedPreKey(_ box: E2eeStateBox) async throws {
@@ -333,7 +339,9 @@ actor E2eeKeyManager {
         box.state.nextSignedId = record.id + 1
         box.save()
         cachedStore = nil
+        #if DEBUG
         print("E2ee: rotated signed prekey to id \(record.id)")
+        #endif
     }
 
     // MARK: - Record helpers
