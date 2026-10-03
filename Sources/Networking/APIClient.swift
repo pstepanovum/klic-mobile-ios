@@ -53,6 +53,15 @@ actor APIClient {
         try await post("/auth/refresh", body: ["refreshToken": refreshToken], authed: false)
     }
 
+    /// Revokes this login's refresh tokens server-side and, with `installId`, drops the
+    /// install's push device rows so a signed-out phone stops getting pushes. Unauthed
+    /// (the refresh token is the credential), so it never enters the 401-refresh path.
+    func logout(refreshToken: String, installId: String?) async throws {
+        var body: [String: Any] = ["refreshToken": refreshToken]
+        if let installId { body["installId"] = installId }
+        let _: EmptyResponse = try await post("/auth/logout", body: body, authed: false)
+    }
+
     // MARK: Friends
 
     func findUser(username: String) async throws -> [User] {

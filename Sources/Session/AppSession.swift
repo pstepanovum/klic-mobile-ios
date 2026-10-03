@@ -89,6 +89,14 @@ final class AppSession: ObservableObject {
     }
 
     func logout() {
+        // Best-effort server revoke + push-device cleanup. Capture the refresh token
+        // before clearing it; never block sign-out on the network, ignore failures.
+        if let refreshToken = TokenStore.refreshToken {
+            Task.detached {
+                try? await APIClient.shared.logout(
+                    refreshToken: refreshToken, installId: InstallIdentity.current)
+            }
+        }
         TokenStore.clear()
         Self.clearUser()
         SocketService.shared.disconnect()
