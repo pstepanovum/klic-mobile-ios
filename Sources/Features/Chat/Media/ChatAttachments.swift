@@ -514,14 +514,18 @@ private struct VoiceAttachmentView: View {
     var onReplyTap: (String) -> Void = { _ in }
     var onReactionTap: (String) -> Void = { _ in }
 
-    @ObservedObject private var player = AudioPlaybackManager.shared
+    // Not observed: AudioPlaybackManager publishes `progress` every 0.05s while ANY note
+    // plays, which re-rendered every voice bubble 20x/s. `playing` / `playbackProgress`
+    // are mirrored via `.onReceive`, filtered to this attachment and de-duplicated, so
+    // only the bubble that is actually playing updates.
+    @State private var playing = false
+    @State private var playbackProgress: Double = 0
 
-    private var playing: Bool { player.playingId == attachment.id }
     private var tint: Color { isMine ? KlicColor.onPrimary : KlicColor.primary }
 
+    /// Decoded once per attachment (cached), not on every body evaluation.
     private var waveformAmplitudes: [Float] {
-        guard let base64 = attachment.waveform, let data = Data(base64Encoded: base64) else { return [] }
-        return unpackWaveform(data)
+        VoiceWaveformCache.amplitudes(for: attachment)
     }
 
     var body: some View {
@@ -542,7 +546,7 @@ private struct VoiceAttachmentView: View {
 
                 WaveformBarsView(
                     amplitudes: waveformAmplitudes,
-                    progress: playing ? player.progress : 0,
+                    progress: playing ? playbackProgress : 0,
                     isOutgoing: isMine
                 )
                 .frame(width: 110)
@@ -575,6 +579,17 @@ private struct VoiceAttachmentView: View {
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
         .background(isMine ? chatTheme.bubbleColor(for: conversationId) : KlicColor.surfaceRaised, in: RoundedRectangle(cornerRadius: 18))
+        .onReceive(AudioPlaybackManager.shared.$playingId.map { $0 == attachment.id }.removeDuplicates()) { isPlaying in
+            playing = isPlaying
+        }
+        .onReceive(
+            AudioPlaybackManager.shared.$progress
+                .combineLatest(AudioPlaybackManager.shared.$playingId)
+                .map { pair -> Double in pair.1 == attachment.id ? pair.0 : 0 }
+                .removeDuplicates()
+        ) { value in
+            playbackProgress = value
+        }
         .onAppear {
             // Auto-download matrix (§8.3): pre-cache voice notes when allowed on this network.
             if AutoDownloadPrefs.allowedNow(.audio), !AttachmentFileStore.shared.isCached(attachment) {
@@ -587,12 +602,34 @@ private struct VoiceAttachmentView: View {
     /// tapping play is a manual action, so it works even when auto-download is off.
     private func play() {
         let local = AttachmentFileStore.shared.cachedURL(for: attachment)
-        player.toggle(id: attachment.id, url: local?.absoluteString ?? attachment.url)
+        AudioPlaybackManager.shared.toggle(id: attachment.id, url: local?.absoluteString ?? attachment.url)
     }
 
     private var durationText: String {
         let seconds = (attachment.durationMs ?? 0) / 1000
         return String(format: "%d:%02d", seconds / 60, seconds % 60)
+    }
+}
+
+/// Decoded voice-note waveforms keyed by attachment id. The packed waveform is
+/// immutable per attachment, so decode it once instead of on every render.
+/// NSCache is thread-safe and evicts under memory pressure.
+private enum VoiceWaveformCache {
+    private final class Box {
+        let amplitudes: [Float]
+        init(_ amplitudes: [Float]) { self.amplitudes = amplitudes }
+    }
+
+    private static let cache = NSCache<NSString, Box>()
+
+    static func amplitudes(for attachment: Attachment) -> [Float] {
+        guard let base64 = attachment.waveform else { return [] }
+        let key = attachment.id as NSString
+        if let hit = cache.object(forKey: key) { return hit.amplitudes }
+        guard let data = Data(base64Encoded: base64) else { return [] }
+        let decoded = unpackWaveform(data)
+        cache.setObject(Box(decoded), forKey: key)
+        return decoded
     }
 }
 
@@ -619,7 +656,9 @@ private struct FileAttachmentView: View {
     var onReplyTap: (String) -> Void = { _ in }
     var onReactionTap: (String) -> Void = { _ in }
 
-    @ObservedObject private var store = AttachmentFileStore.shared
+    // Not observed: AttachmentFileStore's progress dict changes for EVERY in-flight
+    // download; this bubble mirrors only its own entry via `.onReceive`.
+    @State private var downloadProgress: Double?
     @State private var previewFile: LocalFile?
     @State private var shareFile: LocalFile?
 
@@ -627,8 +666,6 @@ private struct FileAttachmentView: View {
         let url: URL
         var id: String { url.absoluteString }
     }
-
-    private var downloadProgress: Double? { store.progress[attachment.id] }
 
     /// §10.10: PDFs render their first page as the bubble preview when available.
     @State private var pdfThumbnail: UIImage?
@@ -647,9 +684,12 @@ private struct FileAttachmentView: View {
             }
         }
         .disabled(downloadProgress != nil)
+        .onReceive(AttachmentFileStore.shared.$progress.map { $0[attachment.id] }.removeDuplicates()) { value in
+            downloadProgress = value
+        }
         .onAppear {
             // Auto-download matrix (§8.3): pre-cache documents when allowed on this network.
-            if AutoDownloadPrefs.allowedNow(.documents), !store.isCached(attachment) {
+            if AutoDownloadPrefs.allowedNow(.documents), !AttachmentFileStore.shared.isCached(attachment) {
                 Task { _ = try? await AttachmentFileStore.shared.download(attachment) }
             }
             if isPdf, pdfThumbnail == nil {
