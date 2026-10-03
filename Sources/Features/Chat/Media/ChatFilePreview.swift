@@ -80,33 +80,16 @@ final class AttachmentFileStore: ObservableObject {
         let attachmentId = attachment.id
         progress[attachmentId] = 0
         let task = Task<URL, Error> {
-            let (bytes, response) = try await URLSession.shared.bytes(from: remote)
-            guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
-                throw URLError(.badServerResponse)
+            // Streams to a temp file via a URLSession download task (off the main actor)
+            // and moves it into place — no per-byte loop, no whole file held in memory.
+            let received = try await Self.downloadFile(
+                from: remote, to: destination, expectedBytes: expectedBytes
+            ) { value in
+                Task { @MainActor in AttachmentFileStore.shared.reportProgress(value, for: attachmentId) }
             }
-            let total = http.expectedContentLength > 0 ? Int(http.expectedContentLength) : expectedBytes
-            var data = Data()
-            data.reserveCapacity(max(total, 0))
-            var lastReported = 0.0
-            for try await byte in bytes {
-                data.append(byte)
-                if total > 0 {
-                    let fraction = Double(data.count) / Double(total)
-                    if fraction - lastReported >= 0.02 {
-                        lastReported = fraction
-                        let value = min(fraction, 1)
-                        await MainActor.run { AttachmentFileStore.shared.progress[attachmentId] = value }
-                    }
-                }
-            }
-            try FileManager.default.createDirectory(
-                at: destination.deletingLastPathComponent(),
-                withIntermediateDirectories: true
-            )
-            try data.write(to: destination, options: .atomic)
             DataUsageTracker.shared.record(
                 type: DataUsageTracker.mediaType(forAttachmentKind: attachment.kind),
-                sent: 0, received: data.count
+                sent: 0, received: Int(clamping: received)
             )
             return destination
         }
@@ -121,6 +104,119 @@ final class AttachmentFileStore: ObservableObject {
             try? FileManager.default.removeItem(at: destination)
             throw error
         }
+    }
+
+    /// Progress hop from the download's KVO callback. Ignored once the download is no
+    /// longer in flight, so a late hop can't resurrect a cleared progress entry (which
+    /// would leave the bubble's ring spinning and its button disabled).
+    fileprivate func reportProgress(_ value: Double, for attachmentId: String) {
+        guard inFlight[attachmentId] != nil else { return }
+        progress[attachmentId] = value
+    }
+
+    /// Downloads `remote` to a temporary file with a `URLSessionDownloadTask`, then
+    /// moves it to `destination`. Reports 0…1 progress in ≥2% steps (falling back to
+    /// `expectedBytes` when the server sends no Content-Length). Cancelling the calling
+    /// Swift task cancels the URLSession task. Returns the number of bytes written.
+    nonisolated private static func downloadFile(
+        from remote: URL,
+        to destination: URL,
+        expectedBytes: Int,
+        onProgress: @escaping @Sendable (Double) -> Void
+    ) async throws -> Int64 {
+        let state = FileDownloadState()
+        return try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Int64, Error>) in
+                let task = URLSession.shared.downloadTask(with: remote) { tempURL, response, error in
+                    state.finish()
+                    if let error {
+                        continuation.resume(throwing: error)
+                        return
+                    }
+                    guard let tempURL,
+                          let http = response as? HTTPURLResponse,
+                          (200..<300).contains(http.statusCode) else {
+                        continuation.resume(throwing: URLError(.badServerResponse))
+                        return
+                    }
+                    // The temp file is deleted when this handler returns — move it now.
+                    do {
+                        let fm = FileManager.default
+                        try fm.createDirectory(
+                            at: destination.deletingLastPathComponent(),
+                            withIntermediateDirectories: true
+                        )
+                        if fm.fileExists(atPath: destination.path) {
+                            try fm.removeItem(at: destination)
+                        }
+                        try fm.moveItem(at: tempURL, to: destination)
+                        let size = (try? fm.attributesOfItem(atPath: destination.path)[.size] as? NSNumber)?
+                            .int64Value ?? 0
+                        continuation.resume(returning: size)
+                    } catch {
+                        continuation.resume(throwing: error)
+                    }
+                }
+                let progress = task.progress
+                let observation = progress.observe(\.completedUnitCount, options: [.new]) { progress, _ in
+                    let total = progress.totalUnitCount > 0 ? progress.totalUnitCount : Int64(expectedBytes)
+                    guard total > 0 else { return }
+                    let fraction = min(Double(progress.completedUnitCount) / Double(total), 1)
+                    if state.shouldReport(fraction) { onProgress(fraction) }
+                }
+                state.start(task, observation: observation)
+            }
+        } onCancel: {
+            state.cancel()
+        }
+    }
+}
+
+/// Lock-protected bookkeeping shared between a file download's URLSession callbacks,
+/// its progress KVO and the Swift task's cancellation handler (all on different threads).
+private final class FileDownloadState: @unchecked Sendable {
+    private let lock = NSLock()
+    private var task: URLSessionDownloadTask?
+    private var observation: NSKeyValueObservation?
+    private var cancelled = false
+    private var lastReported = 0.0
+
+    /// Resumes the task; if cancellation already happened, cancels it right away.
+    func start(_ task: URLSessionDownloadTask, observation: NSKeyValueObservation) {
+        lock.lock()
+        self.task = task
+        self.observation = observation
+        let alreadyCancelled = cancelled
+        lock.unlock()
+        task.resume()
+        if alreadyCancelled { task.cancel() }
+    }
+
+    func cancel() {
+        lock.lock()
+        cancelled = true
+        let task = self.task
+        lock.unlock()
+        task?.cancel()
+    }
+
+    /// Stops progress observation and drops the task reference (completion).
+    func finish() {
+        lock.lock()
+        let observation = self.observation
+        self.observation = nil
+        task = nil
+        lock.unlock()
+        observation?.invalidate()
+    }
+
+    /// True when `fraction` advanced ≥2% since the last report (or reached 100%).
+    func shouldReport(_ fraction: Double) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        guard fraction - lastReported >= 0.02 || (fraction >= 1 && lastReported < 1) else { return false }
+        lastReported = fraction
+        return true
     }
 }
 
