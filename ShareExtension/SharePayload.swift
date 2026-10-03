@@ -140,8 +140,10 @@ enum SharePayloadLoader {
     private static func loadFile(_ url: URL) -> SharePayloadItem? {
         let scoped = url.startAccessingSecurityScopedResource()
         defer { if scoped { url.stopAccessingSecurityScopedResource() } }
-        // Memory-mapped when the volume allows it (falls back to a normal read otherwise).
-        guard let data = try? Data(contentsOf: url, options: .mappedIfSafe) else { return nil }
+        // A plain read, not a mapping: this file belongs to another app's provider and
+        // our access ends on return, so a mapping could fault later if it's evicted or
+        // rewritten. Shared files are capped at 25 MB, so the read is affordable.
+        guard let data = try? Data(contentsOf: url) else { return nil }
         return SharePayloadItem(
             kind: "FILE",
             contentType: mime(for: url, fallback: "application/octet-stream"),
