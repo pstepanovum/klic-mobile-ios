@@ -67,7 +67,7 @@ enum CallIntents {
     /// values our donations and CallKit Recents handles carry.
     static func startCall(from activity: NSUserActivity) {
         guard let request = request(from: activity), !request.contactName.isEmpty else { return }
-        APIClient.mobileDiagnostic(event: "intents.startCall", detail: request.contactName)
+        APIClient.mobileDiagnostic(event: "intents.startCall") // no contact name (PII)
         Task { @MainActor in
             guard CallKitManager.shared.activeCall == nil else { return }
             guard let friends = try? await APIClient.shared.friends() else { return }
@@ -76,7 +76,7 @@ enum CallIntents {
                 ?? friends.first { $0.username.lowercased() == query }
                 ?? friends.first { $0.displayName.lowercased().contains(query) }
             guard let friend else {
-                APIClient.mobileDiagnostic(event: "intents.startCall.noMatch", detail: request.contactName)
+                APIClient.mobileDiagnostic(event: "intents.startCall.noMatch")
                 return
             }
             guard let convo = try? await APIClient.shared.openConversation(userId: friend.id),

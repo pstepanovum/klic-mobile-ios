@@ -103,7 +103,8 @@ final class CallKitManager: NSObject, ObservableObject {
     /// same UUID (a harmless "already exists" that still satisfies the contract). The socket path
     /// (fromPushKit == false) keeps its quiet dedup — no push to answer to.
     func reportIncoming(_ invite: SocketService.CallInvite, fromPushKit: Bool = false, completion: (() -> Void)? = nil) {
-        APIClient.mobileDiagnostic(event: "callkit.reportIncoming", callId: invite.id, detail: invite.fromDisplayName)
+        // No display names in diagnostics (PII) — the caller's user id is enough to correlate.
+        APIClient.mobileDiagnostic(event: "callkit.reportIncoming", callId: invite.id, detail: invite.fromUserId)
         if recentlyEndedCallIds.contains(invite.id) {
             APIClient.mobileDiagnostic(event: "callkit.reportIncoming.ignoredEnded", callId: invite.id)
             if fromPushKit {
@@ -170,7 +171,7 @@ final class CallKitManager: NSObject, ObservableObject {
             APIClient.mobileDiagnostic(
                 event: "callkit.start.ignored.activeCall",
                 callId: session.callId,
-                detail: peerName
+                detail: peerId
             )
             Task { try? await APIClient.shared.cancelCall(callId: session.callId) }
             return
