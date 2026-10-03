@@ -12,7 +12,11 @@ struct ChatView: View {
     @EnvironmentObject var session: AppSession
     @Environment(\.dismiss) var dismiss
     @Environment(\.scenePhase) private var scenePhase
-    @StateObject var socket = SocketService.shared
+    /// Not observed: SocketService publishes presence/typing/mailbox changes for EVERY
+    /// conversation, and observing it re-evaluated this whole body on each event. The
+    /// handful of values this view needs are pulled in via `.onReceive` (which does not
+    /// subscribe the view to `objectWillChange`) or by small observing child views.
+    var socket: SocketService { SocketService.shared }
 
     @State var messages: [Message] = []
     @State var hasMore = false
@@ -46,7 +50,9 @@ struct ChatView: View {
     @State var groupDetails: GroupConversationDetails?
     /// The conversation's in-progress call (group chats) — drives the "Join call" banner.
     @State var activeCallInfo: ActiveCallInfo?
-    @ObservedObject var callKit = CallKitManager.shared
+    /// Id of the call CallKit currently has active — mirrored via `.onReceive` (not an
+    /// observed CallKitManager, whose status/timer changes would re-render the chat).
+    @State var callKitActiveCallId: String?
     @State var pendingMedia: [PendingMediaDraft] = []
     /// The staged item currently open in the pre-send media editor (§10.9).
     @State var editingDraft: PendingMediaDraft?
@@ -166,9 +172,13 @@ struct ChatView: View {
         }
     }
 
+    /// When the peer last signalled typing in THIS conversation — mirrored from
+    /// `SocketService.typingByConversation` filtered to this conversation id.
+    @State var peerTypingAt: Date?
+
     /// Whether the peer is currently typing in this conversation (auto-expires).
     var peerIsTyping: Bool {
-        guard let at = socket.typingByConversation[conversation.id] else { return false }
+        guard let at = peerTypingAt else { return false }
         return Date().timeIntervalSince(at) < 6
     }
 
@@ -246,7 +256,7 @@ struct ChatView: View {
                         )
                         .transition(.move(edge: .top).combined(with: .opacity))
                     }
-                    if let info = activeCallInfo, callKit.activeCall?.id != info.callId {
+                    if let info = activeCallInfo, callKitActiveCallId != info.callId {
                         JoinCallBanner(info: info) {
                             Task { await joinActiveCall(info) }
                         }
@@ -467,6 +477,13 @@ struct ChatView: View {
         .onChange(of: scenePhase) { _, phase in
             guard phase == .active, !isDirect else { return }
             Task { await refreshActiveCall() }
+        }
+        // Typing for THIS conversation only — other chats' typing no longer re-renders.
+        .onReceive(socket.$typingByConversation.map { $0[conversation.id] }.removeDuplicates()) { at in
+            peerTypingAt = at
+        }
+        .onReceive(CallKitManager.shared.$activeCall.map { $0?.id }.removeDuplicates()) { id in
+            callKitActiveCallId = id
         }
         .onReceive(socket.$lastMessage.compactMap { $0 }) { msg in
             guard msg.conversationId == conversation.id else { return }

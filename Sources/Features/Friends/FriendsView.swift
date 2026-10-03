@@ -4,7 +4,6 @@ import Inject
 struct FriendsView: View {
     @ObserveInjection var inject
     @EnvironmentObject var session: AppSession
-    @StateObject private var socket = SocketService.shared
 
     @ObservedObject private var friendLinks = FriendLinkRouter.shared
     @State private var friends: [User] = []
@@ -145,10 +144,8 @@ struct FriendsView: View {
                         HStack(spacing: 14) {
                             AvatarView(url: friend.avatarUrl, name: friend.displayName, size: 52)
                                 .overlay(alignment: .bottomTrailing) {
-                                    if socket.presence[friend.id]?.online == true {
-                                        Circle().fill(.green).frame(width: 14, height: 14)
-                                            .overlay(Circle().stroke(KlicColor.background, lineWidth: 2))
-                                    }
+                                    // Observes presence itself — the list doesn't re-render per socket event.
+                                    OnlinePresenceDot(userId: friend.id)
                                 }
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(friend.displayName).font(KlicFont.medium()).foregroundStyle(KlicColor.textPrimary)

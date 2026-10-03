@@ -19,11 +19,9 @@ extension ChatView {
                         Text(peer.displayName)
                             .font(KlicFont.headline(16))
                             .foregroundStyle(KlicColor.textPrimary)
-                        if let sub = headerSubtitle {
-                            Text(sub)
-                                .font(KlicFont.caption(11))
-                                .foregroundStyle(isPeerOnline ? KlicColor.primary : KlicColor.textMuted)
-                        }
+                        // Small observing child: presence events re-render only this line,
+                        // not ChatView's body.
+                        ChatPresenceSubtitle(peerId: peer.id)
                     }
                 }
                 .padding(.leading, 4)
@@ -81,19 +79,31 @@ extension ChatView {
         }
     }
 
-    var isPeerOnline: Bool {
-        guard isDirect else { return false }
-        guard let id = conversation.members.first?.id else { return false }
-        return socket.presence[id]?.online == true
+    /// Group subtitle ("N members"); direct chats use `ChatPresenceSubtitle`.
+    var headerSubtitle: String? {
+        guard !isDirect else { return nil }
+        return String(localized: "\(memberCount) members")
+    }
+}
+
+/// Live presence line under a DM's title ("Online" / "last seen …"). Observes
+/// SocketService itself so presence churn only re-evaluates this tiny view.
+struct ChatPresenceSubtitle: View {
+    let peerId: String
+    @ObservedObject private var socket = SocketService.shared
+
+    var body: some View {
+        let info = socket.presence[peerId]
+        if let sub = Self.subtitle(info) {
+            Text(sub)
+                .font(KlicFont.caption(11))
+                .foregroundStyle(info?.online == true ? KlicColor.primary : KlicColor.textMuted)
+        }
     }
 
-    var headerSubtitle: String? {
-        if !isDirect {
-            return String(localized: "\(memberCount) members")
-        }
-        guard let id = conversation.members.first?.id else { return nil }
-        if socket.presence[id]?.online == true { return String(localized: "Online") }
-        guard let date = socket.presence[id]?.lastSeen else { return nil }
+    private static func subtitle(_ info: SocketService.PresenceInfo?) -> String? {
+        if info?.online == true { return String(localized: "Online") }
+        guard let date = info?.lastSeen else { return nil }
         let cal = Calendar.current
         // Locale-aware clock time (honors the 12/24-hour setting) instead of a fixed "HH:mm".
         if cal.isDateInToday(date) { return String(localized: "last seen \(KlicDate.shortTime.string(from: date))") }

@@ -478,13 +478,12 @@ private struct ConversationActionsOverlay: View {
 
 private struct ConversationRow: View {
     let conversation: Conversation
-    @ObservedObject private var socket = SocketService.shared
 
     var title: String { conversationTitle(conversation) }
-    private var isOnline: Bool {
-        guard conversation.type == "DIRECT" else { return false }
-        guard let id = conversation.members.first?.id else { return false }
-        return socket.presence[id]?.online == true
+    /// DM peer whose presence drives the online dot (nil for groups). The dot observes
+    /// SocketService itself, so this row no longer re-renders on every socket event.
+    private var presenceUserId: String? {
+        conversation.type == "DIRECT" ? conversation.members.first?.id : nil
     }
 
     private var unread: Int { conversation.unreadCount ?? 0 }
@@ -498,10 +497,7 @@ private struct ConversationRow: View {
                     size: 52
                 )
                     .overlay(alignment: .bottomTrailing) {
-                        if isOnline {
-                            Circle().fill(.green).frame(width: 14, height: 14)
-                                .overlay(Circle().stroke(KlicColor.background, lineWidth: 2))
-                        }
+                        OnlinePresenceDot(userId: presenceUserId)
                     }
                 VStack(alignment: .leading, spacing: 3) {
                     Text(title).font(KlicFont.headline()).foregroundStyle(KlicColor.textPrimary)
