@@ -1,10 +1,12 @@
 import SwiftUI
 import Security
 import CryptoKit
+import CommonCrypto
 import LocalAuthentication
 
-/// Local app lock (§10.4): a 4–6 digit passcode stored as a salted SHA-256 hash in
-/// the Keychain (never server-side), optional Face ID unlock, and an auto-lock
+/// Local app lock (§10.4): a 4–6 digit passcode stored as a salted PBKDF2-HMAC-SHA256
+/// hash in the Keychain (never server-side; legacy SHA-256 hashes are upgraded on the
+/// next successful unlock), failed-attempt lockout, optional Face ID unlock, and an auto-lock
 /// window. The lock overlay renders in RootView UNDER any full-screen call cover,
 /// so incoming CallKit call UI bypasses the lock (UI-layer only — call plumbing is
 /// untouched).
@@ -30,19 +32,50 @@ final class AppLockManager: ObservableObject {
     }
 
     @Published private(set) var isLocked = false
+    /// End of the current failed-attempt lockout (mirrors the Keychain), nil when none.
+    @Published private(set) var lockoutUntil: Date?
 
     private static let service = "com.klic.mobile.app.applock"
     private static let biometricKey = "applock.biometricEnabled"
     private static let autoLockKey = "applock.autoLock"
+
+    /// Stored hash format: "pbkdf2-sha256$<rounds>$<base64 key>". Anything else is the
+    /// legacy hex SHA256(salt || code).
+    private static let pbkdf2Marker = "pbkdf2-sha256"
+    private static let pbkdf2Rounds: UInt32 = 120_000
+    private static let derivedKeyLength = 32
+    /// Consecutive failures allowed before lockouts start (30s, 60s, 120s… capped at 1h).
+    private static let freeAttempts = 5
+    private static let baseLockout: TimeInterval = 30
+    private static let maxLockout: TimeInterval = 60 * 60
 
     private var backgroundedAt: Date?
 
     private init() {
         // Locked from launch whenever a passcode is set.
         isLocked = isPasscodeSet
+        lockoutUntil = Self.readKeychain("lockoutUntil")
+            .flatMap { Double($0) }
+            .map { Date(timeIntervalSince1970: $0) }
     }
 
     var isPasscodeSet: Bool { Self.readKeychain("hash") != nil }
+
+    /// Digit count of the passcode, known for hashes written by this version (legacy
+    /// hashes have none until their first unlock). Lets the lock screen submit once,
+    /// at the right length, so every wrong guess counts toward the lockout.
+    var passcodeLength: Int? {
+        guard let length = Self.readKeychain("length").flatMap({ Int($0) }),
+              (4...6).contains(length) else { return nil }
+        return length
+    }
+
+    /// Seconds left in the current lockout (0 when entry is allowed).
+    func lockoutRemaining(now: Date = Date()) -> TimeInterval {
+        guard let lockoutUntil else { return 0 }
+        // Clamp so a clock moved backwards can't extend the lockout past the cap.
+        return min(max(0, lockoutUntil.timeIntervalSince(now)), Self.maxLockout)
+    }
 
     var biometricEnabled: Bool {
         get { UserDefaults.standard.bool(forKey: Self.biometricKey) }
@@ -64,19 +97,25 @@ final class AppLockManager: ObservableObject {
 
     // MARK: Passcode management
 
-    /// Stores the passcode as SHA256(salt || code) with a fresh random salt.
+    /// Stores the passcode as PBKDF2-HMAC-SHA256(code, salt) with a fresh random salt.
     func setPasscode(_ code: String) {
         var saltBytes = [UInt8](repeating: 0, count: 16)
-        _ = SecRandomCopyBytes(kSecRandomDefault, saltBytes.count, &saltBytes)
+        guard SecRandomCopyBytes(kSecRandomDefault, saltBytes.count, &saltBytes) == errSecSuccess,
+              let derived = Self.pbkdf2(code: code, salt: Data(saltBytes), rounds: Self.pbkdf2Rounds)
+        else { return }
         let salt = Data(saltBytes)
         Self.writeKeychain("salt", salt.base64EncodedString())
-        Self.writeKeychain("hash", Self.hash(code: code, salt: salt))
+        Self.writeKeychain("hash", "\(Self.pbkdf2Marker)$\(Self.pbkdf2Rounds)$\(derived.base64EncodedString())")
+        Self.writeKeychain("length", String(code.count))
+        resetFailures()
         objectWillChange.send()
     }
 
     func removePasscode() {
         Self.deleteKeychain("salt")
         Self.deleteKeychain("hash")
+        Self.deleteKeychain("length")
+        resetFailures()
         biometricEnabled = false
         isLocked = false
         objectWillChange.send()
@@ -91,23 +130,90 @@ final class AppLockManager: ObservableObject {
         backgroundedAt = nil
     }
 
+    /// Checks `code` against the stored hash (no lockout bookkeeping). A matching legacy
+    /// SHA-256 hash is transparently re-hashed with PBKDF2.
     func verify(_ code: String) -> Bool {
         guard let saltB64 = Self.readKeychain("salt"),
               let salt = Data(base64Encoded: saltB64),
               let stored = Self.readKeychain("hash") else { return false }
-        return Self.hash(code: code, salt: salt) == stored
+
+        if stored.hasPrefix(Self.pbkdf2Marker + "$") {
+            let parts = stored.split(separator: "$")
+            guard parts.count == 3,
+                  let rounds = UInt32(parts[1]),
+                  let expected = Data(base64Encoded: String(parts[2])),
+                  let derived = Self.pbkdf2(code: code, salt: salt, rounds: rounds)
+            else { return false }
+            return Self.constantTimeEquals(derived, expected)
+        }
+
+        // Legacy: hex SHA256(salt || code).
+        guard Self.constantTimeEquals(Data(Self.legacyHash(code: code, salt: salt).utf8), Data(stored.utf8))
+        else { return false }
+        setPasscode(code)
+        return true
     }
 
-    private static func hash(code: String, salt: Data) -> String {
+    private static func legacyHash(code: String, salt: Data) -> String {
         var input = salt
         input.append(Data(code.utf8))
         return SHA256.hash(data: input).map { String(format: "%02x", $0) }.joined()
     }
 
+    private static func pbkdf2(code: String, salt: Data, rounds: UInt32) -> Data? {
+        var derived = [UInt8](repeating: 0, count: Self.derivedKeyLength)
+        let password = Array(code.utf8CString) // NUL-terminated; length excludes the NUL
+        let status = salt.withUnsafeBytes { (saltBuffer: UnsafeRawBufferPointer) -> Int32 in
+            CCKeyDerivationPBKDF(
+                CCPBKDFAlgorithm(kCCPBKDF2),
+                password, password.count - 1,
+                saltBuffer.bindMemory(to: UInt8.self).baseAddress, saltBuffer.count,
+                CCPseudoRandomAlgorithm(kCCPRFHmacAlgSHA256),
+                rounds,
+                &derived, Self.derivedKeyLength
+            )
+        }
+        guard status == Int32(kCCSuccess) else { return nil }
+        return Data(derived)
+    }
+
+    private static func constantTimeEquals(_ a: Data, _ b: Data) -> Bool {
+        guard a.count == b.count else { return false }
+        var diff: UInt8 = 0
+        for (x, y) in zip(a, b) { diff |= x ^ y }
+        return diff == 0
+    }
+
+    // MARK: Failed-attempt lockout (persisted in the Keychain so a relaunch doesn't reset it)
+
+    private func recordFailure() {
+        let failures = (Self.readKeychain("failures").flatMap { Int($0) } ?? 0) + 1
+        Self.writeKeychain("failures", String(failures))
+        guard failures >= Self.freeAttempts else { return }
+        let exponent = min(failures - Self.freeAttempts, 7) // 30s · 2^7 already exceeds the cap
+        let delay = min(Self.baseLockout * Double(1 << exponent), Self.maxLockout)
+        let until = Date().addingTimeInterval(delay)
+        Self.writeKeychain("lockoutUntil", String(until.timeIntervalSince1970))
+        lockoutUntil = until
+    }
+
+    private func resetFailures() {
+        Self.deleteKeychain("failures")
+        Self.deleteKeychain("lockoutUntil")
+        lockoutUntil = nil
+    }
+
     // MARK: Lock lifecycle
 
-    func unlockWithPasscode(_ code: String) -> Bool {
-        guard verify(code) else { return false }
+    /// Verifies and unlocks. Refused outright during a lockout. `countFailure: false`
+    /// is for the legacy prefix probes (4/5 digits of a possibly 6-digit code).
+    func unlockWithPasscode(_ code: String, countFailure: Bool = true) -> Bool {
+        guard lockoutRemaining() <= 0 else { return false }
+        guard verify(code) else {
+            if countFailure { recordFailure() }
+            return false
+        }
+        resetFailures()
         isLocked = false
         return true
     }
@@ -121,7 +227,10 @@ final class AppLockManager: ObservableObject {
                 .deviceOwnerAuthenticationWithBiometrics,
                 localizedReason: String(localized: "Unlock Klic")
             )
-            if ok { isLocked = false }
+            if ok {
+                resetFailures()
+                isLocked = false
+            }
             return ok
         } catch {
             return false
@@ -231,6 +340,17 @@ struct LockScreenView: View {
                     .foregroundStyle(KlicColor.textPrimary)
                     .padding(.top, 12)
 
+                // Failed-attempt lockout countdown (re-evaluated every second).
+                TimelineView(.periodic(from: .now, by: 1)) { context in
+                    let remaining = lock.lockoutRemaining(now: context.date)
+                    if remaining > 0 {
+                        Text("Try again in \(Int(remaining.rounded(.up))) s")
+                            .font(KlicFont.caption())
+                            .foregroundStyle(KlicColor.danger)
+                            .padding(.top, 8)
+                    }
+                }
+
                 PasscodeDots(count: entered.count)
                     .padding(.top, 20)
                     .offset(x: shake ? -10 : 0)
@@ -258,20 +378,29 @@ struct LockScreenView: View {
     }
 
     private func append(_ digit: String) {
+        guard lock.lockoutRemaining() <= 0 else { return }
         guard entered.count < 6 else { return }
         entered += digit
-        if entered.count >= 4, lock.verify(entered) {
-            _ = lock.unlockWithPasscode(entered)
-            entered = ""
+        if let length = lock.passcodeLength {
+            // Known length: one attempt per entry, and every miss counts.
+            guard entered.count == length else { return }
+            if lock.unlockWithPasscode(entered) { entered = "" } else { reject() }
             return
         }
-        if entered.count == 6 {
-            if !lock.unlockWithPasscode(entered) {
-                entered = ""
-                shake = true
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { shake = false }
-            }
+        // Legacy hash (length unknown until the first unlock re-hashes it): probe at
+        // 4 and 5 digits without counting, count a miss only at 6.
+        guard entered.count >= 4 else { return }
+        if lock.unlockWithPasscode(entered, countFailure: entered.count == 6) {
+            entered = ""
+        } else if entered.count == 6 {
+            reject()
         }
+    }
+
+    private func reject() {
+        entered = ""
+        shake = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { shake = false }
     }
 }
 

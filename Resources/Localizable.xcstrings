@@ -9231,6 +9231,23 @@
           }
         }
       }
+    },
+    "Try again in %lld s": {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Повторите через %lld с"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请在 %lld 秒后重试"
+          }
+        }
+      }
     }
   },
   "version": "1.0"
