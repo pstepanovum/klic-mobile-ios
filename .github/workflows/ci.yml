@@ -1,0 +1,137 @@
+# Compile check for the iOS app on GitHub's macOS runners.
+#
+# What it does: xcodegen generate (whose postGenCommand runs `pod install`), then an
+# unsigned simulator build of the shared `Klic` scheme. The scheme builds the app and,
+# as its embedded dependencies, the KlicWidgets / KlicShare / KlicBroadcast extensions.
+#
+# Assumptions (revisit if the first run fails on one of these):
+# - Xcode >= 26.4. AppDelegate implements PushKit's iOS 26.4 `PKVoIPPushMetadata`
+#   callback, so an older SDK cannot compile the app. The macos-26 image is used for
+#   that reason; the "Select Xcode" step picks the newest Xcode_26.x installed (set
+#   XCODE_VERSION below to pin an exact one) and fails early if its SDK is < 26.4.
+# - No simulator runtime is needed: `generic/platform=iOS Simulator` only compiles.
+# - CocoaPods is preinstalled on GitHub macOS images (Podfile.lock was made with 1.16.2).
+# - LibSignalClient needs NO Rust: the Podfile sets LIBSIGNAL_FFI_PREBUILD_CHECKSUM, and
+#   the pod's build phase downloads Signal's prebuilt libsignal_ffi.a from
+#   build-artifacts.signal.org (verified against that checksum) into
+#   ~/Library/Caches/org.signal.libsignal, which is cached below.
+# - No gitignored secret files are needed to compile: there is no GoogleService-Info.plist
+#   in the build, GIDClientID lives in the committed Info.plist, and the entitlements
+#   files are committed. Signing is disabled (CODE_SIGNING_ALLOWED=NO).
+# - Swift packages resolve automatically: Package.resolved lives inside the gitignored
+#   Klic.xcworkspace, so CI resolves the newest versions allowed by project.yml's `from:`
+#   ranges. Committing a Package.resolved to pin them is a follow-up.
+
+name: CI
+
+on:
+  push:
+    branches: [main, "claude/**"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Empty = newest installed Xcode_26.x. Set e.g. "26.4" to pin /Applications/Xcode_26.4.app.
+  XCODE_VERSION: ""
+  SPM_DIR: ${{ github.workspace }}/.spm-packages
+
+jobs:
+  build:
+    name: Build (iOS Simulator)
+    runs-on: macos-26
+    timeout-minutes: 60
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Select Xcode
+        run: |
+          set -euo pipefail
+          if [ -n "${XCODE_VERSION}" ]; then
+            app="/Applications/Xcode_${XCODE_VERSION}.app"
+          else
+            app=$(ls -d /Applications/Xcode_26*.app 2>/dev/null \
+              | grep -E '/Xcode_26(\.[0-9]+)*\.app$' | sort -V | tail -1 || true)
+          fi
+          if [ -z "${app}" ] || [ ! -d "${app}" ]; then
+            echo "::error::No suitable Xcode found (wanted ${XCODE_VERSION:-newest 26.x}). Installed:"
+            ls -d /Applications/Xcode*.app
+            exit 1
+          fi
+          sudo xcode-select -s "${app}/Contents/Developer"
+          xcodebuild -version
+          sdk=$(xcrun --sdk iphonesimulator --show-sdk-version)
+          echo "iphonesimulator SDK: ${sdk}"
+          if [ "$(printf '%s\n' 26.4 "${sdk}" | sort -V | head -1)" != "26.4" ]; then
+            echo "::error::iOS SDK ${sdk} < 26.4; AppDelegate needs PKVoIPPushMetadata (iOS 26.4 SDK)."
+            exit 1
+          fi
+
+      - name: Tool versions
+        run: |
+          pod --version
+          python3 --version
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Cache CocoaPods downloads and libsignal FFI prebuild
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/Library/Caches/CocoaPods
+            ~/Library/Caches/org.signal.libsignal
+          key: pods-${{ runner.os }}-${{ hashFiles('Podfile.lock') }}
+
+      - name: Cache Swift packages
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ env.SPM_DIR }}
+          key: spm-${{ runner.os }}-${{ hashFiles('project.yml') }}
+          restore-keys: spm-${{ runner.os }}-
+
+      - name: Generate project and install pods
+        # project.yml's postGenCommand runs `pod install`, producing Klic.xcworkspace.
+        run: |
+          set -euo pipefail
+          xcodegen generate
+          test -d Klic.xcworkspace || { echo "::error::Klic.xcworkspace missing after xcodegen/pod install"; exit 1; }
+          xcodebuild -list -workspace Klic.xcworkspace
+
+      - name: Resolve Swift packages
+        run: |
+          xcodebuild -resolvePackageDependencies \
+            -workspace Klic.xcworkspace -scheme Klic \
+            -clonedSourcePackagesDirPath "$SPM_DIR" \
+            -skipPackagePluginValidation -skipMacroValidation
+
+      - name: Build
+        run: |
+          set -o pipefail
+          fmt=cat
+          if command -v xcbeautify >/dev/null 2>&1; then fmt="xcbeautify --renderer github-actions"; fi
+          xcodebuild build \
+            -workspace Klic.xcworkspace \
+            -scheme Klic \
+            -configuration Debug \
+            -destination 'generic/platform=iOS Simulator' \
+            -clonedSourcePackagesDirPath "$SPM_DIR" \
+            -derivedDataPath DerivedData \
+            -skipPackagePluginValidation -skipMacroValidation \
+            CODE_SIGNING_ALLOWED=NO \
+            2>&1 | tee xcodebuild.log | $fmt
+
+      - name: Upload build log
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: xcodebuild-log
+          path: xcodebuild.log
+          if-no-files-found: ignore
