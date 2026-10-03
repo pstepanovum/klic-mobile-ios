@@ -133,8 +133,13 @@ extension ChatView {
         }
     }
 
+    /// Compares local calendar days. The timestamps are UTC ISO strings, so their
+    /// date prefix would split separators at UTC midnight instead of the user's.
     private func sameDay(_ a: String, _ b: String) -> Bool {
-        String(a.prefix(10)) == String(b.prefix(10))
+        guard let da = ChatTimeFormat.date(from: a), let db = ChatTimeFormat.date(from: b) else {
+            return String(a.prefix(10)) == String(b.prefix(10))
+        }
+        return Calendar.current.isDate(da, inSameDayAs: db)
     }
 
     func scrollToBottom(animated: Bool = true) {
