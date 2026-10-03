@@ -73,7 +73,12 @@ enum TokenStore {
             // errSecMissingEntitlement on builds re-signed without the app group
             // (AltStore) — fall back to the app-private keychain so sign-in still works.
             query.removeValue(forKey: kSecAttrAccessGroup as String)
-            SecItemAdd(query as CFDictionary, nil)
+            let status = SecItemAdd(query as CFDictionary, nil)
+            if status != errSecSuccess {
+                #if DEBUG
+                print("TokenStore: keychain write failed (\(status))")
+                #endif
+            }
         }
     }
 

@@ -30,6 +30,7 @@ enum E2eeVault {
 
     static func save<T: Encodable>(_ value: T, file: String) throws {
         let plain = try JSONEncoder().encode(value)
+        // `try` also covers loadOrCreateKey(): no Keychain key → nothing gets sealed.
         let sealed = try AES.GCM.seal(plain, using: loadOrCreateKey()).combined!
         var url = fileURL(file)
         try FileManager.default.createDirectory(
@@ -70,7 +71,13 @@ enum E2eeVault {
         return SymmetricKey(data: data)
     }
 
-    private static func loadOrCreateKey() -> SymmetricKey {
+    /// The Keychain refused to store (or return) the vault key. Thrown instead of
+    /// sealing with a throwaway key that would leave the file undecryptable next launch.
+    enum VaultError: Error {
+        case keychain(OSStatus)
+    }
+
+    private static func loadOrCreateKey() throws -> SymmetricKey {
         if let key = existingKey() { return key }
         let key = SymmetricKey(size: .bits256)
         let data = key.withUnsafeBytes { Data($0) }
@@ -82,7 +89,17 @@ enum E2eeVault {
             // Readable after first unlock (background key upkeep), never leaves the device.
             kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly,
         ]
-        SecItemAdd(add as CFDictionary, nil)
-        return key
+        let status = SecItemAdd(add as CFDictionary, nil)
+        switch status {
+        case errSecSuccess:
+            return key
+        case errSecDuplicateItem:
+            // Another writer stored a key first (or the read above failed transiently):
+            // seal with the persisted key, never with ours.
+            if let stored = existingKey() { return stored }
+            throw VaultError.keychain(status)
+        default:
+            throw VaultError.keychain(status)
+        }
     }
 }
